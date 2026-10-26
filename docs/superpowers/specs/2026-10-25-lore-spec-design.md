@@ -286,7 +286,9 @@ points at them.
 - Rule scope = file scope ∩ rule `<scope>`. A file with no `<scope>` covers
   everything under its base. A rule whose intersected scope can match
   nothing (for example `files: ["**/*.md"]` under a file scope of
-  `**/*.ts`) gets an `empty-scope` warning.
+  `**/*.ts`) gets an `empty-scope` warning. (Spec deviation: the spec
+  uses a simple disjointness test on each pair of globs, comparing their
+  literal heads and tails, so it can miss some empty scopes.)
 - Glob syntax: `**` (zero or more path segments), `*`, `?`, `[...]` and
   `[!...]`, `{a,b}`; `/`-separated paths; case-sensitive; `*` matches
   dotfiles; no negation (use `ignores`). A glob may not reach above its base
@@ -348,8 +350,9 @@ A hit is a pointer, never a verdict; no hits does not mean the rule passed.
   (`regex-not-one-line`).
 - `ast-grep` patterns follow the pattern syntax of a named ast-grep release
   (the spec states which) and rely only on the `$NAME` and `$$$`
-  metavariables. A changed file whose extension maps to no ast-grep language
-  is skipped and reported.
+  metavariables. (Spec deviation: the spec makes this a SHOULD, and also
+  allows `$$$NAME`.) A changed file whose extension maps to no ast-grep
+  language is skipped and reported.
 - Supporting `<check>` is optional for a conforming tool, per language. A
   tool that does not support a check's language skips it and says so; the
   rule is still eligible. A plain agent may read a check as a hint about
@@ -407,11 +410,13 @@ that is every change.
   writes either, and may mix them across files.
   - Anchors, aliases and custom tags are not allowed, so every
     implementation reads the same values and no reader has to guard against
-    alias expansion.
+    alias expansion. (Spec deviation: the spec bans every tag, `!!str`
+    included, along with non-string keys and `.inf` and `.nan`.)
   - A duplicate key in a mapping is an error (`duplicate-key`). JSON parsers
     disagree on duplicates, so Lore refuses them.
-  - Comments use YAML's `#`. JSONC's `//` comments and trailing commas are
-    not accepted.
+  - Comments use YAML's `#`. JSONC's `//` comments are not accepted.
+    (Spec deviation: trailing commas in flow collections are accepted,
+    since they are valid YAML 1.2.)
   - The spec carries conformance examples for the YAML traps authors will
     hit: an unquoted `**/*.ts` (read as an alias), `"\d"` in double quotes
     (an escape error; use single quotes for regexes), `#` inside a plain
