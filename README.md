@@ -199,7 +199,7 @@ something like this:
                               total is rebuilt from line items, not the quote
   ✓ money-in-minor-units
   ✓ tenant-scoped-queries
-  – migration-with-schema     not applicable
+  - migration-with-schema     not applicable
 ```
 
 ## Where Lore fits
