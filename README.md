@@ -1,14 +1,11 @@
 # Lore
 
-Lore is an open file format for the things a team knows about its code
-that a linter can't check: "a displayed price must come from the quote
-that produced it", "a `.graphql` change ships with regenerated types",
-"never show a verified badge over data nothing verified".
+Lore is an open file format for a team's code review rules: the domain
+knowledge a linter can't check.
 
-Each rule is a small, named unit with a scope (where it can be broken),
-optional conditions, a category and a severity. A tool reads the rules,
-works out which ones apply to a change, and hands exactly those to a
-reviewer, human or agent.
+Every rule says which files it applies to. Given a change, a tool picks
+out exactly the rules that apply and hands them to the reviewer, human or
+agent.
 
 > **Status:** design stage. The syntax below is a proposal and will change.
 > "Lore" is a working name.
