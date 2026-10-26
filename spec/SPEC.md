@@ -78,8 +78,8 @@ Terms used throughout:
 Each conformance example gives inputs and the output a conforming tool
 produces from them. There are two kinds:
 
-- a **parse** example gives Lore files, and expects the document model a
-  tool builds from them;
+- a **parse** example gives Lore files, and any `.loreconfig` files that
+  apply to them, and expects the document model a tool builds from them;
 - an **eligibility** example also gives a change, and expects the
   eligible entries, the check hits, the excluded files and entries, and
   the warnings.
@@ -166,7 +166,8 @@ of the order of their members. In both kinds:
   element it is the opening tag line of the element at fault. A problem
   with no line has line 1.
 - **Diagnostic entry.** A diagnostic's `entry` is the id of the entry the
-  problem is in, when that entry has a readable id. It is null otherwise,
+  problem is in, when that entry has a readable id (see
+  [Attributes](#attributes)). It is null otherwise,
   and always null for a file-level error.
 - **Prose and summary** are computed as [Entries](#entries) defines.
 - **Hits.** A hit's `line` is the `+<n>` line number from the diff, and
@@ -1693,6 +1694,1033 @@ Display text never hard-codes a currency code.
   "errors": [
     { "name": "yaml-feature-not-allowed", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 14 }
   ],
+  "warnings": []
+}
+``````
+
+## Defaults
+
+`<defaults>` is a file block that gives every rule in its file a
+`category` and a `severity` to fall back on. It is a structured block
+(see [Structured blocks](#structured-blocks)), and a file has at most one,
+before its first entry (see [Top level](#top-level)).
+
+- Its value MUST be a mapping whose only keys are `category` and
+  `severity`. `category` is a string that matches the category pattern
+  `^[a-z][a-z0-9_]*$`, and `severity` is `blocking` or `advisory`. Any
+  other shape, such as an unknown key, `severity: critical` or a list, is
+  `invalid-defaults`. The shape is also given as
+  [`defaults.schema.json`](schemas/defaults.schema.json).
+- A `category` that is not a known category for the file (see
+  [Categories and severity](#categories-and-severity)) is
+  `unknown-category`.
+- `<defaults>` takes no attributes. An attribute on it is
+  `unknown-attribute`.
+- A tool checks the block in this order, and reports the first problem it
+  finds: the checks of [Structured blocks](#structured-blocks), then
+  `invalid-defaults`, then `unknown-category`.
+- Every error in `<defaults>` is file-level, `unknown-category`
+  included. The whole file is excluded, even its rules that set their own
+  category, because the file as written is wrong. Apart from a YAML
+  problem, the error's line is the `<defaults>` opening tag line.
+
+A rule's own `category` and `severity` attributes take precedence over
+the defaults. Defaults never apply to a context. Here the first rule takes
+both defaults, the second sets both itself, and the context has neither:
+
+``````example parse
+=== apps/web/src/checkout/.lore/pricing.lore
+<defaults>
+category: functional_correctness
+severity: blocking
+</defaults>
+
+<rule id="price-from-quote">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="price-test-per-currency" category="test_coverage" severity="advisory">
+A change to price formatting adds a test for each supported currency.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+Read before judging any change to how a price is computed.
+</context>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": "apps/web/src/checkout/.lore/pricing.lore",
+      "category": "functional_correctness", "severity": "blocking", "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null
+    },
+    {
+      "kind": "rule", "id": "price-test-per-currency", "file": "apps/web/src/checkout/.lore/pricing.lore",
+      "category": "test_coverage", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A change to price formatting adds a test for each supported currency.",
+      "prose": "A change to price formatting adds a test for each supported currency.",
+      "src": null
+    },
+    {
+      "kind": "context", "id": "checkout-architecture", "file": "apps/web/src/checkout/.lore/pricing.lore",
+      "category": null, "severity": null, "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Read before judging any change to how a price is computed.",
+      "prose": "Read before judging any change to how a price is computed.",
+      "src": "apps/web/src/checkout/ARCHITECTURE.md"
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A severity the format does not define, or a key it does not define,
+excludes the file:
+
+``````example parse
+=== .lore/checkout.lore
+<defaults>
+category: functional_correctness
+severity: critical
+</defaults>
+
+<rule id="price-from-quote">
+A displayed price must come from the quote that produced it.
+</rule>
+=== .lore/display.lore
+<defaults>
+category: functional_correctness
+owner: web
+</defaults>
+
+<rule id="currency-from-settings">
+Display text never hard-codes a currency code.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-defaults", "file": ".lore/checkout.lore", "entry": null, "line": 1 },
+    { "name": "invalid-defaults", "file": ".lore/display.lore", "entry": null, "line": 1 }
+  ],
+  "warnings": []
+}
+``````
+
+## Rules
+
+A **rule** is a `<rule>` entry: one thing a team expects every change to
+follow. Its opening tag carries its attributes. Its contents are its
+children and then its prose, read as [Entries](#entries) describes.
+
+### Attributes
+
+| Attribute | Required | Value |
+|---|---|---|
+| `id` | yes | The entry's id, in kebab-case: it matches `^[a-z][a-z0-9-]*$`. |
+| `category` | no | A category that matches `^[a-z][a-z0-9_]*$` and is known for the file (see [Categories and severity](#categories-and-severity)). |
+| `severity` | no | `blocking` or `advisory` (see [Categories and severity](#categories-and-severity)). |
+| `disabled` | no | Bare, with no value. |
+
+A tool reads the attributes of an entry's opening tag from left to right,
+and the first problem it meets is the entry's error:
+
+1. An attribute whose name already appeared on the tag is
+   `duplicate-attribute`.
+2. An attribute the element does not define is `unknown-attribute`. A
+   rule defines only the four above, so `src` on a rule is
+   `unknown-attribute` too.
+3. A value the attribute does not allow is `invalid-attribute-value`,
+   except where a more specific name applies:
+   - an `id` value that does not match the id pattern is `invalid-id`;
+   - a `category` value that matches the category pattern but is not a
+     known category is `unknown-category`;
+   - `disabled` with any value, even `disabled="false"` or
+     `disabled=""`, is `disabled-has-value`.
+
+   So `id`, `category` and `severity` written bare are
+   `invalid-attribute-value`, and so are a `category` that does not
+   match the category pattern and a `severity` other than `blocking` or
+   `advisory`.
+4. A tag that ends with no `id` attribute is `missing-id`.
+
+Every error in this section is entry-level, and its line is the entry's
+opening tag line. An entry's **readable id** is the value of the first
+`id` attribute on its opening tag, when that value matches the id
+pattern; it is the `entry` of the entry's diagnostics. ([Lines and
+tags](#lines-and-tags) narrows this for a malformed opening tag.) An
+entry with `invalid-id` or `missing-id` has no readable id.
+
+The first rule has no id, the second's id is not kebab-case, and the
+third repeats an attribute. Only the fourth rule is read:
+
+``````example parse
+=== .lore/checkout.lore
+<rule category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currencyFromSettings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness" category="accessibility">
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "quote-expiry-shown", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A checkout page that shows a quoted price also shows when the quote expires.",
+      "prose": "A checkout page that shows a quoted price also shows when the quote expires.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "missing-id", "file": ".lore/checkout.lore", "entry": null, "line": 1 },
+    { "name": "invalid-id", "file": ".lore/checkout.lore", "entry": null, "line": 5 },
+    { "name": "duplicate-attribute", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 9 }
+  ],
+  "warnings": []
+}
+``````
+
+An attribute the element does not define is an error, on a rule and on a
+context alike: a context has no category. A severity the format does not
+define is an invalid value:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness" owner="pricing">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness" severity="high">
+Display text never hard-codes a currency code.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md" category="documentation">
+Read before judging any change to how a price is computed.
+</context>
+
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "dates-from-locale", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Displayed dates are formatted with the shop's locale.",
+      "prose": "Displayed dates are formatted with the shop's locale.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "unknown-attribute", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 1 },
+    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 5 },
+    { "name": "unknown-attribute", "file": ".lore/checkout.lore", "entry": "checkout-architecture", "line": 9 }
+  ],
+  "warnings": []
+}
+``````
+
+**Disabled entries.** `disabled` is the author's switch for turning an
+entry off without deleting it; [.loreconfig](#loreconfig) gives the
+consumer's switch. A disabled entry is never eligible. It is still read
+and checked like any other entry, and the document model lists it with
+`disabled: true`. `disabled` takes no value:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness" disabled>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness" disabled="false">
+Display text never hard-codes a currency code.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": true,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "disabled-has-value", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 5 }
+  ],
+  "warnings": []
+}
+``````
+
+The disabled rule's scope covers the change, but it is not eligible:
+
+``````example eligibility
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness" disabled>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12 const total = quote.total
+=== expect
+{ "eligible": ["quote-expiry-shown"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+**Ids.** Rules and contexts share one namespace of ids. Ids MUST be
+unique across every Lore file collected for the governed repo, including
+the files of external folders (see [External folders](#external-folders)).
+An id used by more than one entry is `duplicate-id`, an entry-level error
+that excludes every entry using it. No entry overrides another.
+
+- A tool checks ids after it has read every file. Every entry with a
+  readable id counts, including a disabled entry and one excluded by
+  another error. Entries in a file excluded by a file-level error do not
+  count.
+- Each entry that shares an id and has no other error gets `duplicate-id`,
+  at its opening tag line. An entry that already has an error keeps that
+  error, as [Parsing](#parsing) requires, and is not listed twice.
+
+Each id below is used in both files, by two rules or by a rule and a
+context. The first `quote-expiry-shown` already has an error, and the
+second is still excluded. Only `dates-from-locale` is read:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness" severity="high">
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>
+=== apps/web/src/checkout/.lore/rules.lore
+<rule id="price-from-quote" category="functional_correctness" severity="blocking">
+The checkout page shows the price from the quote, never a recomputed one.
+</rule>
+
+<context id="currency-from-settings" src="docs/currency.md">
+Read before changing how a price is formatted.
+</context>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+The quote's expiry time is shown next to the quoted price.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "dates-from-locale", "file": "apps/web/src/checkout/.lore/rules.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Displayed dates are formatted with the shop's locale.",
+      "prose": "Displayed dates are formatted with the shop's locale.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "duplicate-id", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 1 },
+    { "name": "duplicate-id", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 5 },
+    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "quote-expiry-shown", "line": 9 },
+    { "name": "duplicate-id", "file": "apps/web/src/checkout/.lore/rules.lore", "entry": "price-from-quote", "line": 1 },
+    { "name": "duplicate-id", "file": "apps/web/src/checkout/.lore/rules.lore", "entry": "currency-from-settings", "line": 5 },
+    { "name": "duplicate-id", "file": "apps/web/src/checkout/.lore/rules.lore", "entry": "quote-expiry-shown", "line": 9 }
+  ],
+  "warnings": []
+}
+``````
+
+### Children
+
+A rule's children come before its prose, in any order:
+
+| Child | Count | Contents |
+|---|---|---|
+| `<meta>` | 0 or 1 | A free-form YAML mapping, described below. |
+| `<scope>` | 0 or 1 | The rule's own scope, which narrows the file's (see [Scope and globs](#scope-and-globs)). |
+| `<when>` | 0 or 1 | Conditions on the change (see [Conditions](#conditions)). |
+| `<check>` | any number | A search whose hits go to the reviewer (see [Checks](#checks)). |
+
+- The order of the children carries no meaning, except among `<check>`
+  elements: the document model keeps checks in the order they appear.
+- A child whose name its entry does not allow is `unknown-child`.
+- A second `<meta>`, `<scope>` or `<when>` in one entry is
+  `duplicate-child`.
+- `<meta>`, `<scope>` and `<when>` take no attributes: an attribute on
+  one is `unknown-attribute`. `<check>` takes the attributes
+  [Checks](#checks) defines. A child's attributes are read from left to
+  right, as an entry's are.
+- A tool reads each child in this order, and reports the first problem it
+  finds: its name (`unknown-child`), then whether it repeats an earlier
+  child (`duplicate-child`), then its attributes, then its
+  [indentation](#indentation), then its contents.
+- Every error in a child is entry-level. Apart from a YAML problem, its
+  line is the child's opening tag line.
+
+**`<meta>`** holds what a team wants to record about an entry: where the
+rule came from, an owner, links. It is a structured block, and its value
+MUST be a mapping; anything else, such as a scalar, a list or `null`, is
+`invalid-meta`. This specification gives no key a meaning, and tools MAY
+define their own keys. A tool MUST NOT let `<meta>` change whether an
+entry is eligible. The document model keeps the mapping as parsed, in
+`meta`; an entry without `<meta>` has `meta: null`.
+
+`<meta>` is kept as parsed, whatever its keys. Under the core schema,
+`2026-03-01` is a string, not a date:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<meta>
+source: docs/pricing-review.md#prices
+owner: checkout
+reviewed: 2026-03-01
+reviewers: [pricing, web]
+links:
+  decision: docs/decisions/0042-quote-prices.md
+</meta>
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [],
+      "meta": {
+        "source": "docs/pricing-review.md#prices",
+        "owner": "checkout",
+        "reviewed": "2026-03-01",
+        "reviewers": ["pricing", "web"],
+        "links": { "decision": "docs/decisions/0042-quote-prices.md" }
+      },
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+`<meta>` holding a scalar or a list is an error:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<meta>
+checkout team
+</meta>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<meta>
+- checkout
+- pricing
+</meta>
+Display text never hard-codes a currency code.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-meta", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-meta", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 9 }
+  ],
+  "warnings": []
+}
+``````
+
+The same children in the opposite order give the same model, apart from
+the id:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="currency-children-first" category="functional_correctness">
+<meta>
+owner: checkout
+</meta>
+<scope>
+files: ["apps/web/**/*.tsx"]
+</scope>
+<when>
+addedContains: ["'USD'"]
+</when>
+<check>
+'USD'
+</check>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="currency-children-reversed" category="functional_correctness">
+<check>
+'USD'
+</check>
+<when>
+addedContains: ["'USD'"]
+</when>
+<scope>
+files: ["apps/web/**/*.tsx"]
+</scope>
+<meta>
+owner: checkout
+</meta>
+Display text never hard-codes a currency code.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "currency-children-first", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }, { "files": ["apps/web/**/*.tsx"], "ignores": [] }],
+      "when": { "addedContains": ["'USD'"] },
+      "checks": [{ "lang": "regex", "body": "'USD'" }],
+      "meta": { "owner": "checkout" },
+      "summary": "Display text never hard-codes a currency code.",
+      "prose": "Display text never hard-codes a currency code.",
+      "src": null
+    },
+    {
+      "kind": "rule", "id": "currency-children-reversed", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }, { "files": ["apps/web/**/*.tsx"], "ignores": [] }],
+      "when": { "addedContains": ["'USD'"] },
+      "checks": [{ "lang": "regex", "body": "'USD'" }],
+      "meta": { "owner": "checkout" },
+      "summary": "Display text never hard-codes a currency code.",
+      "prose": "Display text never hard-codes a currency code.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A rule may have several checks, and they keep their order:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="currency-codes-from-settings" category="functional_correctness">
+<check>
+'USD'
+</check>
+<check lang="regex">
+'EUR'
+</check>
+Display text never hard-codes a currency code.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "currency-codes-from-settings", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null,
+      "checks": [{ "lang": "regex", "body": "'USD'" }, { "lang": "regex", "body": "'EUR'" }],
+      "meta": null,
+      "summary": "Display text never hard-codes a currency code.",
+      "prose": "Display text never hard-codes a currency code.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A second `<when>` is an error, and so is a child the entry does not
+allow: `<check>` in a context, or an element the format does not define
+in a rule:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</when>
+<when>
+changed: ["apps/web/src/checkout/**"]
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+<check>
+quote
+</check>
+Read before judging any change to how a price is computed.
+</context>
+
+<rule id="price-from-quote" category="functional_correctness">
+<example>
+const price = quote.total
+</example>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "dates-from-locale", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Displayed dates are formatted with the shop's locale.",
+      "prose": "Displayed dates are formatted with the shop's locale.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "duplicate-child", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 5 },
+    { "name": "unknown-child", "file": ".lore/checkout.lore", "entry": "checkout-architecture", "line": 12 },
+    { "name": "unknown-child", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 19 }
+  ],
+  "warnings": []
+}
+``````
+
+### Prose and summary
+
+Everything after a rule's children, up to `</rule>`, is the rule's
+prose, in CommonMark Markdown. [Entries](#entries) defines exactly which
+lines it holds and how its summary is found.
+
+- The prose MUST state the rule completely on its own. A reader who
+  skips `<when>` and `<check>` still knows exactly what the rule asks.
+  Conditions and checks select a rule and point at lines; they never add
+  to its meaning.
+- The prose's first paragraph is the rule's **summary**, which tools use
+  in listings and short reports. Authors SHOULD keep it to one or two
+  sentences.
+
+The summary is found by lines, not by Markdown structure, so a list
+directly under the first sentence is part of the summary. A blank line
+before the list would keep it out:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="checkout-prices-from-quote" category="functional_correctness">
+Every price the checkout page shows comes from the quote:
+- each line item's price;
+- the order total.
+
+A helper that recomputes a price from its inputs drops quote-level
+discounts.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "checkout-prices-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Every price the checkout page shows comes from the quote: - each line item's price; - the order total.",
+      "prose": "Every price the checkout page shows comes from the quote:\n- each line item's price;\n- the order total.\n\nA helper that recomputes a price from its inputs drops quote-level\ndiscounts.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+## Context
+
+A **context** is a `<context>` entry. It points a reviewer at a prose
+document to read when the context is eligible, such as an architecture
+note. A context gets no verdict, and has no category and no severity.
+Context documents stay where they already live; Lore only points at
+them.
+
+- A context's attributes are `id` (required), `src` and `disabled`, read
+  as [Attributes](#attributes) describes for a rule. Any other attribute,
+  `category` and `severity` included, is `unknown-attribute`.
+- Its children are `<meta>`, `<scope>` and `<when>`, as for a rule (see
+  [Children](#children)). `<check>`, or any other child, is
+  `unknown-child`.
+- Its prose is its **body**, found as [Entries](#entries) defines. With
+  `src`, the body is an optional note on when or why to read the
+  document. Without `src`, the body is the context itself.
+- In the document model, a context has `category: null`, `severity: null`
+  and `checks: []`. `missing-category` never applies to a context.
+
+`src` names one file, not a glob. Its value MUST be a relative path:
+one or more segments separated by `/`, none of them empty (so no
+leading, trailing or doubled `/`), with `.` and `..` segments only at its
+start. Any other value, bare `src` included, is
+`invalid-attribute-value`.
+
+- A `src` whose first segment is `.` or `..` is relative to the Lore
+  file. It resolves from the directory that holds the Lore file: `.`
+  stays in the directory, `..` moves up one. Such a path lets a context
+  point at a document kept beside its rules, and MUST NOT leave the Lore
+  root, which is the repository root unless a `.loreconfig` sets
+  another (see [.loreconfig](#loreconfig)). A `..` that would move up
+  from the Lore root is `src-escapes-root`.
+- Any other `src` resolves against the governed repo: from the base, or
+  for a file in an external folder through its `repo` mapping (see
+  [External folders](#external-folders)).
+- Both `src` errors are entry-level, at the context's opening tag line. Among the attribute checks of [Attributes](#attributes), a
+  tool checks `src` for `invalid-attribute-value` first, then for
+  `src-escapes-root`.
+
+In the document model, `src` is the resolved path, from the governed
+repo's root, or null when the context has no `src`. A path that resolves
+into an external folder's own files is written the way a `file` field is
+in the conformance examples, with the `external:` prefix and the path from
+that folder's repository root.
+
+A context with a plain `src`, one with a `src` beside the Lore file and
+no body, and one with no `src`, whose body is the context:
+
+``````example parse
+=== apps/web/src/checkout/.lore/context.lore
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+Read before judging any change to how a price is computed.
+</context>
+
+<context id="pricing-glossary" src="./glossary.md">
+</context>
+
+<context id="quote-lifecycle">
+<scope>
+files: ["quotes/**"]
+</scope>
+A quote is created when the cart is priced and expires after 30 minutes.
+Any price shown after that comes from a new quote.
+</context>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "context", "id": "checkout-architecture", "file": "apps/web/src/checkout/.lore/context.lore",
+      "category": null, "severity": null, "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Read before judging any change to how a price is computed.",
+      "prose": "Read before judging any change to how a price is computed.",
+      "src": "apps/web/src/checkout/ARCHITECTURE.md"
+    },
+    {
+      "kind": "context", "id": "pricing-glossary", "file": "apps/web/src/checkout/.lore/context.lore",
+      "category": null, "severity": null, "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "",
+      "prose": "",
+      "src": "apps/web/src/checkout/.lore/glossary.md"
+    },
+    {
+      "kind": "context", "id": "quote-lifecycle", "file": "apps/web/src/checkout/.lore/context.lore",
+      "category": null, "severity": null, "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }, { "files": ["apps/web/src/checkout/quotes/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A quote is created when the cart is priced and expires after 30 minutes. Any price shown after that comes from a new quote.",
+      "prose": "A quote is created when the cart is priced and expires after 30 minutes.\nAny price shown after that comes from a new quote.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+With no `.loreconfig`, the Lore root is the repository root. From
+`.lore/`, `./../README.md` reaches the root's `README.md`, while one more
+`..` leaves the Lore root. A `..` after the first named segment is not
+allowed at all:
+
+``````example parse
+=== .lore/context.lore
+<context id="shop-readme" src="./../README.md">
+Read for how the shop is built and deployed.
+</context>
+
+<context id="org-handbook" src="./../../handbook/review.md">
+Read for the organization's review conventions.
+</context>
+
+<context id="shop-readme-roundabout" src="docs/../README.md">
+Read for how the shop is built and deployed.
+</context>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "context", "id": "shop-readme", "file": ".lore/context.lore",
+      "category": null, "severity": null, "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Read for how the shop is built and deployed.",
+      "prose": "Read for how the shop is built and deployed.",
+      "src": "README.md"
+    }
+  ],
+  "errors": [
+    { "name": "src-escapes-root", "file": ".lore/context.lore", "entry": "org-handbook", "line": 5 },
+    { "name": "invalid-attribute-value", "file": ".lore/context.lore", "entry": "shop-readme-roundabout", "line": 9 }
+  ],
+  "warnings": []
+}
+``````
+
+**A missing target.** When the resolved `src` names no file, the context
+gets the warning `missing-src-target`, at its opening tag line, and stays
+eligible as usual. Parsing reads Lore files and `.loreconfig` files,
+never the governed repo's other files, so the document model does not
+report this warning. A tool reports it when it computes eligibility,
+where the governed repo's files are known, for every context in the
+document model whose target is missing, eligible or not. A target in an
+external folder's own files is looked for among that folder's files.
+
+`docs/payments-architecture.md` is not in the governed repo. Both
+contexts are eligible, and the second carries a warning:
+
+``````example eligibility
+=== .lore/context.lore
+<context id="checkout-architecture" src="docs/checkout-architecture.md">
+Read before judging any change to how a price is computed.
+</context>
+
+<context id="payments-architecture" src="docs/payments-architecture.md">
+Read before judging any change to how a payment is taken.
+</context>
+=== docs/checkout-architecture.md
+# Checkout architecture
+
+Prices come from quotes.
+=== diff
+M apps/web/src/checkout/Price.tsx
++12 const total = quote.total
+=== expect
+{
+  "eligible": ["checkout-architecture", "payments-architecture"],
+  "hits": [],
+  "excluded": [],
+  "warnings": [
+    { "name": "missing-src-target", "file": ".lore/context.lore", "entry": "payments-architecture", "line": 5 }
+  ]
+}
+``````
+
+## Categories and severity
+
+A rule's **category** says what kind of problem a violation of it is.
+Nine categories are fixed:
+
+| Category | Rules about |
+|---|---|
+| `functional_correctness` | whether the code does what it is meant to do |
+| `test_coverage` | the tests a change adds or updates |
+| `security` | protecting data, access and secrets |
+| `performance` | speed and use of resources |
+| `accessibility` | use by people with disabilities |
+| `observability` | logs, metrics and traces |
+| `backwards_compatibility` | not breaking existing callers, data or clients |
+| `documentation` | documentation and comments that ship with the code |
+| `code_style` | conventions of naming, structure and form |
+
+A team MAY declare its own categories in the `categories` list of a
+`.loreconfig`. A custom category MUST match the category pattern
+`^[a-z][a-z0-9_]*$`, as the fixed ones do. A category is **known** for a
+Lore file when it is fixed, or declared by a `.loreconfig` that applies
+to the file: one in the directory that holds the file or above it, up to
+the Lore root (see [.loreconfig](#loreconfig)).
+
+A rule's category is, in order:
+
+1. its `category` attribute;
+2. otherwise, the `category` of its file's `<defaults>`;
+3. otherwise, none: the rule's `category` is null and it gets the
+   warning `missing-category`, at its opening tag line. A rule without a
+   category is still eligible, so a team can wrap and scope existing
+   rules first and classify them later.
+
+A category that is not known is `unknown-category`: an entry-level error
+when a rule's attribute names it, and a file-level error when
+`<defaults>` names it (see [Defaults](#defaults)).
+
+A rule's **severity** says what a violation costs:
+
+- `blocking`: a violation is to be fixed, or explicitly waived, before
+  the change is merged.
+- `advisory`: a reviewer raises the violation, and the change's author
+  decides what to do.
+
+A rule's severity is its `severity` attribute, otherwise the `severity`
+of its file's `<defaults>`, otherwise `advisory`, so a missing value never
+blocks anyone. A tool MAY map the two levels onto its own scale.
+
+A context has neither: its `category` and `severity` are always null.
+
+A declared category is known, an undeclared one excludes its rule, and
+an undeclared one in `<defaults>` excludes the whole file, including its
+rule that names a declared category. A category that does not match the
+category pattern is an invalid value:
+
+``````example parse
+=== .loreconfig
+categories: [data_provenance]
+=== .lore/provenance.lore
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
+</rule>
+
+<rule id="currency-source-recorded" category="data_lineage">
+Every stored amount records the currency setting it was formatted with.
+</rule>
+
+<rule id="tax-source-recorded" category="Data_Provenance">
+Every stored tax amount records the tax table it came from.
+</rule>
+=== .lore/lineage.lore
+<defaults>
+category: data_lineage
+</defaults>
+
+<rule id="quote-source-recorded" category="data_provenance">
+Every stored quote records the cart it priced.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-source-recorded", "file": ".lore/provenance.lore",
+      "category": "data_provenance", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Every stored price records the quote it came from.",
+      "prose": "Every stored price records the quote it came from.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "unknown-category", "file": ".lore/lineage.lore", "entry": null, "line": 1 },
+    { "name": "unknown-category", "file": ".lore/provenance.lore", "entry": "currency-source-recorded", "line": 5 },
+    { "name": "invalid-attribute-value", "file": ".lore/provenance.lore", "entry": "tax-source-recorded", "line": 9 }
+  ],
+  "warnings": []
+}
+``````
+
+A rule with no category anywhere is read, with a null category and a
+warning. A context never gets that warning:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" severity="blocking">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+Read before judging any change to how a price is computed.
+</context>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": null, "severity": "blocking", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null
+    },
+    {
+      "kind": "context", "id": "checkout-architecture", "file": ".lore/checkout.lore",
+      "category": null, "severity": null, "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Read before judging any change to how a price is computed.",
+      "prose": "Read before judging any change to how a price is computed.",
+      "src": "ARCHITECTURE.md"
+    }
+  ],
+  "errors": [],
+  "warnings": [
+    { "name": "missing-category", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 1 }
+  ]
+}
+``````
+
+With a severity in neither the rule nor `<defaults>`, the rule is
+advisory:
+
+``````example parse
+=== .lore/checkout.lore
+<defaults>
+category: functional_correctness
+</defaults>
+
+<rule id="price-from-quote">
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null
+    }
+  ],
+  "errors": [],
   "warnings": []
 }
 ``````
