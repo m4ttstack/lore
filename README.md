@@ -1,276 +1,275 @@
 # Lore
 
-Lore is an open file format for a team's code review rules: the domain
-knowledge a linter can't check.
+**Portable domain rules for code review.**
 
-Every rule says which files it applies to. Given a change, a tool picks
-out exactly the rules that apply and hands them to the reviewer, human or
-agent.
+Lore is an open file format for the rules a team expects every change to
+follow: the domain knowledge that a linter can't check and a new
+contributor can't guess. Rules live in plain files next to your code.
+Each rule declares where it applies, so any tool, and any reviewer, human
+or AI, can work out exactly which rules matter for a given change.
 
-> **Status:** design stage. The syntax below is a proposal and will change.
-> "Lore" is a working name.
-
-## Why
-
-Most teams already write this knowledge down. It ends up in long prose:
-agent skills, `AGENTS.md` files, review checklists, wiki pages. That works
-until it doesn't:
-
-- **Hard to maintain.** Adding or retiring one rule means editing a big
-  document and hoping nothing else leaned on that paragraph.
-- **No selection.** Nothing knows which rules matter for a given change,
-  so a reviewer reads everything or misses things.
-- **No record.** Nobody can say which rules a review actually checked.
-
-Lore keeps the knowledge as plain files in git, but gives every rule
-enough structure that a tool can pick the right ones for a diff without
-reading the prose first.
-
-It's a spec, not a product, the way GraphQL is a spec with many
-implementations. Any repo can adopt it, and an agent with no Lore tooling
-at all can read a `.lore` file and know what to do with it.
-
-## What it looks like
-
-Rules live in `.lore` files inside a `.lore/` folder. The folder can sit
-anywhere: next to the code it covers, or in one central place. Globs
-resolve relative to the folder's parent.
+> [!NOTE]
+> Lore is an early-stage proposal. The syntax and the name may change
+> before a first stable version. Feedback is very welcome; see
+> [Participate](#participate).
 
 ```
-apps/web/src/checkout/
+<scope>
+files: ["src/checkout/**/*.{ts,tsx}"]
+</scope>
+
+<rule id="price-from-quote" category="functional_correctness" severity="blocking">
+A displayed price must come from the quote that produced it.
+
+Recomputing a price from its inputs drops quote-level discounts, so the
+customer sees one total and is charged another.
+</rule>
+
+<rule id="money-in-minor-units" category="functional_correctness">
+<when>
+addedMatches: ['parseFloat\(|toFixed\(']
+</when>
+Amounts are integers in minor units (cents). Floating point never touches
+money.
+</rule>
+```
+
+## Why Lore
+
+Every codebase has rules that matter more than formatting: how money is
+rounded, which queries must be scoped to a tenant, which files must change
+together. Today those rules live in wiki pages, review checklists, long
+`AGENTS.md` files, or only in senior engineers' heads.
+
+That works poorly at scale:
+
+- **Reviewers can't tell which rules apply.** A 300-line guide is either
+  read in full for every change or skimmed and missed.
+- **Rules are hard to maintain.** Adding, changing or retiring one rule
+  means editing a long document and hoping nothing else depended on it.
+- **Every tool wants its own format.** Each AI coding and review tool has a
+  different instructions file, and none of them say which rules a review
+  actually checked.
+
+Lore gives each rule just enough structure to be selected by a machine,
+while keeping the rule itself in plain prose for people and models to
+apply.
+
+## Design principles
+
+1. **Plain files, versioned with the code.** Rules are reviewed, blamed and
+   reverted like any other change. No service or account is required.
+2. **Selected, not skimmed.** A rule's scope and conditions are evaluated
+   by code against a diff. Given the same files and the same change, every
+   conforming tool selects the same rules.
+3. **Prose is the rule.** Structure only decides *when* a rule applies. What
+   the rule *says* is always written out in Markdown, complete on its own.
+4. **Readable without tooling.** A person or an AI agent who has never
+   heard of Lore can open a `.lore` file and apply it correctly.
+5. **Tool-neutral.** Lore is a specification with a conformance suite, not
+   a product. Editors, review bots, CI and AI agents can all implement it.
+
+## A quick tour
+
+### Files and folders
+
+Rules live in `.lore` files inside a `.lore/` folder. A folder can sit
+anywhere in a repository, and its globs resolve relative to the directory
+that contains it, so a set of rules can live beside the code it governs.
+
+```
+.lore/
+  security.lore          rules for the whole repo
+services/billing/
   .lore/
-    pricing.lore
-  cart/
-  payment/
+    invoices.lore        globs resolve from services/billing/
+  src/
 ```
 
-A `.lore` file is made of tagged sections, a bit like a Svelte or Vue
-component. YAML or JSON where tools need structure, Markdown where people
-write.
+A `.lore` file is a sequence of tagged sections. Structured parts are YAML
+(JSON works too); the rule text is Markdown.
+
+### Scope
+
+A `<scope>` at the top of a file applies to every rule in it. A rule can
+narrow that scope, never widen it.
 
 ```
-<defaults>
-category: functional_correctness
-severity: blocking
-</defaults>
-
 <scope>
-files: ["**/*.{ts,tsx,graphql}"]
-ignores: ["**/*.test.{ts,tsx}"]
+files: ["src/components/**/*.tsx"]
+ignores: ["**/*.stories.tsx"]
 </scope>
 
-<rule id="price-from-quote">
-A displayed price must come from the quote that produced it.
-
-No helper may recompute a price separately from the quote, even when the
-inputs look identical: the quote carries discounts the inputs don't.
+<rule id="icon-buttons-have-labels" category="accessibility">
+<when>
+addedContains: ["<IconButton"]
+</when>
+Every `IconButton` has an `aria-label` that names the action, not the
+icon: "Delete invoice", not "Trash".
 </rule>
 ```
 
-The file's `<scope>` covers every rule in it. That rule applies to any
-change touching a `.ts`, `.tsx` or `.graphql` file under `checkout/`,
-tests excluded. A rule's prose states the whole rule on its own, and its
-first paragraph doubles as the summary tools show in lists and verdicts.
+### Conditions
 
-Structured blocks are YAML 1.2, and JSON is valid YAML, so a team writes
-whichever it prefers. This `<scope>` means the same as the one above:
+`<when>` adds conditions on the change itself: text in added lines
+(`addedContains`, `addedMatches`), or other files that did or didn't
+change (`changed`, `unchanged`). A rule applies only when its scope matches
+a changed file and all of its conditions hold.
 
 ```
+<rule id="migration-with-schema" category="backwards_compatibility" severity="blocking">
 <scope>
-{ "files": ["**/*.{ts,tsx,graphql}"], "ignores": ["**/*.test.{ts,tsx}"] }
-</scope>
-```
-
-### Narrowing a rule's scope
-
-A rule can narrow its file's scope, never widen it.
-
-```
-<rule id="regen-types-after-graphql">
-<scope>
-files: ["**/*.graphql"]
+files: ["db/migrations/**"]
 </scope>
 <when>
-unchanged: ["/apps/web/src/__generated__/**"]
+unchanged: ["/db/schema.sql"]
 </when>
-A `.graphql` change ships with regenerated types in
-`apps/web/src/__generated__/`.
+A new migration ships with the regenerated `db/schema.sql`.
 </rule>
 ```
 
-### Conditions on the diff
+### Checks
 
-`<when>` makes a rule apply only when the change looks a certain way:
-added lines containing or matching something (`addedContains`,
-`addedMatches`), or files elsewhere in the diff that did or didn't change
-(`changed`, `unchanged`). The rule above only applies when a `.graphql`
-file changed and nothing under `__generated__/` did. A leading `/` means
-the repo root.
-
-```
-<rule id="currency-from-settings" severity="advisory">
-<when>
-addedContains: ["'USD'", "'EUR'"]
-</when>
-Display text never hard-codes a currency code; it uses the shop's
-`currency` setting.
-</rule>
-```
-
-### Pointing the reviewer at lines
-
-`<check>` is a cheap, deterministic search over the rule's in-scope
-changed files. Its hits go to the reviewer with file and line. A hit is a
-pointer, not a verdict: the reviewer still decides, and no hits doesn't
-mean the rule passed.
+A `<check>` is a deterministic search that points a reviewer at specific
+lines. It is a hint, never a verdict: the reviewer still decides whether
+the rule is broken. Checks are regular expressions or
+[ast-grep](https://ast-grep.github.io/) patterns. Lore never runs shell
+commands.
 
 ```
-<rule id="no-or-across-columns">
+<rule id="tenant-scoped-queries" category="security" severity="blocking">
+<scope>
+files: ["server/**/*.ts"]
+</scope>
 <check lang="ast-grep">
-db.$MODEL.findMany({ where: { OR: $$$ } })
+db.$MODEL.findMany($$$)
 </check>
-No `where` that ORs across different columns; split it into separate
-queries.
+Every query on customer data filters by `tenantId`. A query without it can
+return another customer's records.
 </rule>
 ```
 
-```
-<rule id="currency-from-settings" severity="advisory">
-<check>
-'(USD|EUR)'
-</check>
-Display text never hard-codes a currency code; it uses the shop's
-`currency` setting.
-</rule>
-```
+### Context
 
-Checks are `regex` (the default, in a small dialect every language agrees
-on) or `ast-grep`. No shell commands, so reading Lore never means running
-code.
-
-### Notes for tools
-
-A `<meta>` block holds anything the spec doesn't interpret, like where a
-rule came from or who owns it. Tools keep it but never use it to decide
-what applies.
+Not everything is a rule. A `<context>` entry points at background reading,
+such as an architecture document, and tells the reviewer when it is
+relevant. Context uses the same scope and conditions as rules, but is never
+pass or fail.
 
 ```
-<rule id="price-from-quote">
-<meta>
-source: docs/pricing-review.md#prices
-owner: checkout
-</meta>
-A displayed price must come from the quote that produced it.
-</rule>
-```
-
-### Context documents
-
-Not everything is a rule. Architecture docs and background reading stay
-where they are; a `<context>` entry tells a reviewer when to read them. It
-uses the same scope and conditions, and never gets a verdict.
-
-```
-<context id="checkout-architecture" src="ARCHITECTURE.md">
-Read before judging any change to how a price is computed.
+<context id="billing-architecture" src="docs/billing.md">
+Read before reviewing changes to how invoices are calculated.
 </context>
 ```
 
-## Which rules apply
+### Configuration
 
-Given a diff, a rule or context entry applies when:
-
-1. it isn't marked `disabled` (or switched off by a `.loreconfig`, below),
-2. at least one changed file is in its scope, and
-3. its `<when>`, if any, holds.
-
-An entry with no scope and no conditions applies to every change under its
-folder's parent; at the repo root, that's every change. This is computed
-by code, the same way in every tool. A broken entry is skipped and always
-reported, never silently dropped.
-
-## `.loreconfig`
-
-A `.loreconfig` can sit in any directory and applies to everything below
-it, inherited the way `.gitignore` is.
+An optional `.loreconfig` file applies to its directory and everything
+below it, like `.gitignore`. It can add custom categories, switch off rules
+for part of a repository, and mark where configuration lookup stops.
 
 ```yaml
 lore: 1
-categories: [data_provenance]
-disable: [currency-from-settings]
+categories: [data_retention]
+disable: [icon-buttons-have-labels]
 ```
 
-`disable` switches rules off for changes at or below that directory, even
-rules that come from a shared Lore folder another team owns. `root: true`
-stops the lookup from going further up, as in EditorConfig.
+Rules don't have to live in the repository they govern. A team or an
+organization can keep shared rules in their own repository and map them
+onto another with a `repo` key.
 
-A rule has one of nine built-in categories (`functional_correctness`,
-`test_coverage`, `security`, `performance`, `accessibility`,
-`observability`, `backwards_compatibility`, `documentation`, `code_style`)
-or one a `.loreconfig` above it adds. Severity is `blocking` (fix or
-explicitly waive before merge) or `advisory` (raise it, the author
-decides), and defaults to `advisory`.
+## How tools use Lore
 
-### Keeping Lore outside the repo
+Given a change, a tool:
 
-Because everything is glob-based, Lore doesn't have to live in the repo it
-covers. A team can keep it in its own repo and point it at the code:
+1. collects the `.lore` files tracked in the repository;
+2. selects every rule whose scope matches a changed file and whose
+   conditions hold;
+3. runs the selected rules' checks to find lines worth a closer look;
+4. hands the selected rules, hits and context to a reviewer.
+
+Selection is fully specified, so it is the same in every tool. How a
+reviewer reports on the rules is up to the tool. A review bot might show
+something like this:
 
 ```
-team-repo/lore/shop/
-  .loreconfig        repo: github.com/acme/shop
-  .lore/
-    checkout.lore    globs resolve from the shop repo's root
+4 Lore rules apply to this change
+
+  ✗ price-from-quote          src/checkout/CartTotal.tsx:42
+                              total is rebuilt from line items, not the quote
+  ✓ money-in-minor-units
+  ✓ tenant-scoped-queries
+  – migration-with-schema     not applicable
 ```
 
-## Adopting it
+## Where Lore fits
 
-Lore files are only read from version control, so nothing in
-`node_modules` or an ignored folder can add rules.
+| | Linters and static analysis | Agent instruction files (`AGENTS.md` and similar) | Lore |
+|---|---|---|---|
+| Best for | Rules a machine can decide | General conventions and setup | Domain rules that need judgment |
+| Applied | Mechanically, to every file | Loaded whole into context | Selected per change |
+| Result | Pass or fail | None recorded | A result per rule, by id |
 
-Until Lore has its own grammar, one line in `.gitattributes` highlights
+Lore complements these tools rather than replacing them. If a rule can be
+a lint rule, it should be one.
+
+## Specification
+
+The specification is in progress. It will be written in the style of the
+[CommonMark spec](https://spec.commonmark.org/): normative text with
+numbered conformance examples that any implementation can run, plus JSON
+Schemas for every structured block.
+
+The current design document is at
+[`docs/superpowers/specs/2026-10-25-lore-spec-design.md`](docs/superpowers/specs/2026-10-25-lore-spec-design.md).
+
+### Roadmap
+
+1. **Specification** for `.lore` and `.loreconfig`, with conformance
+   examples and schemas.
+2. **Editor support:** a reference parser, a Prettier plugin, a language
+   server and syntax highlighting.
+3. **Applying rules:** guidance for turning selected rules into a result
+   per rule, and an online playground.
+4. **Integrations** with code review tools and AI agents.
+
+Until editor support exists, this line in `.gitattributes` highlights
 `.lore` files as Markdown on GitHub and GitLab:
 
 ```
 *.lore linguist-language=Markdown gitlab-language=markdown
 ```
 
-The spec will also ship a short paragraph to paste into `AGENTS.md`,
-`CLAUDE.md`, Cursor rules or Copilot instructions, so agents you already
-use apply Lore with nothing installed.
-
 ## Prior art
 
-Lore borrows from tools that each do part of this:
+Lore builds on ideas from several projects:
 
-| | Has | Missing for this job |
-|---|---|---|
-| [Aviator invariants](https://docs.aviator.co/verify/concepts/invariants) | Categories, conditions, a verdict per rule | Stored in a hosted account, not files |
-| [AGENTS.md](https://agents.md) | A vendor-neutral convention | No fields, so no scoping beyond nesting |
-| Copilot instructions, Cursor rules, Claude Code rules | Glob-scoped files | Tied to one tool, editor context rather than review rules |
-| [Open Context Standards](https://github.com/opencontextstandards/ocs) | A neutral `.context/` folder with globs | No categories, content conditions or review meaning |
+- [Aviator invariants](https://docs.aviator.co/verify/concepts/invariants):
+  categorized, conditioned rules applied to every matching change.
+- [AGENTS.md](https://agents.md): a shared, vendor-neutral home for agent
+  instructions.
+- [EditorConfig](https://editorconfig.org/) and
+  [ESLint](https://eslint.org/): directory-scoped configuration and
+  per-path rules.
+- [CommonMark](https://commonmark.org/): a specification tested by its own
+  examples.
+- Copilot instructions, Cursor rules and Claude Code rules: glob-scoped
+  guidance for AI tools.
 
-## Roadmap
+## Participate
 
-1. The spec for `.lore` and `.loreconfig`, with numbered conformance
-   examples every implementation can test against
-2. Editor support: a Prettier plugin, a language server, syntax
-   highlighting
-3. How Lore gets applied: from files and a diff to a verdict per rule,
-   with a playground to try it
-4. A first integration into an agent review pipeline
-5. A team view for browsing and editing rules
+Lore is at the stage where outside input shapes it most. Useful
+contributions right now:
 
-The current design is in
-[`docs/superpowers/specs/2026-10-25-lore-spec-design.md`](docs/superpowers/specs/2026-10-25-lore-spec-design.md).
+- Rules from your own codebase that Lore can't express well.
+- Problems with the scoping model or the syntax.
+- Interest in implementing Lore in an editor, review tool or agent.
 
-## Contributing
-
-It's early. Issues about the syntax, the scoping model or real rules that
-don't fit it are the most useful thing right now.
+Open an [issue](https://github.com/m4ttstack/lore/issues) to start a
+conversation.
 
 ## License
 
 The specification text is licensed under
 [CC-BY-4.0](LICENSE-CC-BY-4.0). Schemas, examples and code are licensed
-under [MIT](LICENSE).
+under the [MIT License](LICENSE).
