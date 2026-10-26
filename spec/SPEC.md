@@ -147,8 +147,9 @@ matches the expect when the two are equal as JSON values: arrays compare
 item by item in order (see Order below), and objects compare regardless
 of the order of their members. In both kinds:
 
-- **Paths.** Every `file` field is the input path exactly as written after
-  `=== `, keeping the `external:` prefix.
+- **Paths.** Every `file` field is a path exactly as written in the
+  example: after `=== ` for an input file, keeping the `external:`
+  prefix, or in the diff for a changed file.
 - **Scopes.** Globs in an entry's `scopes` are resolved to paths from the
   governed repo's root: a glob `g` in a file whose base is `b` appears as
   `b/g`, and a glob in a file whose base is the repo root appears as `g`.
@@ -2767,5 +2768,1239 @@ A displayed price must come from the quote that produced it.
   ],
   "errors": [],
   "warnings": []
+}
+``````
+
+## Scope and globs
+
+A **scope** says which files an entry can be broken in. A file's
+`<scope>` file block is the scope of every entry in the file, and an
+entry's own `<scope>` child narrows it (see [Children](#children)).
+
+`<scope>` is a structured block (see
+[Structured blocks](#structured-blocks)). Its value is a mapping with two
+keys, both optional:
+
+| Key | Value | Default |
+|---|---|---|
+| `files` | A non-empty list of globs. | `["**"]` |
+| `ignores` | A list of globs. | `[]` |
+
+- A path is **in** a scope when it matches at least one of the scope's
+  `files` globs and none of its `ignores` globs.
+- A glob is resolved against the base of the Lore file it is in: a path
+  matches a glob `g` from base `b` when the path is below `b` and the
+  rest of the path, after `b/`, matches `g`. At the repository root, the
+  whole path is matched. The base is compared character by character,
+  never read as a glob. For a file in an external folder, the base is
+  the matching directory of the governed repo (see
+  [External folders](#external-folders)).
+- A file with no `<scope>` has the default scope, which holds every path
+  under its base.
+- An entry's scope is its file's scope **intersected** with its own
+  `<scope>`: a path is in the entry's scope when it is in both. An
+  entry's `<scope>` can only narrow its file's scope, never reach a path
+  that the file's scope leaves out.
+- A changed file is in an entry's scope when one of its paths is.
+  [Eligibility](#eligibility) says which paths a deleted or renamed file
+  has.
+
+In the document model, an entry's `scopes` holds its file's scope (the
+default one when the file has no `<scope>`), then its own `<scope>` when
+it has one. Each has its defaults filled in and its globs resolved as
+[Conformance examples](#conformance-examples) describes.
+
+A tool checks a `<scope>` in this order, and reports the first problem it
+finds:
+
+1. the checks of [Structured blocks](#structured-blocks);
+2. `invalid-scope`, when the value is not a mapping, has a key other
+   than `files` and `ignores`, or has a `files` or `ignores` that is not a
+   list of strings;
+3. `empty-files`, when `files` is an empty list;
+4. each glob, those in `files` first and then those in `ignores`, each
+   list in order: `leading-slash` when the glob starts with `/`, then
+   `invalid-glob` (see [Glob syntax](#glob-syntax)), then
+   `glob-escapes-base` when one of its `/`-separated segments is `..`.
+
+The shape is also given as
+[`scope.schema.json`](schemas/scope.schema.json). The schema rules out
+an empty `files`, a leading `/` and a `..` segment too; for those, the
+names above apply instead of `invalid-scope`.
+
+- Paths in a scope are relative to the base, so a scope glob MUST NOT
+  start with `/`. Only the `changed` and `unchanged` conditions allow a
+  leading `/` (see [Conditions](#conditions)).
+- A glob MUST NOT reach above its base. A `..` segment is
+  `glob-escapes-base` even when the glob would come back down, as in
+  `src/../lib/**`. This holds for every glob, including those in
+  `changed` and `unchanged`.
+- `<scope>` takes no attributes. An attribute on a file's `<scope>` is
+  `unknown-attribute`; on an entry's, see [Children](#children).
+- Every error in a file's `<scope>` is file-level, and every error in an
+  entry's `<scope>` is entry-level. Apart from a YAML problem, the
+  error's line is the `<scope>` opening tag line.
+
+The file's scope takes in `.tsx` files below the checkout folder. The
+second rule's own scope narrows that to `cart/`. `cart/totals.ts` is in
+the rule's scope but not in the file's, and `apps/web/src/cart/` is
+outside the base, so only the first rule is eligible:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/pricing.lore
+<scope>
+files: ["**/*.tsx"]
+</scope>
+
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="cart-total-from-quote" category="functional_correctness">
+<scope>
+files: ["cart/**"]
+</scope>
+Cart totals come from the quote, never from summing line items.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+M apps/web/src/checkout/cart/totals.ts
+M apps/web/src/cart/CartTotal.tsx
+=== expect
+{ "eligible": ["price-from-quote"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+The same glob means different paths under different bases. At the root,
+`*.json` matches only top-level files. Under `apps/web/src/checkout/`,
+it matches the files directly in that folder:
+
+``````example eligibility
+=== .lore/manifests.lore
+<scope>
+files: ["*.json"]
+</scope>
+
+<rule id="manifest-versions-pinned" category="functional_correctness">
+Dependencies in a top-level manifest are pinned to exact versions.
+</rule>
+=== apps/web/src/checkout/.lore/messages.lore
+<scope>
+files: ["*.json"]
+</scope>
+
+<rule id="checkout-messages-sorted" category="code_style">
+Checkout message files keep their keys in alphabetical order.
+</rule>
+=== diff
+M apps/web/src/checkout/messages.json
++14   "checkout.total": "Total",
+=== expect
+{ "eligible": ["checkout-messages-sorted"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+`ignores` takes paths out of a scope. `Cart.test.tsx` matches the first
+file's `files`, but also its `ignores`:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/cart.lore
+<scope>
+files: ["**/*.{ts,tsx}"]
+ignores: ["**/*.test.{ts,tsx}"]
+</scope>
+
+<rule id="cart-total-from-quote" category="functional_correctness">
+Cart totals come from the quote, never from summing line items.
+</rule>
+=== apps/web/src/checkout/.lore/tests.lore
+<scope>
+files: ["**/*.test.{ts,tsx}"]
+</scope>
+
+<rule id="cart-tests-use-fixtures" category="test_coverage">
+Cart tests build their carts from the shared quote fixtures.
+</rule>
+=== diff
+M apps/web/src/checkout/Cart.test.tsx
++8   expect(total).toBe(42)
+=== expect
+{ "eligible": ["cart-tests-use-fixtures"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+**An empty scope.** When an entry has its own `<scope>`, and no path
+matches both one of the file scope's `files` globs and one of the
+entry's own `files` globs, nothing can be in the entry's scope. The
+entry gets the warning `empty-scope`, at its `<scope>` opening tag line.
+A path here is any path a changed file can have: one or more non-empty
+segments, none of them `.` or `..`. Only `files` globs are compared, so
+an entry whose `ignores` leave nothing in its scope gets no warning. The
+entry stays in the document model, and is never eligible.
+
+The first rule asks for Markdown files in a file whose scope holds only
+TypeScript files. The second rule's scope can still hold a `price*.ts`
+file:
+
+``````example parse
+=== .lore/checkout.lore
+<scope>
+files: ["**/*.ts"]
+</scope>
+
+<rule id="docs-link-changelog" category="documentation">
+<scope>
+files: ["**/*.md"]
+</scope>
+A documentation change links the changelog entry it describes.
+</rule>
+
+<rule id="money-type-for-prices" category="functional_correctness">
+<scope>
+files: ["**/*.md", "**/price*.ts"]
+</scope>
+Prices are typed as `Money`, never as `number`.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "docs-link-changelog", "file": ".lore/checkout.lore",
+      "category": "documentation", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**/*.ts"], "ignores": [] }, { "files": ["**/*.md"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A documentation change links the changelog entry it describes.",
+      "prose": "A documentation change links the changelog entry it describes.",
+      "src": null
+    },
+    {
+      "kind": "rule", "id": "money-type-for-prices", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**/*.ts"], "ignores": [] }, { "files": ["**/*.md", "**/price*.ts"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Prices are typed as `Money`, never as `number`.",
+      "prose": "Prices are typed as `Money`, never as `number`.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": [
+    { "name": "empty-scope", "file": ".lore/checkout.lore", "entry": "docs-link-changelog", "line": 6 }
+  ]
+}
+``````
+
+In the first file, `files` is a string rather than a list, then an empty
+list, then a glob with a leading `/`, and an `ignores` glob climbs out
+of `src/` and back. Each excludes only its rule. The same problems in a
+file's `<scope>` exclude the whole file, and so does an attribute on it:
+
+``````example parse
+=== apps/web/.lore/web.lore
+<rule id="price-from-quote" category="functional_correctness">
+<scope>
+files: "src/**"
+</scope>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<scope>
+files: []
+</scope>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<scope>
+files: ["/apps/web/src/**"]
+</scope>
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+<scope>
+files: ["src/**"]
+ignores: ["src/../tests/**"]
+</scope>
+A page that shows a quoted price also shows when the quote expires.
+</rule>
+
+<rule id="totals-from-quote" category="functional_correctness">
+<scope>
+files: ["src/**"]
+</scope>
+Cart totals come from the quote, never from summing line items.
+</rule>
+=== apps/web/src/cart/.lore/cart.lore
+<scope>
+files: ["/apps/web/src/cart/**"]
+</scope>
+
+<rule id="cart-total-from-quote" category="functional_correctness">
+Cart totals come from the quote, never from summing line items.
+</rule>
+=== apps/web/src/checkout/.lore/checkout.lore
+<scope owner="checkout">
+files: ["**/*.tsx"]
+</scope>
+
+<rule id="checkout-prices-from-quote" category="functional_correctness">
+Every price the checkout page shows comes from the quote.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "totals-from-quote", "file": "apps/web/.lore/web.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }, { "files": ["apps/web/src/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Cart totals come from the quote, never from summing line items.",
+      "prose": "Cart totals come from the quote, never from summing line items.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "invalid-scope", "file": "apps/web/.lore/web.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "empty-files", "file": "apps/web/.lore/web.lore", "entry": "currency-from-settings", "line": 9 },
+    { "name": "leading-slash", "file": "apps/web/.lore/web.lore", "entry": "dates-from-locale", "line": 16 },
+    { "name": "glob-escapes-base", "file": "apps/web/.lore/web.lore", "entry": "quote-expiry-shown", "line": 23 },
+    { "name": "leading-slash", "file": "apps/web/src/cart/.lore/cart.lore", "entry": null, "line": 1 },
+    { "name": "unknown-attribute", "file": "apps/web/src/checkout/.lore/checkout.lore", "entry": null, "line": 1 }
+  ],
+  "warnings": []
+}
+``````
+
+### Glob syntax
+
+A glob is matched against a path one segment at a time. Its segments
+are the parts between its `/` characters, and each one matches one
+segment of the path, except `**`:
+
+| Syntax | Matches |
+|---|---|
+| `**`, as a whole segment | zero or more whole segments |
+| `*` | any run of characters within a segment, including none |
+| `?` | any one character |
+| `[abc]`, `[a-z]` | one character in the set |
+| `[!abc]`, `[!a-z]` | one character not in the set |
+| `{a,b}` | any one of the alternatives |
+| any other character | itself |
+
+- Matching is by Unicode code point and case-sensitive, with no
+  normalization. Nothing in a glob matches `/`, so `*`, `?` and sets stay
+  within one segment.
+- `*` and `?` match a `.` at the start of a name like any other
+  character, so `*` matches dotfiles and `**` matches dot-directories.
+- A set holds one or more members, up to the next `]`. A `]` directly
+  after `[` or `[!` is a member. A member is a character, or a range
+  `x-y`: the characters from `x` to `y` by code point. A `-` that is the
+  first or last member is the character `-`.
+- Alternatives are separated by `,`. An alternative MAY be empty, and MAY
+  hold `*`, `?` and sets, but not another `{`.
+- There is no escape character and no negation. A special character is
+  matched by putting it in a set, so `[[]id].tsx` matches `[id].tsx`.
+  `]`, `}` and `,` outside a set or alternatives are ordinary characters.
+  To leave paths out, use `ignores`.
+
+A glob is `invalid-glob` when:
+
+- it is empty, or one of its segments is empty (as in `src//a.ts` or
+  `src/`) or is `.`;
+- it starts with `!`;
+- it holds `**` in a segment that is not exactly `**`, as in `**.ts`;
+- a `[` has no closing `]` in its segment, a `^` directly follows `[`, a
+  range ends before it starts, or a `-` in a set is neither first, last
+  nor part of a range;
+- a `{` has no closing `}` in its segment, or another `{` comes before
+  that `}`;
+- it holds a `\`.
+
+`**` matches zero segments, so `apps/web/src/**/checkout/*.tsx` matches
+`apps/web/src/checkout/Price.tsx`. `Price.tsx` starts with an uppercase
+letter, so `[!A-Z]*.tsx` does not match it. `*` matches the leading
+`.` of `.env.production`:
+
+``````example eligibility
+=== .lore/web.lore
+<rule id="checkout-props-typed" category="code_style">
+<scope>
+files: ["apps/web/src/**/checkout/*.tsx"]
+</scope>
+Every checkout component declares its props type.
+</rule>
+
+<rule id="checkout-helpers-pure" category="code_style">
+<scope>
+files: ["apps/web/src/checkout/[!A-Z]*.tsx"]
+</scope>
+Checkout files named in lowercase hold helpers, never components.
+</rule>
+
+<rule id="cart-components-named" category="code_style">
+<scope>
+files: ["apps/web/src/{cart,checkout}/*.tsx"]
+</scope>
+A cart or checkout component is named after its file.
+</rule>
+
+<rule id="production-env-no-secrets" category="security">
+<scope>
+files: ["apps/web/*.production"]
+</scope>
+A production environment file holds no secrets; they come from the
+secret store.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+M apps/web/.env.production
++3 PRICE_API_URL=https://prices.acme.example
+=== expect
+{
+  "eligible": ["cart-components-named", "checkout-props-typed", "production-env-no-secrets"],
+  "hits": [],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+An unclosed set, an unclosed brace, `**` inside a longer segment and a
+leading `!` are each `invalid-glob`. A `[` inside a set is an ordinary
+member, so the last rule's glob matches the file `pages/[id].tsx`:
+
+``````example parse
+=== apps/web/.lore/pages.lore
+<rule id="price-from-quote" category="functional_correctness">
+<scope>
+files: ["src/[a"]
+</scope>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<scope>
+files: ["src/**/*.{ts,tsx"]
+</scope>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<scope>
+files: ["src/**.tsx"]
+</scope>
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="tests-use-fixtures" category="test_coverage">
+<scope>
+files: ["src/**"]
+ignores: ["!**/*.test.tsx"]
+</scope>
+Tests build their data from the shared fixtures.
+</rule>
+
+<rule id="product-page-prices" category="functional_correctness">
+<scope>
+files: ["pages/[[]id].tsx"]
+</scope>
+The product page shows the price from the product's current quote.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "product-page-prices", "file": "apps/web/.lore/pages.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }, { "files": ["apps/web/pages/[[]id].tsx"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "The product page shows the price from the product's current quote.",
+      "prose": "The product page shows the price from the product's current quote.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "invalid-glob", "file": "apps/web/.lore/pages.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-glob", "file": "apps/web/.lore/pages.lore", "entry": "currency-from-settings", "line": 9 },
+    { "name": "invalid-glob", "file": "apps/web/.lore/pages.lore", "entry": "dates-from-locale", "line": 16 },
+    { "name": "invalid-glob", "file": "apps/web/.lore/pages.lore", "entry": "tests-use-fixtures", "line": 23 }
+  ],
+  "warnings": []
+}
+``````
+
+## Conditions
+
+`<when>` is a child of a rule or a context that holds conditions on the
+change. It is a structured block (see
+[Structured blocks](#structured-blocks)), and its value is a mapping in
+which each key is a condition. An entry with a `<when>` is eligible only
+when every one of its conditions holds.
+
+| Key | Value | Holds when |
+|---|---|---|
+| `addedContains` | A list of strings. | An added line of a counted file contains one of the strings. |
+| `addedMatches` | A list of patterns (see [Regex dialect](#regex-dialect)). | An added line of a counted file matches one of the patterns. |
+| `changed` | A list of globs. | A changed file anywhere in the change matches one of the globs. |
+| `unchanged` | A list of globs. | No changed file anywhere in the change matches any of the globs. |
+
+- An entry's **counted files** are the changed files in its scope,
+  apart from those that a `.loreconfig` `disable` list switches the entry
+  off for (see [.loreconfig](#loreconfig)).
+- An **added line's text** is the line as it is in the file's new
+  version, without its line break: the line feed, and a carriage return
+  directly before it. In a conformance example it is the `<text>` of a
+  `+<n> <text>` line. Only added lines count. The unchanged lines around
+  them and removed lines never do.
+- `addedContains` compares code point by code point and is
+  case-sensitive: a string is contained in a line when it occurs anywhere
+  in the line's text.
+- `addedMatches` searches each line's text for each pattern, as
+  [Regex dialect](#regex-dialect) defines.
+- `changed` and `unchanged` look at every path of every changed file in
+  the change, in the entry's scope or not and whatever `disable` says.
+  They are the only conditions that look past the entry's scope, because
+  files that change together are a property of the whole change. A rule
+  like `regen-types-after-graphql` below is eligible only when the
+  generated files were left out of the change.
+- A `changed` or `unchanged` glob MAY start with `/`. It then resolves
+  from the governed repo's root (for an external folder, from the
+  directory its `repo` key marks), and the rest of the glob, after the
+  `/`, is read as [Glob syntax](#glob-syntax) defines. A glob without a
+  leading `/` resolves against the base, as in a scope.
+- With an empty list, `unchanged` always holds and the other three
+  conditions never do.
+
+A tool checks a `<when>` in this order, and reports the first problem it
+finds:
+
+1. the checks of [Structured blocks](#structured-blocks);
+2. `invalid-when`, when the value is not a mapping;
+3. `empty-when`, when the mapping has no keys, as with an empty block;
+4. `unknown-condition`, when a key is not one of the four above;
+5. each condition, in the order of the table above: `invalid-when` when
+   its value is not a list of strings, or when an `addedContains` string
+   is empty; then each item of the list in order. A pattern is checked
+   for `regex-not-one-line` and then `regex-outside-dialect` (see
+   [Regex dialect](#regex-dialect)), and a glob for `invalid-glob` and
+   then `glob-escapes-base` (see [Scope and globs](#scope-and-globs)).
+
+The shape is also given as
+[`when.schema.json`](schemas/when.schema.json); where a name above covers
+a value the schema rejects, that name applies instead of `invalid-when`.
+Every error in a `<when>` is entry-level. Apart from a YAML problem, its
+line is the `<when>` opening tag line. A tool MUST NOT ignore a key it
+does not know, so a file never means less than its author wrote. A
+condition on removed lines is reserved for a later version. In the
+document model, `when` is the mapping as parsed, with its globs as
+written, or null when the entry has no `<when>`.
+
+Only added lines count. `'USD'` is on an unchanged line of `Price.tsx`,
+so the first rule is not eligible. The third rule's scope holds
+`format.ts` but not `Price.tsx`, so the `parseFloat(` on the added line of
+`Price.tsx` does not count for it:
+
+``````example eligibility
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'", "'EUR'"]
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="prices-not-parsed" category="functional_correctness">
+<when>
+addedContains: ["parseFloat("]
+</when>
+A price is never parsed from text with `parseFloat`.
+</rule>
+
+<rule id="helpers-not-parsing-prices" category="functional_correctness">
+<scope>
+files: ["**/*.ts"]
+</scope>
+<when>
+addedContains: ["parseFloat("]
+</when>
+Checkout helpers never parse a price from text.
+</rule>
+=== apps/web/src/checkout/Price.tsx
+const fallbackCurrency = 'USD'
+
+export function Price({ quote }) {
+  const amount = parseFloat(quote.total)
+  return <span>{amount}</span>
+}
+=== diff
+M apps/web/src/checkout/Price.tsx
++4   const amount = parseFloat(quote.total)
+M apps/web/src/checkout/format.ts
++1 export const ZERO = '0.00'
+=== expect
+{ "eligible": ["prices-not-parsed"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+A pattern in `addedMatches` is searched for in each added line. `^`
+matches only at the start of the line's text, which here starts with
+spaces:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/prices.lore
+<rule id="no-price-literals" category="functional_correctness">
+<when>
+addedMatches: ['\d+\.\d{2}']
+</when>
+A price is never written as a number literal in checkout code.
+</rule>
+
+<rule id="shipping-from-quote" category="functional_correctness">
+<when>
+addedMatches: ['^const shipping']
+</when>
+Shipping costs come from the quote.
+</rule>
+=== diff
+M apps/web/src/checkout/Shipping.tsx
++7   const shipping = 4.99
+=== expect
+{ "eligible": ["no-price-literals"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+`changed` looks at the whole change. The API schema is outside the
+rule's scope and its base, and the condition still holds:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/api.lore
+<rule id="checkout-follows-api-schema" category="backwards_compatibility">
+<scope>
+files: ["**/*.tsx"]
+</scope>
+<when>
+changed: ["/apps/api/schema.graphql"]
+</when>
+A checkout change made alongside an API schema change still works with
+the schema that is deployed now.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+M apps/api/schema.graphql
+=== expect
+{ "eligible": ["checkout-follows-api-schema"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+The generated types changed, so `regen-types-after-graphql` is not
+eligible: there is nothing to remind the author of. Its glob starts with
+`/`, so it resolves from the repository root. The second rule's glob has
+no `/`, so it resolves against the base, to
+`apps/web/src/checkout/__generated__/**`. Nothing there changed, and that
+rule is eligible:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/graphql.lore
+<scope>
+files: ["**/*.graphql"]
+</scope>
+
+<rule id="regen-types-after-graphql" category="functional_correctness">
+<when>
+unchanged: ["/apps/web/src/__generated__/**"]
+</when>
+A `.graphql` change ships with regenerated types in
+`apps/web/src/__generated__/`.
+</rule>
+
+<rule id="regen-checkout-types-after-graphql" category="functional_correctness">
+<when>
+unchanged: ["__generated__/**"]
+</when>
+A `.graphql` change ships with regenerated types in the checkout's own
+`__generated__/` folder.
+</rule>
+=== diff
+M apps/web/src/checkout/quote.graphql
++3   total: Money!
+M apps/web/src/__generated__/graphql.ts
++120   total: Money;
+=== expect
+{ "eligible": ["regen-checkout-types-after-graphql"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+An unknown key is an error, even next to another problem: it is checked
+before the shape of each condition. A `<when>` with no conditions is an
+error, and so is a condition whose value is not a list. A `..` segment
+is not allowed in `changed`, while a leading `/` is:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: "'USD'"
+removedContains: ["'USD'"]
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="price-from-quote" category="functional_correctness">
+<when>
+</when>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="regen-types-after-graphql" category="functional_correctness">
+<when>
+unchanged: "/apps/web/src/__generated__/**"
+</when>
+A `.graphql` change ships with regenerated types.
+</rule>
+
+<rule id="checkout-follows-api-schema" category="backwards_compatibility">
+<when>
+changed: ["apps/web/../api/schema.graphql"]
+</when>
+A checkout change made alongside an API schema change still works with
+the schema that is deployed now.
+</rule>
+
+<rule id="checkout-follows-api" category="backwards_compatibility">
+<when>
+changed: ["/apps/api/**"]
+addedContains: ["fetch("]
+</when>
+New checkout requests work with the API that is deployed now.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "checkout-follows-api", "file": ".lore/checkout.lore",
+      "category": "backwards_compatibility", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": { "changed": ["/apps/api/**"], "addedContains": ["fetch("] }, "checks": [], "meta": null,
+      "summary": "New checkout requests work with the API that is deployed now.",
+      "prose": "New checkout requests work with the API that is deployed now.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "unknown-condition", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 2 },
+    { "name": "empty-when", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 10 },
+    { "name": "invalid-when", "file": ".lore/checkout.lore", "entry": "regen-types-after-graphql", "line": 16 },
+    { "name": "glob-escapes-base", "file": ".lore/checkout.lore", "entry": "checkout-follows-api-schema", "line": 23 }
+  ],
+  "warnings": []
+}
+``````
+
+## Regex dialect
+
+`addedMatches` patterns and `regex` checks share one dialect of regular
+expressions, so that every tool finds the same matches, whatever engine
+it uses. Its syntax is a subset of ECMAScript's, limited to what
+RE2-style engines support, and this section fixes its meaning as well
+as its syntax.
+
+A pattern is matched against the text of one added line at a time (see
+[Conditions](#conditions)), which holds no line break. The match is an
+unanchored search: the line matches when the pattern matches starting at
+some position in its text. Characters are Unicode code points, and
+matching is case-sensitive. Only whether a line matches counts, never
+which part of it.
+
+| Syntax | Matches |
+|---|---|
+| A character other than `\`, `^`, `$`, `.`, `\|`, `?`, `*`, `+`, `(`, `)`, `[`, `]`, `{`, `}` | itself |
+| `.` | any one character |
+| `\` and an ASCII punctuation character (a printable ASCII character that is not a letter, a digit or a space) | that character: `\.` matches `.`, `\{` matches `{` |
+| `\t`, `\n`, `\v`, `\f`, `\r` | a tab, line feed, vertical tab, form feed, carriage return |
+| `\x` and two hex digits | the character with that code, from U+0000 to U+00FF |
+| `\d`, `\D` | an ASCII digit `0` to `9`; any other character |
+| `\w`, `\W` | an ASCII letter, an ASCII digit or `_`; any other character |
+| `\s`, `\S` | a space, tab, line feed, vertical tab, form feed or carriage return; any other character |
+| `[...]`, `[^...]` | one character in the set; one character not in it |
+| `^`, `$` | the start of the text; the end of the text |
+| `\b`, `\B` | a word boundary; a position that is not one |
+| `(x)`, `(?:x)` | `x`, as a group |
+| `x\|y` | `x` or `y` |
+| `x*`, `x+`, `x?` | `x` zero or more times, one or more times, zero times or once |
+| `x{n}`, `x{n,}`, `x{n,m}` | `x` exactly `n` times, at least `n` times, from `n` to `m` times |
+
+- A **word boundary** is a position with a `\w` character on one side,
+  and on the other a character that is not `\w` or the start or end of
+  the text. `\w` is ASCII, so `é` and `٣` are not word characters.
+- In `{n}`, `{n,}` and `{n,m}`, `n` and `m` are decimal numbers of at most
+  1000, and `n` is not more than `m`. `{` always starts a quantifier, so
+  a literal `{` is written `\{`. A literal `}` or `]` is written `\}` or
+  `\]`.
+- A quantifier MAY be followed by `?`, which makes it lazy. Laziness
+  changes which part of a line matches, so it changes no result.
+- A set holds one or more members up to its closing `]`. A member is a
+  character other than `\`, `[` and `]`; an escape from the table that
+  stands for one character, such as `\]`, `\t` or `\x41`; one of the
+  class escapes `\d`, `\D`, `\w`, `\W`, `\s` and `\S`; or a range `x-y` of
+  two characters, given directly or as such escapes, with `x` not after
+  `y` by code point. A `^` directly after `[` makes the set negated; a
+  `^` anywhere else is a member. A `-` that is the first or last member
+  is the character `-`.
+- There are no flags, inline or otherwise. Matching is always as above.
+  To match without regard to case, write the cases out:
+  `[Uu][Ss][Dd]`.
+
+Anything else is `regex-outside-dialect`. That includes:
+
+- any group that starts with `(?` other than `(?:`: lookahead and
+  lookbehind (`(?=`, `(?!`, `(?<=`, `(?<!`), named groups (`(?<code>` or
+  `(?P<code>`) and inline flags (`(?i)`, `(?i:`);
+- backreferences (`\1` to `\9`, `\k<code>`), and every other escape not
+  in the table, such as `\0`, `\A`, `\z`, `\p{L}`, `A`, `\cJ` and
+  `\é`;
+- a `{` that does not start a quantifier as described, as in `a{`,
+  `a{,2}` or `a{1001}`, and an unescaped `}` or `]` outside a set;
+- a quantifier with nothing to repeat: at the start of the pattern, a
+  group or an alternative, after `^`, `$`, `\b` or `\B`, or after another
+  quantifier other than as its lazy `?`;
+- a group or set that is not closed, a `)` that closes no group, an
+  empty set (`[]`, `[^]`), an unescaped `[` in a set, a range whose end
+  comes before its start or that uses a class escape, and a `-` in the
+  middle of a set that is not part of a range;
+- the empty pattern.
+
+A pattern MUST be one line. In `addedMatches`, a pattern holding a line
+feed or a carriage return is `regex-not-one-line`, and
+[Checks](#checks) says when a `regex` check is. A pattern is checked for
+`regex-not-one-line` first, then for `regex-outside-dialect`. Both are
+entry-level errors, at the opening tag line of the `<when>` or `<check>`
+that holds the pattern.
+
+A tool can run the dialect on an existing engine by translating it. For
+example, an ECMAScript engine needs its `u` flag, so that it reads code
+points, and its `s` flag, so that `.` matches every character. It also
+needs `\s` and `\S` written out as sets, since its own are not ASCII, and
+needs punctuation escapes that its `u` flag rejects, such as `\'`,
+written as the character. An RE2-style engine needs `\s` and `\S`
+written out too, since its `\s` leaves out the vertical tab.
+
+Each of the first five patterns is outside the dialect: a lookahead, a
+backreference, a named group, an inline flag, and a `{` that starts no
+quantifier. Escaped, the brace is accepted, in `addedMatches` and in a
+check alike:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="currency-before-amount" category="functional_correctness">
+<when>
+addedMatches: ['USD(?=\d)']
+</when>
+A currency code is never written in front of an amount.
+</rule>
+
+<rule id="no-repeated-digits" category="functional_correctness">
+<check>
+(\d)\1
+</check>
+A price is never written with a placeholder of repeated digits.
+</rule>
+
+<rule id="currency-codes-from-settings" category="functional_correctness">
+<when>
+addedMatches: ['(?<code>USD|EUR)']
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="currency-codes-any-case" category="functional_correctness">
+<when>
+addedMatches: ['(?i)usd']
+</when>
+Display text never hard-codes a currency code, in any case.
+</rule>
+
+<rule id="no-inline-styles" category="code_style">
+<when>
+addedMatches: ['style={']
+</when>
+Components never set inline styles.
+</rule>
+
+<rule id="no-inline-style-objects" category="code_style">
+<when>
+addedMatches: ['style=\{']
+</when>
+<check>
+style=\{\{
+</check>
+Components never set inline styles; they use the design system's
+classes.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "no-inline-style-objects", "file": ".lore/checkout.lore",
+      "category": "code_style", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": { "addedMatches": ["style=\\{"] },
+      "checks": [{ "lang": "regex", "body": "style=\\{\\{" }],
+      "meta": null,
+      "summary": "Components never set inline styles; they use the design system's classes.",
+      "prose": "Components never set inline styles; they use the design system's\nclasses.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "regex-outside-dialect", "file": ".lore/checkout.lore", "entry": "currency-before-amount", "line": 2 },
+    { "name": "regex-outside-dialect", "file": ".lore/checkout.lore", "entry": "no-repeated-digits", "line": 9 },
+    { "name": "regex-outside-dialect", "file": ".lore/checkout.lore", "entry": "currency-codes-from-settings", "line": 16 },
+    { "name": "regex-outside-dialect", "file": ".lore/checkout.lore", "entry": "currency-codes-any-case", "line": 23 },
+    { "name": "regex-outside-dialect", "file": ".lore/checkout.lore", "entry": "no-inline-styles", "line": 30 }
+  ],
+  "warnings": []
+}
+``````
+
+`٣` is ARABIC-INDIC DIGIT THREE (U+0663). It is neither an ASCII digit
+nor an ASCII word character, so `\d` does not match it, and there is a
+word boundary between it and `U`:
+
+``````example eligibility
+=== .lore/labels.lore
+<rule id="price-digits-from-formatter" category="functional_correctness">
+<when>
+addedMatches: ['\d']
+</when>
+Prices in labels are formatted by the shop's number formatter, never
+written as digits.
+</rule>
+
+<rule id="currency-code-from-settings" category="functional_correctness">
+<when>
+addedMatches: ['\bUSD\b']
+</when>
+Display text never spells out a currency code.
+</rule>
+=== diff
+M apps/web/src/checkout/labels.ts
++4 export const price = '٣USD'
+=== expect
+{ "eligible": ["currency-code-from-settings"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+## Checks
+
+A `<check>` is a child of a rule that holds a search. When the rule is
+eligible, a tool runs the search over the rule's counted files (see
+[Conditions](#conditions)), and its **hits** go to the reviewer with
+the rule. A hit is a pointer to a line, never a verdict: a hit does not
+mean the rule is broken, and no hits does not mean it passed.
+
+A rule MAY have any number of checks. A context has none (see
+[Context](#context)).
+
+- `<check>` takes one attribute, `lang`, the check's language. Without
+  it, the language is `regex`. `lang` with no value, or with the empty
+  value `lang=""`, is `invalid-attribute-value`. Any other attribute is
+  `unknown-attribute`.
+- This specification defines two languages, `regex` and `ast-grep`. Any
+  other `lang` value is kept as written: it is a language no conforming
+  tool supports (see below), not an error.
+- A check's **body** is the lines strictly between its tags, after the
+  entry's common indentation and then the check's own are removed (see
+  [Indentation](#indentation)), joined with line feeds. Nothing else is
+  trimmed: a blank line is kept as an empty line, and spaces at the end
+  of a line are part of the body.
+- A `regex` body is one pattern in the
+  [Regex dialect](#regex-dialect). A body of two or more lines is
+  `regex-not-one-line`. Otherwise, a body outside the dialect, the empty
+  body included, is `regex-outside-dialect`.
+- A tool checks a `<check>` as [Children](#children) describes, and its
+  contents last: for a `regex` check, `regex-not-one-line` and then
+  `regex-outside-dialect`. A body in any other language is not checked
+  when parsing.
+- Every error in a `<check>` is entry-level, at its opening tag line.
+- In the document model, `checks` lists each check's `lang` and `body`,
+  in the order the checks appear, with `lang` `"regex"` for a check that
+  has no `lang`.
+
+A two-line `regex` check is an error, and so is `lang` with no value or
+an empty one. A language this specification does not define is kept,
+and an `ast-grep` body may span lines:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+<check>
+'USD'
+|'EUR'
+</check>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="price-from-quote" category="functional_correctness">
+<check lang>
+quote\.total
+</check>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<check lang="">
+toLocaleDateString\(\)
+</check>
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="totals-from-quote" category="functional_correctness">
+<check lang="structural">
+items.reduce(...)
+</check>
+<check lang="ast-grep">
+$ITEMS.reduce(
+  $$$
+)
+</check>
+Cart totals come from the quote, never from summing line items.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "totals-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null,
+      "checks": [
+        { "lang": "structural", "body": "items.reduce(...)" },
+        { "lang": "ast-grep", "body": "$ITEMS.reduce(\n  $$$\n)" }
+      ],
+      "meta": null,
+      "summary": "Cart totals come from the quote, never from summing line items.",
+      "prose": "Cart totals come from the quote, never from summing line items.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "regex-not-one-line", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 2 },
+    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 10 },
+    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 17 }
+  ],
+  "warnings": []
+}
+``````
+
+### Running checks
+
+A tool runs the checks of every eligible rule, and of no other rule.
+Each check searches the rule's counted files that have added lines; a
+deleted file has none. A **hit** names the rule, the changed file (by
+its new path), the number of an added line, and that line's text (see
+[Conditions](#conditions)). A rule has at most one hit per file and
+line, however many of its checks or matches find that line.
+
+A `regex` check has a hit for each added line whose text its pattern
+matches, as [Regex dialect](#regex-dialect) defines.
+
+A tool that computes eligibility MUST support `regex` checks, since it
+already runs the same dialect for `addedMatches`. Supporting `ast-grep`
+checks is OPTIONAL. A tool that does not support a check's language,
+which includes every language this specification does not define, MUST
+skip that check and report the warning `unsupported-check-language` for
+it, at the check's opening tag line. The rule stays eligible, and its
+other checks still run. Only the checks of eligible rules are reported
+this way. A plain agent with no tooling MAY read any check as a hint
+about what to look for.
+
+The first check has no `lang`, so it is a `regex` check. Both checks
+find line 4 of `Summary.tsx`, which gives one hit. `currency.ts` is
+outside the scope. The second rule is not eligible, so its check is not
+run:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/display.lore
+<scope>
+files: ["**/*.tsx"]
+</scope>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<check>
+'(USD|EUR)'
+</check>
+<check lang="regex">
+'EUR'
+</check>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="currency-symbols-from-settings" category="functional_correctness">
+<when>
+addedContains: ["$"]
+</when>
+<check>
+'USD'
+</check>
+Display text never hard-codes a currency symbol.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12   const label = 'USD'
++13   const note = "EUR"
+M apps/web/src/checkout/Summary.tsx
++4   return <span>{'EUR'} {total}</span>
+M apps/web/src/checkout/currency.ts
++2 export const DEFAULT_CURRENCY = 'USD'
+=== expect
+{
+  "eligible": ["currency-from-settings"],
+  "hits": [
+    { "rule": "currency-from-settings", "file": "apps/web/src/checkout/Price.tsx", "line": 12, "text": "  const label = 'USD'" },
+    { "rule": "currency-from-settings", "file": "apps/web/src/checkout/Summary.tsx", "line": 4, "text": "  return <span>{'EUR'} {total}</span>" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+The first check's language is not one this specification defines, so
+the tool skips it and warns. The `regex` check still runs. The second
+rule is not eligible, so its unsupported check is not reported:
+
+``````example eligibility
+=== .lore/checkout.lore
+<rule id="totals-from-quote" category="functional_correctness">
+<check lang="structural">
+items.reduce(...)
+</check>
+<check>
+\.reduce\(
+</check>
+Cart totals come from the quote, never from summing line items.
+</rule>
+
+<rule id="refund-totals-from-quote" category="functional_correctness">
+<scope>
+files: ["apps/web/src/refunds/**"]
+</scope>
+<check lang="structural">
+refund.items.reduce(...)
+</check>
+Refund totals come from the quote, never from summing refunded items.
+</rule>
+=== diff
+M apps/web/src/checkout/CartTotal.tsx
++3   const total = items.reduce(
+=== expect
+{
+  "eligible": ["totals-from-quote"],
+  "hits": [
+    { "rule": "totals-from-quote", "file": "apps/web/src/checkout/CartTotal.tsx", "line": 3, "text": "  const total = items.reduce(" }
+  ],
+  "excluded": [],
+  "warnings": [
+    { "name": "unsupported-check-language", "file": ".lore/checkout.lore", "entry": "totals-from-quote", "line": 2 }
+  ]
+}
+``````
+
+### ast-grep checks
+
+An `ast-grep` check holds one pattern for the structural search tool
+ast-grep, and may span several lines. This specification follows
+**ast-grep 0.51.0**: a pattern is read with that release's pattern
+syntax, and a tool that supports `ast-grep` checks finds the same
+matches that release finds.
+
+- A pattern SHOULD use no metavariables other than `$NAME`, which matches
+  one node, and `$$$` or `$$$NAME`, which match zero or more nodes, and
+  no other ast-grep feature, so that it keeps its meaning in later
+  releases.
+- A file's language comes from its extension: the part of its name
+  after the last `.`, when that `.` is not the name's first character.
+  Extensions are compared case-sensitively, with the table below, which
+  is the built-in list of ast-grep 0.51.0. A renamed file's extension
+  comes from its new path.
+- A file the check searches whose name has no extension in the table is
+  skipped,
+  and the tool reports the warning `ast-grep-no-language` for it, once
+  for each rule and skipped file. The warning's `file` is the skipped
+  file, its `entry` is the rule's id, and its line is 1.
+- Otherwise the pattern is matched against the whole new version of the
+  file, in its language, as ast-grep 0.51.0 matches it. A match covers
+  the lines from the line of its first character to the line of its
+  last. Each added line that a match covers is a hit. When ast-grep
+  0.51.0 cannot read the pattern in a file's language, the check finds
+  nothing in that file.
+
+| Language | Extensions |
+|---|---|
+| Bash | `bash`, `bats`, `cgi`, `command`, `env`, `fcgi`, `ksh`, `sh`, `tmux`, `tool`, `zsh` |
+| C | `c`, `h` |
+| Cpp | `cc`, `hpp`, `cpp`, `c++`, `hh`, `cxx`, `cu`, `ino` |
+| CSharp | `cs` |
+| Css | `css`, `scss` |
+| Dart | `dart` |
+| Elixir | `ex`, `exs` |
+| Go | `go` |
+| Haskell | `hs` |
+| Hcl | `hcl`, `nomad`, `tf`, `tfvars`, `workflow` |
+| Html | `html`, `htm`, `xhtml` |
+| Java | `java` |
+| JavaScript | `cjs`, `js`, `mjs`, `jsx` |
+| Json | `json` |
+| Kotlin | `kt`, `ktm`, `kts` |
+| Lua | `lua` |
+| Markdown | `markdown`, `md` |
+| Nix | `nix` |
+| Php | `php` |
+| Python | `py`, `py3`, `pyi`, `bzl`, `bazel` |
+| Ruby | `rb`, `rbw`, `gemspec` |
+| Rust | `rs` |
+| Scala | `scala`, `sc`, `sbt` |
+| Solidity | `sol` |
+| Swift | `swift` |
+| Tsx | `tsx` |
+| TypeScript | `ts`, `cts`, `mts` |
+| Yaml | `yaml`, `yml` |
+| Zig | `zig` |
+
+The pattern matches two calls in `CartTotal.tsx`. The first covers only
+line 2, which is unchanged. The second covers lines 3 to 6, and of
+those only line 4 was added. Line 7 was added, but no match covers it.
+`.graphql` has no ast-grep language, so `quote.graphql` is skipped:
+
+``````example eligibility
+requires: ast-grep
+=== apps/web/src/checkout/.lore/totals.lore
+<scope>
+files: ["**/*.{tsx,graphql}"]
+</scope>
+
+<rule id="totals-from-quote" category="functional_correctness">
+<check lang="ast-grep">
+$LIST.reduce($$$)
+</check>
+Cart totals come from the quote, never from summing line items.
+</rule>
+=== apps/web/src/checkout/CartTotal.tsx
+export function CartTotal({ items, fees }) {
+  const feeTotal = fees.reduce((sum, fee) => sum + fee, 0)
+  const total = items.reduce(
+    (sum, item) => sum + item.price,
+    0,
+  )
+  return <span>{total + feeTotal}</span>
+}
+=== diff
+M apps/web/src/checkout/CartTotal.tsx
++4     (sum, item) => sum + item.price,
++7   return <span>{total + feeTotal}</span>
+M apps/web/src/checkout/quote.graphql
++2   total: Money!
+=== expect
+{
+  "eligible": ["totals-from-quote"],
+  "hits": [
+    { "rule": "totals-from-quote", "file": "apps/web/src/checkout/CartTotal.tsx", "line": 4, "text": "    (sum, item) => sum + item.price," }
+  ],
+  "excluded": [],
+  "warnings": [
+    { "name": "ast-grep-no-language", "file": "apps/web/src/checkout/quote.graphql", "entry": "totals-from-quote", "line": 1 }
+  ]
 }
 ``````

@@ -182,7 +182,7 @@
   {
     "name": "empty-scope",
     "kind": "warning",
-    "description": "A scope matches no files."
+    "description": "An entry's scope can match no path."
   },
   {
     "name": "missing-src-target",
@@ -197,7 +197,7 @@
   {
     "name": "ast-grep-no-language",
     "kind": "warning",
-    "description": "An ast-grep check names no language."
+    "description": "An ast-grep check skips a changed file whose extension maps to no ast-grep language."
   },
   {
     "name": "unknown-disabled-id",
