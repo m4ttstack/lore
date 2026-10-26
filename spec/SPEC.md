@@ -2564,8 +2564,9 @@ eligible as usual. Parsing reads Lore files and `.loreconfig` files,
 never the governed repo's other files, so the document model does not
 report this warning. A tool reports it when it computes eligibility,
 where the governed repo's files are known, for every context in the
-document model whose target is missing, eligible or not. A target in an
-external folder's own files is looked for among that folder's files.
+document model whose target is missing, eligible or not. A target named
+`external:<path>` is looked for among the tracked files of that external
+folder's repository.
 
 `docs/payments-architecture.md` and `docs/refunds-architecture.md` are
 not in the governed repo. The first two contexts are eligible, and the
@@ -4659,7 +4660,8 @@ sequence, the line of the item's `-`; in a flow sequence, the line of
 the item's first character. The entries a list can
 switch off are those whose ids count in [Ids](#attributes): for a list
 in the governed repo, every such entry collected from anywhere; for a
-list in an external folder, see [External folders](#external-folders).
+list in a given folder's repository, see
+[External folders](#external-folders).
 The warning is part of the document model.
 
 `legacy/` switches off three rules. `currency-from-settings` stays
@@ -4932,11 +4934,13 @@ the `.loreconfig` files above it that apply to it. Trees resolve their
   when a `.loreconfig` of the governed repo switches it off, as
   [Disable](#disable) says, or when a `.loreconfig` of its own tree
   applies to the directory that stands for the path's directory and
-  lists its id. An external folder's `disable` lists never switch off
-  the governed repo's entries, nor those of another tree. For
-  `unknown-disabled-id`, the entries such a list can switch off are
-  those of the trees it belongs to. A list of an external folder that
-  belongs to no tree switches nothing off and is not checked.
+  lists its id. A `disable` list in a given folder's repository, whether
+  inside an external folder or in a `.loreconfig` above one, never
+  switches off the governed repo's entries, nor those of a tree it does
+  not belong to. For `unknown-disabled-id`, the entries it can switch
+  off are those of the trees it belongs to. A list in a given folder's
+  repository that belongs to no tree switches nothing off and is not
+  checked for `unknown-disabled-id`.
 - **Ids.** Ids MUST be unique across every tree, as [Ids](#attributes)
   says. An id used in two trees is `duplicate-id` in both: neither entry
   overrides the other.
