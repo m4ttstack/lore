@@ -216,13 +216,14 @@ a lint rule, it should be one.
 
 ## Specification
 
-The specification is in progress. It will be written in the style of the
-[CommonMark spec](https://spec.commonmark.org/): normative text with
-numbered conformance examples that any implementation can run, plus JSON
-Schemas for every structured block.
+The specification is [`spec/SPEC.md`](spec/SPEC.md). It is written in the
+style of the [CommonMark spec](https://spec.commonmark.org/): normative
+text with numbered conformance examples that any implementation can run,
+plus JSON Schemas for every structured block and for the expected output.
 
-The current design document is at
-[`docs/superpowers/specs/2026-10-25-lore-spec-design.md`](docs/superpowers/specs/2026-10-25-lore-spec-design.md).
+[`spec/AGENT.md`](spec/AGENT.md) holds short instructions for agents with
+no Lore tooling. Paste it into `AGENTS.md` or your agent's instruction
+file.
 
 ### Roadmap
 

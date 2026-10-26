@@ -437,9 +437,11 @@ Element contents and attribute values are raw text. A tool MUST NOT
 decode entities or process escapes in either: `&amp;` stays `&amp;`.
 
 An unquoted attribute value is malformed. The element's extent is still
-known, so only that entry is excluded. In the second rule the id is
-read before the malformed value, so the error names it. In the third,
-the malformed tag is a child's, and the error names the entry:
+known, so only that entry is excluded. The unquoted id of
+`currency-from-settings` is itself the malformed value, so its error
+names no entry. In `dates-from-locale` the id is read before the
+malformed value, so the error names it. In `no-hard-coded-currency`, the
+malformed tag is a child's, and the error names the entry:
 
 ``````example parse
 === .lore/checkout.lore
@@ -3589,9 +3591,10 @@ which part of it.
 - In `{n}`, `{n,}` and `{n,m}`, `n` and `m` are decimal numbers with no
   leading zero (`0` itself is allowed), at most 1000, and `n` is not
   more than `m`. A `{}` quantifier's bound is its `m`, or its `n` when it
-  has no `m`, and is counted as 1 when that number is 0. The product of the bounds of a `{}` quantifier and of every
-  `{}` quantifier on a group that holds it is at most 1000, so
-  `(a{10}){100}` is allowed and `(a{10}){101}` is not.
+  has no `m`, and is counted as 1 when that number is 0. The product of
+  the bounds of a `{}` quantifier and of every `{}` quantifier on a group
+  that holds it is at most 1000, so `(a{10}){100}` is allowed and
+  `(a{10}){101}` is not.
 - `{` always starts a quantifier, so a literal `{` is written `\{`. A
   literal `}` or `]` is written `\}` or `\]`.
 - An alternative or a group MAY be empty: `a|`, `(|s)`, `()` and `(?:)`
@@ -4502,10 +4505,11 @@ M apps/web/src/checkout/Price.tsx
 ### Lore root
 
 `.loreconfig` files cascade: the settings that hold for a directory come
-from the `.loreconfig` in it and those above it. The **Lore root** of a directory is where that lookup stops, so that
-the result never depends on where a tool was pointed. A `.loreconfig`
-**applies** to a directory when it is in that directory or in one above
-it, up to and including the directory's Lore root, and is not ignored.
+from the `.loreconfig` in it and those above it. The **Lore root** of a
+directory is where that lookup stops, so that the result never depends
+on where a tool was pointed. A `.loreconfig` **applies** to a directory
+when it is in that directory or in one above it, up to and including the
+directory's Lore root, and is not ignored.
 
 - In the governed repo, the Lore root of a directory is the nearest
   directory, at or above it, whose `.loreconfig` has `root: true`. When
@@ -5070,9 +5074,9 @@ other problem; an `invalid-loreconfig` marks nothing. The offending
 and every Lore file and `.loreconfig` in its directory or below it:
 none of those below is collected or read, and nothing in them is
 reported. An excluded `.loreconfig` is as if it did not exist, so its
-`root: true`, if it has one, does not cut off any lookup. A tool reads `.loreconfig` files from
-the top of the tree down, so when such errors nest, only the highest is
-reported.
+`root: true`, if it has one, does not cut off any lookup. A tool reads
+`.loreconfig` files from the top of the tree down, so when such errors
+nest, only the highest is reported.
 
 `apps/web/.loreconfig` has a `repo` key, so nothing under `apps/web/` is
 read: not `web.lore`, and not the broken `.loreconfig` below it. In the
@@ -5193,3 +5197,183 @@ M apps/web/src/checkout/Price.tsx
   "warnings": []
 }
 ``````
+
+## Document model
+
+A tool that parses Lore files builds a **document model**: the entries it
+read from every collected Lore file, and the errors and warnings it found
+in them and in every `.loreconfig` it read. A tool that computes
+eligibility builds an **eligibility result**. Both are JSON values, and
+the conformance examples compare against them (see
+[Conformance examples](#conformance-examples)). A tool MAY emit either one
+in this form. Their shapes are also given as
+[`document-model.schema.json`](schemas/document-model.schema.json) and
+[`eligibility.schema.json`](schemas/eligibility.schema.json).
+
+A document model is an object with three members:
+
+| Member | Value |
+|---|---|
+| `entries` | Every entry that no error excludes, rules and contexts alike, disabled entries included (see [Error reach](#error-reach)). |
+| `errors` | A diagnostic for every error, in a Lore file or in a `.loreconfig`. |
+| `warnings` | A diagnostic for every `missing-category`, `empty-scope` and `unknown-disabled-id`. The other warnings are found when computing eligibility, and only an eligibility result carries them. |
+
+Each array is in the order that [Conformance examples](#conformance-examples)
+gives under Order, and every `file` field follows Paths there.
+
+**Paths.** A `file` is a path from the root of the repository that holds
+the file. A file of the governed repo has its plain path. A file of a
+given folder's repository has `external:` before its path, so that it is
+never mistaken for a file of the governed repo. The prefix does not say
+which repository the file is in, so a tool given folders of two
+repositories can list two different files with the same `file`. This
+version of the format does not tell them apart. Every other path in the
+model (`scopes`, plain `src` values and hits) names a path in the
+governed repo, apart from a file-relative `src` in an external folder
+(see [Context](#context)).
+
+### Entry fields
+
+| Field | Value |
+|---|---|
+| `kind` | `"rule"` or `"context"`. |
+| `id` | The entry's id (see [Attributes](#attributes)). |
+| `file` | The path of the Lore file that holds the entry. |
+| `category` | A rule's category, found as [Categories and severity](#categories-and-severity) says, or null when it has none. Always null for a context. |
+| `severity` | A rule's severity, `"blocking"` or `"advisory"`, never null. Always null for a context. |
+| `disabled` | `true` when the entry has the `disabled` attribute, otherwise `false`. A `disable` list does not change it. |
+| `scopes` | The file's scope, then the entry's own `<scope>` when it has one, each as an object with `files` and `ignores`, defaults filled in and globs resolved (see [Scope and globs](#scope-and-globs)). A path is in the entry's scope when it is in every item. |
+| `when` | The `<when>` mapping as parsed, with its globs as written, or null when the entry has none (see [Conditions](#conditions)). |
+| `checks` | Each `<check>` as an object with `lang` and `body`, in the order they appear (see [Checks](#checks)). Always `[]` for a context. |
+| `meta` | The `<meta>` mapping as parsed, or null when the entry has none (see [Children](#children)). |
+| `summary` | The first paragraph of the prose (see [Entries](#entries)). |
+| `prose` | The entry's prose, which for a context is its body (see [Entries](#entries)). |
+| `src` | A context's resolved `src`, or null when it has none (see [Context](#context)). Always null for a rule. |
+
+### Diagnostics
+
+Every error and warning is reported as a **diagnostic**:
+
+| Field | Value |
+|---|---|
+| `name` | The problem's name (see [Errors and warnings](#errors-and-warnings)). |
+| `file` | The path of the Lore file or `.loreconfig` the problem is in. For `ast-grep-no-language`, the changed file the check skipped. |
+| `entry` | The id of the entry the problem is in, or null, as Diagnostic entry in [Conformance examples](#conformance-examples) says. For `ast-grep-no-language`, the rule's id. |
+| `line` | The line, counted from 1, as Diagnostic lines in [Conformance examples](#conformance-examples) says. |
+
+### Eligibility result
+
+An eligibility result is an object with four members (see
+[Eligibility](#eligibility)):
+
+| Member | Value |
+|---|---|
+| `eligible` | The id of every eligible entry, in ascending order. |
+| `hits` | Each hit as an object with `rule`, `file`, `line` and `text`: the rule's id, the changed file's new path, the added line's number counted from 1, and that line's text (see [Running checks](#running-checks)). |
+| `excluded` | The document model's `errors`. |
+| `warnings` | The document model's `warnings`, with `missing-src-target`, `unsupported-check-language` and `ast-grep-no-language` added as [Eligibility](#eligibility) says. |
+
+## Errors and warnings
+
+Every problem a tool reports has one of these names. An error excludes
+what it is found in, and a warning excludes nothing. The list is also
+given as [`errors.json`](errors.json).
+
+| Name | Kind | Description |
+|---|---|---|
+| `unreadable-structure` | error | The file structure cannot be read as Lore elements. |
+| `top-level-text` | error | Text appears at the top level outside any element. |
+| `unknown-element` | error | An element name is not part of the format. |
+| `duplicate-file-block` | error | A file contains more than one file block. |
+| `file-block-after-entry` | error | A file block appears after the first entry. |
+| `invalid-yaml` | error | A block body is not valid YAML. |
+| `duplicate-key` | error | A mapping repeats the same key. |
+| `yaml-feature-not-allowed` | error | A block uses a YAML feature outside the allowed subset. |
+| `invalid-defaults` | error | A defaults block fails its schema. |
+| `invalid-scope` | error | A scope block fails its schema. |
+| `invalid-when` | error | A when block fails its schema. |
+| `invalid-meta` | error | A meta block is not a mapping. |
+| `missing-id` | error | An entry has no id attribute. |
+| `invalid-id` | error | An id does not match the id pattern. |
+| `unknown-attribute` | error | An element carries an attribute it does not define. |
+| `duplicate-attribute` | error | An attribute appears more than once on one element. |
+| `invalid-attribute-value` | error | An attribute value is not allowed for that attribute. |
+| `disabled-has-value` | error | The disabled attribute is given a value. |
+| `unknown-child` | error | An element contains a child it does not allow. |
+| `duplicate-child` | error | An element contains a child that may appear only once. |
+| `unknown-condition` | error | A condition names a key that is not defined. |
+| `empty-when` | error | A when block has no conditions. |
+| `invalid-glob` | error | A glob string is malformed. |
+| `glob-escapes-base` | error | A glob contains a .. segment that escapes its base directory. |
+| `leading-slash` | error | A scope glob starts with a slash. |
+| `empty-files` | error | A scope files list is empty. |
+| `regex-outside-dialect` | error | A regular expression uses syntax outside the allowed dialect. |
+| `regex-not-one-line` | error | A regular expression spans more than one line. |
+| `inconsistent-indentation` | error | A block body mixes indentation inconsistently. |
+| `unknown-category` | error | A category is not built in or declared in config. |
+| `duplicate-id` | error | Two entries resolve to the same id. |
+| `src-escapes-root` | error | A src path resolves outside the Lore root. |
+| `invalid-loreconfig` | error | A .loreconfig file is not valid UTF-8 or allowed YAML, or fails its schema. |
+| `repo-inside-repo` | error | A .loreconfig in the governed repo has a repo key. |
+| `nested-repo` | error | A directory marked with repo is below another marked directory. |
+| `missing-category` | warning | An entry has no category and no default supplies one. |
+| `empty-scope` | warning | Each of an entry's files globs is disjoint from each of its file scope's files globs. |
+| `missing-src-target` | warning | A src attribute points at a file that does not exist. |
+| `unsupported-check-language` | warning | A check uses a language the tool does not support. |
+| `ast-grep-no-language` | warning | An ast-grep check skips a changed file whose extension maps to no ast-grep language. |
+| `unknown-disabled-id` | warning | A disable list names an id of no entry it can switch off. |
+
+Whether an error excludes a file, an entry or a `.loreconfig`, and for
+some errors where it is found, is listed in [Error reach](#error-reach).
+
+## For agents (non-normative)
+
+An agent with no Lore tooling can still apply Lore, since Lore files are
+plain text written to be read.
+[`AGENT.md`](AGENT.md) holds short instructions that a team pastes into
+the instructions its agents already read (see
+[Adopting Lore](#adopting-lore-non-normative)). Its heading names the
+version of this specification it follows. It reads, in full:
+
+```markdown
+# Lore v1 agent instructions
+
+1. Find the tracked `.lore/` folders whose base (the folder that holds
+   `.lore/`) contains a changed file, and read every `.lore` file in them.
+2. Read each `.loreconfig` from a changed file's folder up to the Lore root:
+   the nearest folder whose `.loreconfig` has `root: true`, else the repo root.
+3. Select each entry that is not `disabled`, whose `<scope>` globs (relative
+   to the base) match a changed file that no `disable` list switches it off
+   for, and whose `<when>` holds. Read each selected `<context>` and its `src`.
+4. Treat a `<check>` as a hint about where to look, never as a verdict.
+5. Report each selected `<rule>` by its id as pass, fail or not applicable,
+   with evidence such as a file and line.
+6. Never invent rules from prose outside `.lore` files.
+```
+
+An agent that follows these steps selects rules by reading them, so it
+can select a different set than a conforming tool would: it can misread
+a glob, or miss that a category is not declared. When a tool has computed
+the eligibility result for the change, an agent does better to take the
+eligible entries and hits from it, and still report on every eligible
+rule by id.
+
+## Adopting Lore (non-normative)
+
+**First rules.** Add a Lore folder with a first `.lore` file, at the
+repository root for rules that apply everywhere, or beside the code a set
+of rules governs (see [Files and folders](#files-and-folders)). A rule
+with no category is still eligible, with a warning, so existing rules can
+be wrapped and scoped first and classified later.
+
+**Highlighting.** Until editors support Lore, this line in
+`.gitattributes` makes code hosts that read these attributes highlight
+`.lore` files as Markdown:
+
+```
+*.lore linguist-language=Markdown gitlab-language=markdown
+```
+
+**Agents.** Paste [`AGENT.md`](AGENT.md), heading included, into the
+instruction file your agents read: `AGENTS.md` at the repository root, or
+the file a particular agent reads instead.
