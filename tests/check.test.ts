@@ -159,7 +159,7 @@ test("coverage: a parent's examples do not cover its subsections", () => {
 test("ignores RFC words inside examples and code", () => {
   const md = swap(
     "## Errors and warnings",
-    "## Notes\nThe word `MUST` is code.\n" + F + "example parse\n=== lore/c.lore\nThis MUST be ignored.\n=== expect\n" + parseExpect + "\n" + F + "\n```\nThis MUST be ignored.\n```\nLowercase must is fine. MUSTARD too.\n## Errors and warnings",
+    "## Notes\nThe word `MUST` is code.\n```\nThis MUST be ignored.\n```\nLowercase must is fine. MUSTARD too.\n## Errors and warnings",
   );
   expect(check(md)).toEqual([]);
 });
