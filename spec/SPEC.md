@@ -47,8 +47,10 @@ Terms used throughout:
 - **Governed repo**: the repository whose change is being reviewed. Paths
   are relative to its root and separated by `/`.
 - **Lore folder**: a directory named `.lore`.
-- **Base**: the directory that contains a Lore folder. Globs and plain
-  `src` paths in that folder's files resolve relative to the base.
+- **Base**: the directory that contains a Lore file's Lore folder. When a
+  path holds more than one Lore folder, the first one counted from the
+  repository root decides (see [Files and folders](#files-and-folders)).
+  Globs and plain `src` paths in the file resolve relative to the base.
 - **External folder**: Lore kept outside the governed repo, in a
   directory tree that a `.loreconfig` `repo` key maps onto the governed
   repo (see [External folders](#external-folders)).
@@ -62,8 +64,9 @@ Terms used throughout:
 - **Change**: a set of changed files and, for each added, modified or
   renamed file, its added lines. A diff describes a change.
 - **Eligible**: an entry is eligible for a change when it is not
-  disabled, its scope matches a changed file, and its conditions hold
-  (see [Eligibility](#eligibility)).
+  disabled, its scope matches at least one changed file that no
+  `.loreconfig` `disable` list switches it off for, and its conditions
+  hold (see [Eligibility](#eligibility)).
 - **Error** and **warning**: problems a tool reports by name. An error
   excludes the file or entry it is found in; a warning excludes nothing.
 - **Blank line**: a line that is empty or holds only spaces and tabs.
@@ -81,11 +84,14 @@ produces from them. There are two kinds:
   eligible entries, the check hits, the excluded files and entries, and
   the warnings.
 
-An example is a fenced block. Its opening line is six backticks followed
-by `example parse` or `example eligibility`; its closing line is exactly
-six backticks. Six backticks let an example's inputs hold ordinary fenced
-code blocks. Examples are numbered in document order, starting at 1, and
-belong to the section under the nearest heading before them.
+An example is a fenced block. Its opening line starts at column 0 and is
+exactly six backticks, directly followed by `example`, one or more spaces
+or tabs, and the kind: `parse` or `eligibility`. Its closing line is
+exactly six backticks. An opening line inside another fenced block does
+not start an example. Six backticks let an example's inputs hold
+ordinary fenced code blocks. Examples are numbered in document order,
+starting at 1, and belong to the section under the nearest heading
+before them.
 
 Lines of the form `requires: <capability>` may directly follow the
 opening line. The only capability defined is `ast-grep`: a tool that does
@@ -99,7 +105,7 @@ of the example:
 |---|---|
 | `=== <path>` | An input file at `<path>` in the governed repo: the section's lines, joined with line feeds. |
 | `=== external:<path>` | An input file at `<path>` in the external repository described below. |
-| `=== remote` | Eligibility only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, the remote is `https://github.com/acme/shop`. |
+| `=== remote` | Eligibility only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, and in every parse example, the remote is `https://github.com/acme/shop`. |
 | `=== diff` | Eligibility only, required. The change, in the format below. |
 | `=== expect` | The expected output, as JSON. |
 
@@ -114,6 +120,8 @@ file's added lines:
   new path) is `<text>`, which is everything after the single space that
   follows `<n>`.
 
+A `+` line follows an `A`, `M` or `R` line directly or after other `+`
+lines; a `+` line anywhere else, such as after a `D` line, is malformed.
 A diff has no blank lines. Any line of a changed file that is not listed
 as an added line is unchanged.
 
@@ -134,7 +142,10 @@ valid against
 [`document-model.schema.json`](schemas/document-model.schema.json). An
 eligibility example's expect is an eligibility result, valid against
 [`eligibility.schema.json`](schemas/eligibility.schema.json).
-[Document model](#document-model) defines every field. In both:
+[Document model](#document-model) defines every field. A tool's output
+matches the expect when the two are equal as JSON values: arrays compare
+item by item in order (see Order below), and objects compare regardless
+of the order of their members. In both kinds:
 
 - **Paths.** Every `file` field is the input path exactly as written after
   `=== `, keeping the `external:` prefix.
@@ -146,7 +157,10 @@ eligibility example's expect is an eligibility result, valid against
   file. For a YAML problem (`invalid-yaml`, `duplicate-key`,
   `yaml-feature-not-allowed`) it is the offending line, counted in the
   file, not the block (see [Structured blocks](#structured-blocks)). For
-  `top-level-text` it is the first stray line. For a `.loreconfig`
+  `top-level-text` it is the first stray line. For a problem outside any
+  element, such as a closing tag with no opening tag, an invalid UTF-8
+  byte or an unclosed comment, it is the offending line (for an unclosed
+  comment, the line where the comment opens). For a `.loreconfig`
   problem it is the offending key's line. For any other problem in an
   element it is the opening tag line of the element at fault. A problem
   with no line has line 1.
@@ -194,7 +208,7 @@ directory of a repository.
 - A file whose name ends in `.lore` but that is not inside a Lore folder
   is not a Lore file, and a tool MUST NOT collect it. Files in a Lore
   folder whose names do not end in `.lore` are not Lore files either, and
-  a tool ignores them.
+  a tool MUST ignore them.
 - A set of entries MAY be one file or many. A tool MUST NOT give the split
   any meaning, except that a file block applies only to the file it is
   in.
@@ -370,9 +384,9 @@ holds one opening tag or one closing tag and nothing else, apart from
 the leading spaces and tabs a position allows and any trailing spaces
 and tabs.
 
-- An **opening tag** is `<`, an element name, zero or more attributes
-  each preceded by one or more spaces or tabs, optional spaces or tabs,
-  and `>`.
+- An **opening tag** is `<`, an element name, an attribute list, and
+  `>`. The **attribute list** is zero or more attributes, each preceded
+  by one or more spaces or tabs, followed by optional spaces or tabs.
 - An **attribute** is `name="value"`, where the value is any characters
   other than `"` and MAY be empty, or a bare `name` (a boolean
   attribute).
@@ -381,17 +395,35 @@ and tabs.
   start with a letter. Names are case-sensitive.
 
 A line **looks like a tag** when, ignoring leading and trailing spaces
-and tabs, it starts with `<` or `</` followed by a name and then `>`, a
-space or a tab, and it ends with `>`. Where a tag line can appear (at
-column 0 at the top level, and among an entry's children), a line that looks like a
-tag but is not a well-formed opening or closing tag is
-`unreadable-structure`, a file-level error.
+and tabs, it starts with `<` or `</` and a name, followed either by `>`
+as the line's last character, or by a space or a tab with the line
+ending in `>`. So `<details>` and `<rule id="a">` look like tags, while
+`<kbd>Esc</kbd>` and `<https://example.com>` do not.
+
+Where a tag line can appear (at column 0 at the top level, and among an
+entry's children), a line that looks like a tag is read as one:
+
+- A line that starts with `</` MUST be exactly a closing tag. Otherwise
+  it is `unreadable-structure`, a file-level error.
+- A line that starts with `<` is an opening tag. Its element name is
+  always readable, so the element's extent is known. The name is checked
+  first: at the top level, a name the format does not define is
+  `unknown-element` whatever follows it.
+- If the text between the name and the final `>` is not a valid
+  attribute list, the attributes are malformed: `invalid-attribute-value`.
+  On an entry or one of its children this is an entry-level error; on a
+  file block it is file-level.
+- The `entry` of that error is the entry's id when, reading the attribute
+  list from left to right, a well-formed `id` attribute whose value
+  matches the id pattern (see [Rules](#rules)) comes before the first
+  character at which the list stops being valid. Otherwise it is null.
 
 Element contents and attribute values are raw text. A tool MUST NOT
 decode entities or process escapes in either: `&amp;` stays `&amp;`.
 
-An unquoted attribute value makes a malformed tag line, so the file is
-excluded:
+An unquoted attribute value is malformed. The element's extent is still
+known, so only that entry is excluded. In the second rule the id is
+read before the malformed value, so the error names it:
 
 ``````example parse
 === .lore/checkout.lore
@@ -402,11 +434,26 @@ A displayed price must come from the quote that produced it.
 <rule id=currency-from-settings category="functional_correctness">
 Display text never hard-codes a currency code.
 </rule>
+
+<rule id="dates-from-locale" category=functional_correctness>
+Displayed dates are formatted with the shop's locale.
+</rule>
 === expect
 {
-  "entries": [],
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null
+    }
+  ],
   "errors": [
-    { "name": "unreadable-structure", "file": ".lore/checkout.lore", "entry": null, "line": 5 }
+    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": null, "line": 5 },
+    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 9 }
   ],
   "warnings": []
 }
@@ -461,7 +508,7 @@ lines:
   closing tag before the end of the file is `unreadable-structure`.
 - A **comment** starts with `<!--` at column 0 and ends at the first
   `-->` after it, on the same line or a later one. The rest of the line
-  after `-->` MUST be blank. A tool ignores comments. A comment with no
+  after `-->` MUST be blank. A tool MUST ignore comments. A comment with no
   `-->` is `unreadable-structure`.
 - Blank lines MAY appear between elements.
 - Any other non-blank line at the top level is `top-level-text`,
@@ -469,9 +516,10 @@ lines:
 - An opening tag whose name is not `defaults`, `scope`, `rule` or
   `context` is `unknown-element`. A closing tag at the top level, outside
   any element, is `unreadable-structure`.
-- A second `<defaults>`, or a second `<scope>`, is `duplicate-file-block`.
-  The first `<defaults>` or `<scope>` after an entry is
-  `file-block-after-entry`.
+- A `<defaults>` or `<scope>` after the first entry is
+  `file-block-after-entry`. Otherwise, a second `<defaults>` or a second
+  `<scope>` is `duplicate-file-block`. Position is checked first, so a
+  second `<scope>` after an entry is `file-block-after-entry`.
 - Every error in this section is file-level.
 
 Text between two entries excludes the file. The error is reported at the
@@ -594,20 +642,48 @@ category: functional_correctness
 }
 ``````
 
+A second `<scope>` that also comes after an entry breaks both rules.
+Position is checked first:
+
+``````example parse
+=== .lore/checkout.lore
+<scope>
+files: ["**/*.tsx"]
+</scope>
+
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<scope>
+ignores: ["**/*.test.tsx"]
+</scope>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "file-block-after-entry", "file": ".lore/checkout.lore", "entry": null, "line": 9 }
+  ],
+  "warnings": []
+}
+``````
+
 ### Entries
 
 An entry's contents are its **children**, then its **prose**. A tool
 reads them line by line after the opening tag:
 
 1. **Children.** Blank lines are skipped, and the entry's closing tag at
-   column 0 ends the entry. A line that looks like a tag,
-   ignoring leading spaces and tabs, opens a child element, which runs to
-   the next line that, ignoring leading and trailing spaces and tabs, is
-   its closing tag. If the entry's closing tag or the end of the file
-   comes first, the child is unclosed: `unreadable-structure`. A closing
-   tag that closes no child is `unreadable-structure` too. Which children
-   an entry allows is defined in [Rules](#rules) and
-   [Context](#context).
+   column 0 ends the entry. Any other line that looks like a tag,
+   ignoring leading spaces and tabs, is a child's opening or closing tag.
+   An opening tag opens a child element, which runs to the next line
+   that, ignoring leading and trailing spaces and tabs, is the child's
+   closing tag. While a child is open, the entry's closing tag at column
+   0 still ends the entry, even when the child has the same name as the
+   entry; the child is then unclosed: `unreadable-structure`. A child
+   still open at the end of the file is unclosed too. A closing tag that
+   closes no child is `unreadable-structure`. Which children an entry
+   allows is defined in [Rules](#rules) and [Context](#context).
 2. **Prose.** The first line that is neither blank nor looks like a tag
    starts the prose. From there on, the only line with meaning is the
    entry's closing tag (`</rule>` or `</context>`) at column 0. Every
@@ -624,6 +700,11 @@ reads them line by line after the opening tag:
    file. This rule follows CommonMark's fenced code blocks but ignores
    their indentation limit, and decides only where the entry ends.
 4. To keep a closing-tag line in the prose outside a fence, indent it.
+
+A note for authors: the first line of the prose must not look like a
+tag. A prose that opens with a lone HTML tag line, such as `<details>`
+or `<a href="#quotes">`, has that line read as a child, at any
+indentation. Start the prose with text instead.
 
 The entry ends at its closing tag. If the end of the file comes first,
 the entry is `unreadable-structure`. An entry whose closing tag is
@@ -785,6 +866,115 @@ Display text never hard-codes a currency code.
 }
 ``````
 
+An entry with no prose has empty prose and summary:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</when>
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "currency-from-settings", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": { "addedContains": ["'USD'"] }, "checks": [], "meta": null,
+      "summary": "",
+      "prose": "",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A child left open when the entry's closing tag arrives is unclosed, and
+the file is excluded. In the second file, the `<rule>` line among the
+children opens a child, and the `</rule>` at column 0 ends the entry,
+not that child:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</rule>
+=== .lore/display.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<rule id="times-from-locale" category="functional_correctness">
+Displayed times are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "unreadable-structure", "file": ".lore/checkout.lore", "entry": null, "line": 6 },
+    { "name": "unreadable-structure", "file": ".lore/display.lore", "entry": null, "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+A closing tag among the children that closes no child excludes the
+file:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</when>
+</when>
+Display text never hard-codes a currency code.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "unreadable-structure", "file": ".lore/checkout.lore", "entry": null, "line": 5 }
+  ],
+  "warnings": []
+}
+``````
+
+A rule whose closing tag is missing takes in the next rule as prose. No
+error is reported, because the second `</rule>` closes the first rule:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.\n\n<rule id=\"currency-from-settings\" category=\"functional_correctness\">\nDisplay text never hard-codes a currency code.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
 ### Indentation
 
 Indentation inside an element carries no meaning, so an indented file
@@ -797,9 +987,10 @@ and a flush-left file mean the same thing.
 - This applies to every element: file blocks, entries and children. A
   child's contents have the entry's common indentation removed first,
   then the child's own.
-- Spaces and tabs both work, but MUST NOT be mixed: when every non-blank
-  line of an element's contents begins with a space or a tab, and the
-  lines have no common indentation, the element is
+- Spaces and tabs both work, but MUST NOT be mixed: when an element's
+  contents have at least one non-blank line, every non-blank line begins
+  with a space or a tab, and the lines have no common indentation, the
+  element is
   `inconsistent-indentation`. In a file block it is a file-level error;
   in an entry or one of its children, an entry-level error.
 - YAML does not allow tabs for nesting, so nested YAML uses spaces after
@@ -931,30 +1122,36 @@ rules:
 
 - A block with no content other than blank lines and comments is an
   empty mapping.
-- Anchors (`&name`), aliases (`*name`), tags (`!name` and `!!name`) and
-  directives (`%YAML`) are `yaml-feature-not-allowed`.
+- Anchors (`&name`), aliases (`*name`) and directives (`%YAML`) are
+  `yaml-feature-not-allowed`. So is every tag, custom or standard:
+  `!money` and `!!str` alike.
 - Every mapping key MUST be a string, and every value MUST have a JSON
-  equivalent. A key that is not a string (such as `2026:`), and the
-  values `.inf`, `-.inf` and `.nan`, are `yaml-feature-not-allowed`.
+  equivalent. A key that is not a string (such as `2026:`, which the
+  core schema reads as a number) is `yaml-feature-not-allowed`, and so
+  are the values `.inf`, `-.inf` and `.nan`.
 - A key that appears twice in one mapping is `duplicate-key`. Keys are
   compared after quoting is resolved, so `files` and `"files"` are the
   same key.
-- Comments start with `#`, as in YAML. `//` does not start a comment. A
-  trailing comma in a flow sequence or flow mapping is `invalid-yaml`,
-  although YAML 1.2 allows one, so a JSON block is always valid JSON.
+- Comments start with `#`, as in YAML. `//` does not start a comment, so
+  JSONC comments are not accepted: one is ordinary text, which usually
+  makes the block `invalid-yaml`. A trailing comma in a flow sequence or
+  flow mapping is allowed, as YAML 1.2 allows it.
 - Anything else that is not one well-formed YAML 1.2 document, such as a
   bad escape, an alias to an anchor that is never defined, or a second
   document, is `invalid-yaml`.
 
 A tool checks a block in this order, and reports the first problem it
 finds: `inconsistent-indentation`; then `invalid-yaml`; then
-`duplicate-key` and `yaml-feature-not-allowed`, whichever comes first in
-the block; then the checks that the block's own section defines. The
-line of a YAML problem is the line, counted in the file, that holds:
+`duplicate-key` and `yaml-feature-not-allowed`, whichever starts first
+in the block by character position (a repeated key at its second
+occurrence, a feature at its first character); then the checks that the
+block's own section defines. The line of a YAML problem is the line,
+counted in the file, that holds:
 
 - for `invalid-yaml`, the first character at which the block stops being
-  a well-formed document (the alias, for an undefined alias; the comma,
-  for a trailing comma);
+  a well-formed document (the alias, for an undefined alias). When the
+  block ends before the document is complete, as with an unclosed flow
+  sequence or quoted string, the line is the block's closing tag line;
 - for `duplicate-key`, the key's second occurrence;
 - for `yaml-feature-not-allowed`, the first feature that is not allowed.
 
@@ -964,7 +1161,10 @@ is the parsed YAML as JSON.
 
 These YAML rules catch authors out, so each has an example below:
 
-- An unquoted value that starts with `*`, such as `**/*.ts`, is an alias.
+- An unquoted value that starts with a YAML indicator character, such
+  as `*`, `&`, `!`, `[` or `{`, is not read as plain text: `**/*.ts` is
+  an alias. Inside a flow sequence, an unquoted value also ends at `,`
+  and cannot hold `[`, `]`, `{` or `}`, so `[src/*.{ts,tsx}]` breaks.
   Quote globs.
 - In double quotes, a backslash starts an escape, and `"\d"` is not a
   valid one. Write regular expressions in single quotes, where a
@@ -974,8 +1174,8 @@ These YAML rules catch authors out, so each has an example below:
   regular expression with a character class needs quotes.
 
 The same scope, written in JSON in one file and in YAML in another,
-gives the same model. In YAML, only a value that starts with `*` needs
-quotes:
+gives the same model. In the YAML block sequence, `apps/web/**/*.tsx`
+needs no quotes, while `**/*.test.tsx` does, since it starts with `*`:
 
 ``````example parse
 === .lore/json.lore
@@ -1244,10 +1444,13 @@ with a currency symbol.
 }
 ``````
 
-A trailing comma is invalid, so JSON blocks stay valid JSON:
+A trailing comma is allowed, as in YAML 1.2. A `//` comment is not: here
+it is read as text where the flow mapping expects `,` or `}`. A block that
+ends before its document is complete is reported at its closing tag
+line:
 
 ``````example parse
-=== .lore/checkout.lore
+=== .lore/json.lore
 <scope>
 { "files": ["apps/web/**/*.tsx",] }
 </scope>
@@ -1255,11 +1458,39 @@ A trailing comma is invalid, so JSON blocks stay valid JSON:
 <rule id="price-from-quote" category="functional_correctness">
 A displayed price must come from the quote that produced it.
 </rule>
+=== .lore/jsonc.lore
+<scope>
+{
+  "files": ["apps/web/**/*.tsx"] // web only
+}
+</scope>
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+=== .lore/unclosed.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<scope>
+files: ["**/*.tsx"
+</scope>
+Displayed dates are formatted with the shop's locale.
+</rule>
 === expect
 {
-  "entries": [],
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/json.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/**/*.tsx"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null
+    }
+  ],
   "errors": [
-    { "name": "invalid-yaml", "file": ".lore/checkout.lore", "entry": null, "line": 2 }
+    { "name": "invalid-yaml", "file": ".lore/jsonc.lore", "entry": null, "line": 3 },
+    { "name": "invalid-yaml", "file": ".lore/unclosed.lore", "entry": "dates-from-locale", "line": 4 }
   ],
   "warnings": []
 }
