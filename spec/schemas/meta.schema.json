@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lore.dev/schemas/v1/meta.schema.json",
+  "title": "Lore meta block",
+  "type": "object"
+}

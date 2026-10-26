@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lore.dev/schemas/v1/loreconfig.schema.json",
+  "title": "Lore .loreconfig file",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "lore": { "const": 1 },
+    "root": { "type": "boolean" },
+    "repo": {
+      "type": "string",
+      "pattern": "^[a-z0-9.-]+(:[0-9]+)?/[^\\s]+[^/]$",
+      "not": { "pattern": "\\.git$" }
+    },
+    "categories": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+    },
+    "disable": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    }
+  }
+}

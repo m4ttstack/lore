@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lore.dev/schemas/v1/when.schema.json",
+  "title": "Lore when block",
+  "type": "object",
+  "additionalProperties": false,
+  "minProperties": 1,
+  "properties": {
+    "addedContains": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "addedMatches": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "changed": { "type": "array", "items": { "$ref": "#/$defs/glob" } },
+    "unchanged": { "type": "array", "items": { "$ref": "#/$defs/glob" } }
+  },
+  "$defs": {
+    "glob": {
+      "type": "string",
+      "minLength": 1,
+      "not": { "pattern": "(^|/)\\.\\.(/|$)" }
+    }
+  }
+}

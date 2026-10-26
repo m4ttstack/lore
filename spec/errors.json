@@ -1,0 +1,207 @@
+[
+  {
+    "name": "unreadable-structure",
+    "kind": "error",
+    "description": "The file structure cannot be read as Lore elements."
+  },
+  {
+    "name": "top-level-text",
+    "kind": "error",
+    "description": "Text appears at the top level outside any element."
+  },
+  {
+    "name": "unknown-element",
+    "kind": "error",
+    "description": "An element name is not part of the format."
+  },
+  {
+    "name": "duplicate-file-block",
+    "kind": "error",
+    "description": "A file contains more than one file block."
+  },
+  {
+    "name": "file-block-after-entry",
+    "kind": "error",
+    "description": "A file block appears after the first entry."
+  },
+  {
+    "name": "invalid-yaml",
+    "kind": "error",
+    "description": "A block body is not valid YAML."
+  },
+  {
+    "name": "duplicate-key",
+    "kind": "error",
+    "description": "A mapping repeats the same key."
+  },
+  {
+    "name": "yaml-feature-not-allowed",
+    "kind": "error",
+    "description": "A block uses a YAML feature outside the allowed subset."
+  },
+  {
+    "name": "invalid-defaults",
+    "kind": "error",
+    "description": "A defaults block fails its schema."
+  },
+  {
+    "name": "invalid-scope",
+    "kind": "error",
+    "description": "A scope block fails its schema."
+  },
+  {
+    "name": "invalid-when",
+    "kind": "error",
+    "description": "A when block fails its schema."
+  },
+  {
+    "name": "invalid-meta",
+    "kind": "error",
+    "description": "A meta block is not a mapping."
+  },
+  {
+    "name": "missing-id",
+    "kind": "error",
+    "description": "An entry has no id attribute."
+  },
+  {
+    "name": "invalid-id",
+    "kind": "error",
+    "description": "An id does not match the id pattern."
+  },
+  {
+    "name": "unknown-attribute",
+    "kind": "error",
+    "description": "An element carries an attribute it does not define."
+  },
+  {
+    "name": "duplicate-attribute",
+    "kind": "error",
+    "description": "An attribute appears more than once on one element."
+  },
+  {
+    "name": "invalid-attribute-value",
+    "kind": "error",
+    "description": "An attribute value is not allowed for that attribute."
+  },
+  {
+    "name": "disabled-has-value",
+    "kind": "error",
+    "description": "The disabled attribute is given a value."
+  },
+  {
+    "name": "unknown-child",
+    "kind": "error",
+    "description": "An element contains a child it does not allow."
+  },
+  {
+    "name": "duplicate-child",
+    "kind": "error",
+    "description": "An element contains a child that may appear only once."
+  },
+  {
+    "name": "unknown-condition",
+    "kind": "error",
+    "description": "A condition names a key that is not defined."
+  },
+  {
+    "name": "empty-when",
+    "kind": "error",
+    "description": "A when block has no conditions."
+  },
+  {
+    "name": "invalid-glob",
+    "kind": "error",
+    "description": "A glob string is malformed."
+  },
+  {
+    "name": "glob-escapes-base",
+    "kind": "error",
+    "description": "A glob contains a .. segment that escapes its base directory."
+  },
+  {
+    "name": "leading-slash",
+    "kind": "error",
+    "description": "A scope glob starts with a slash."
+  },
+  {
+    "name": "empty-files",
+    "kind": "error",
+    "description": "A scope files list is empty."
+  },
+  {
+    "name": "regex-outside-dialect",
+    "kind": "error",
+    "description": "A regular expression uses syntax outside the allowed dialect."
+  },
+  {
+    "name": "regex-not-one-line",
+    "kind": "error",
+    "description": "A regular expression spans more than one line."
+  },
+  {
+    "name": "inconsistent-indentation",
+    "kind": "error",
+    "description": "A block body mixes indentation inconsistently."
+  },
+  {
+    "name": "unknown-category",
+    "kind": "error",
+    "description": "A category is not built in or declared in config."
+  },
+  {
+    "name": "duplicate-id",
+    "kind": "error",
+    "description": "Two entries resolve to the same id."
+  },
+  {
+    "name": "src-escapes-root",
+    "kind": "error",
+    "description": "A src path resolves outside the repository root."
+  },
+  {
+    "name": "invalid-loreconfig",
+    "kind": "error",
+    "description": "A .loreconfig file fails its schema."
+  },
+  {
+    "name": "repo-inside-repo",
+    "kind": "error",
+    "description": "A .loreconfig repo key appears inside another repository."
+  },
+  {
+    "name": "nested-repo",
+    "kind": "error",
+    "description": "A repository is nested inside another Lore root."
+  },
+  {
+    "name": "missing-category",
+    "kind": "warning",
+    "description": "An entry has no category and no default supplies one."
+  },
+  {
+    "name": "empty-scope",
+    "kind": "warning",
+    "description": "A scope matches no files."
+  },
+  {
+    "name": "missing-src-target",
+    "kind": "warning",
+    "description": "A src attribute points at a file that does not exist."
+  },
+  {
+    "name": "unsupported-check-language",
+    "kind": "warning",
+    "description": "A check uses a language the tool does not support."
+  },
+  {
+    "name": "ast-grep-no-language",
+    "kind": "warning",
+    "description": "An ast-grep check names no language."
+  },
+  {
+    "name": "unknown-disabled-id",
+    "kind": "warning",
+    "description": "A disable list names an id that does not exist."
+  }
+]
