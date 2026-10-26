@@ -157,10 +157,11 @@ of the order of their members. In both kinds:
   file. For a YAML problem (`invalid-yaml`, `duplicate-key`,
   `yaml-feature-not-allowed`) it is the offending line, counted in the
   file, not the block (see [Structured blocks](#structured-blocks)). For
-  `top-level-text` it is the first stray line. For a problem outside any
-  element, such as a closing tag with no opening tag, an invalid UTF-8
-  byte or an unclosed comment, it is the offending line (for an unclosed
-  comment, the line where the comment opens). For a `.loreconfig`
+  `top-level-text` it is the first stray line, or the line holding text
+  after a comment's `-->`. For a closing tag that closes nothing, or a
+  malformed closing tag, at the top level or inside an entry, it is the
+  offending line. For an invalid UTF-8 byte it is that byte's line, and
+  for an unclosed comment the line where the comment opens. For a `.loreconfig`
   problem it is the offending key's line. For any other problem in an
   element it is the opening tag line of the element at fault. A problem
   with no line has line 1.
@@ -412,18 +413,24 @@ entry's children), a line that looks like a tag is read as one:
 - If the text between the name and the final `>` is not a valid
   attribute list, the attributes are malformed: `invalid-attribute-value`.
   On an entry or one of its children this is an entry-level error; on a
-  file block it is file-level.
-- The `entry` of that error is the entry's id when, reading the attribute
-  list from left to right, a well-formed `id` attribute whose value
-  matches the id pattern (see [Rules](#rules)) comes before the first
-  character at which the list stops being valid. Otherwise it is null.
+  file block it is file-level. On a file block, the position errors of
+  [Top level](#top-level) (`file-block-after-entry`, then
+  `duplicate-file-block`) are checked before the attributes.
+- When the entry's own opening tag is malformed, the error's `entry` is
+  the entry's id if, reading that tag's attribute list from left to
+  right, a well-formed `id` attribute whose value matches the id pattern
+  (see [Rules](#rules)) comes before the first character at which the
+  list stops being valid; otherwise it is null. When a child's opening
+  tag is malformed, the entry's own opening tag has already been read,
+  and the error's `entry` is the entry's id.
 
 Element contents and attribute values are raw text. A tool MUST NOT
 decode entities or process escapes in either: `&amp;` stays `&amp;`.
 
 An unquoted attribute value is malformed. The element's extent is still
 known, so only that entry is excluded. In the second rule the id is
-read before the malformed value, so the error names it:
+read before the malformed value, so the error names it. In the third,
+the malformed tag is a child's, and the error names the entry:
 
 ``````example parse
 === .lore/checkout.lore
@@ -437,6 +444,13 @@ Display text never hard-codes a currency code.
 
 <rule id="dates-from-locale" category=functional_correctness>
 Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="no-hard-coded-currency" category="functional_correctness">
+<check lang=regex>
+'USD'
+</check>
+Display text never hard-codes a currency code.
 </rule>
 === expect
 {
@@ -453,7 +467,8 @@ Displayed dates are formatted with the shop's locale.
   ],
   "errors": [
     { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": null, "line": 5 },
-    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 9 }
+    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 9 },
+    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "no-hard-coded-currency", "line": 14 }
   ],
   "warnings": []
 }
@@ -663,6 +678,54 @@ ignores: ["**/*.test.tsx"]
   "entries": [],
   "errors": [
     { "name": "file-block-after-entry", "file": ".lore/checkout.lore", "entry": null, "line": 9 }
+  ],
+  "warnings": []
+}
+``````
+
+A comment may span lines. Text after its `-->` is `top-level-text`, and
+a comment that never closes makes the structure unreadable:
+
+``````example parse
+=== .lore/checkout.lore
+<!--
+Owned by the pricing team.
+-->
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== .lore/display.lore
+<!-- Display rules. --> Owned by the web team.
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+=== .lore/dates.lore
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<!-- Rules below are drafts.
+
+<rule id="times-from-locale" category="functional_correctness">
+Displayed times are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "unreadable-structure", "file": ".lore/dates.lore", "entry": null, "line": 5 },
+    { "name": "top-level-text", "file": ".lore/display.lore", "entry": null, "line": 1 }
   ],
   "warnings": []
 }
@@ -967,6 +1030,69 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.\n\n<rule id=\"currency-from-settings\" category=\"functional_correctness\">\nDisplay text never hard-codes a currency code.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+The entry's common indentation here is two spaces. The prose keeps the
+continuation line's extra indentation, the summary trims it, the line of
+four spaces becomes empty, and the trailing blank lines are dropped:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="quote-totals-match" category="functional_correctness">
+  The order page shows the total
+    from the quote that produced it.
+    
+  A total rebuilt from line items drops quote-level discounts.
+
+
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "quote-totals-match", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "The order page shows the total from the quote that produced it.",
+      "prose": "The order page shows the total\n  from the quote that produced it.\n\nA total rebuilt from line items drops quote-level discounts.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A tilde fence protects a closing tag too. The `~~~` line inside does not
+close the `~~~~` fence, since it is shorter:
+
+``````example parse
+=== .lore/docs.lore
+<rule id="lore-samples-tilde-fenced" category="documentation">
+A tilde fence works as well as a backtick fence.
+
+~~~~
+~~~
+</rule>
+~~~~
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "lore-samples-tilde-fenced", "file": ".lore/docs.lore",
+      "category": "documentation", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A tilde fence works as well as a backtick fence.",
+      "prose": "A tilde fence works as well as a backtick fence.\n\n~~~~\n~~~\n</rule>\n~~~~",
       "src": null
     }
   ],
