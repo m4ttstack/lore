@@ -418,10 +418,10 @@ entry's children), a line that looks like a tag is read as one:
   [Top level](#top-level) (`file-block-after-entry`, then
   `duplicate-file-block`) are checked before the attributes.
 - When the entry's own opening tag is malformed, the error's `entry` is
-  the entry's id if, reading that tag's attribute list from left to
-  right, a well-formed `id` attribute whose value matches the id pattern
-  (see [Rules](#rules)) comes before the first character at which the
-  list stops being valid; otherwise it is null. When a child's opening
+  the entry's readable id (see [Attributes](#attributes)) if, reading
+  that tag's attribute list from left to right, its first `id` attribute
+  comes before the first character at which the list stops being valid;
+  otherwise it is null. When a child's opening
   tag is malformed, the entry's own opening tag has already been read,
   and the error's `entry` is the entry's id.
 
@@ -1705,7 +1705,7 @@ Display text never hard-codes a currency code.
 (see [Structured blocks](#structured-blocks)), and a file has at most one,
 before its first entry (see [Top level](#top-level)).
 
-- Its value MUST be a mapping whose only keys are `category` and
+- Its value MUST be a mapping with no keys other than `category` and
   `severity`. `category` is a string that matches the category pattern
   `^[a-z][a-z0-9_]*$`, and `severity` is `blocking` or `advisory`. Any
   other shape, such as an unknown key, `severity: critical` or a list, is
@@ -1860,7 +1860,8 @@ tags](#lines-and-tags) narrows this for a malformed opening tag.) An
 entry with `invalid-id` or `missing-id` has no readable id.
 
 The first rule has no id, the second's id is not kebab-case, and the
-third repeats an attribute. Only the fourth rule is read:
+third repeats an attribute. The fourth has no id either, but its unknown
+attribute is met first. Only the last rule is read:
 
 ``````example parse
 === .lore/checkout.lore
@@ -1874,6 +1875,10 @@ Display text never hard-codes a currency code.
 
 <rule id="dates-from-locale" category="functional_correctness" category="accessibility">
 Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule owner="pricing">
+Quoted prices are rounded once, when the quote is made.
 </rule>
 
 <rule id="quote-expiry-shown" category="functional_correctness">
@@ -1895,7 +1900,8 @@ A checkout page that shows a quoted price also shows when the quote expires.
   "errors": [
     { "name": "missing-id", "file": ".lore/checkout.lore", "entry": null, "line": 1 },
     { "name": "invalid-id", "file": ".lore/checkout.lore", "entry": null, "line": 5 },
-    { "name": "duplicate-attribute", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 9 }
+    { "name": "duplicate-attribute", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 9 },
+    { "name": "unknown-attribute", "file": ".lore/checkout.lore", "entry": null, "line": 13 }
   ],
   "warnings": []
 }
@@ -2011,9 +2017,12 @@ that excludes every entry using it. No entry overrides another.
   at its opening tag line. An entry that already has an error keeps that
   error, as [Parsing](#parsing) requires, and is not listed twice.
 
-Each id below is used in both files, by two rules or by a rule and a
-context. The first `quote-expiry-shown` already has an error, and the
-second is still excluded. Only `dates-from-locale` is read:
+Each id below is used in both of the first two files, by two rules or
+by a rule and a context. The first `quote-expiry-shown` already has an
+error, and the second is still excluded. The disabled
+`totals-from-quote` counts too. The third file is excluded by a
+file-level error, so its `dates-from-locale` does not count, and the
+other one is read:
 
 ``````example parse
 === .lore/checkout.lore
@@ -2028,6 +2037,16 @@ Display text never hard-codes a currency code.
 <rule id="quote-expiry-shown" category="functional_correctness" severity="high">
 A checkout page that shows a quoted price also shows when the quote expires.
 </rule>
+
+<rule id="totals-from-quote" category="functional_correctness" disabled>
+Cart totals come from the quote, never from summing line items.
+</rule>
+=== .lore/drafts.lore
+Draft rules, not reviewed yet.
+
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates use the shop's locale.
+</rule>
 === apps/web/src/checkout/.lore/rules.lore
 <rule id="price-from-quote" category="functional_correctness" severity="blocking">
 The checkout page shows the price from the quote, never a recomputed one.
@@ -2039,6 +2058,10 @@ Read before changing how a price is formatted.
 
 <rule id="quote-expiry-shown" category="functional_correctness">
 The quote's expiry time is shown next to the quoted price.
+</rule>
+
+<rule id="totals-from-quote" category="functional_correctness">
+The order total comes from the quote.
 </rule>
 
 <rule id="dates-from-locale" category="functional_correctness">
@@ -2061,9 +2084,12 @@ Displayed dates are formatted with the shop's locale.
     { "name": "duplicate-id", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 1 },
     { "name": "duplicate-id", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 5 },
     { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "quote-expiry-shown", "line": 9 },
+    { "name": "duplicate-id", "file": ".lore/checkout.lore", "entry": "totals-from-quote", "line": 13 },
+    { "name": "top-level-text", "file": ".lore/drafts.lore", "entry": null, "line": 1 },
     { "name": "duplicate-id", "file": "apps/web/src/checkout/.lore/rules.lore", "entry": "price-from-quote", "line": 1 },
     { "name": "duplicate-id", "file": "apps/web/src/checkout/.lore/rules.lore", "entry": "currency-from-settings", "line": 5 },
-    { "name": "duplicate-id", "file": "apps/web/src/checkout/.lore/rules.lore", "entry": "quote-expiry-shown", "line": 9 }
+    { "name": "duplicate-id", "file": "apps/web/src/checkout/.lore/rules.lore", "entry": "quote-expiry-shown", "line": 9 },
+    { "name": "duplicate-id", "file": "apps/web/src/checkout/.lore/rules.lore", "entry": "totals-from-quote", "line": 13 }
   ],
   "warnings": []
 }
@@ -2093,15 +2119,15 @@ A rule's children come before its prose, in any order:
   finds: its name (`unknown-child`), then whether it repeats an earlier
   child (`duplicate-child`), then its attributes, then its
   [indentation](#indentation), then its contents.
-- Every error in a child is entry-level. Apart from a YAML problem, its
-  line is the child's opening tag line.
+- Every error this section defines is entry-level. Apart from a YAML
+  problem, its line is the child's opening tag line.
 
 **`<meta>`** holds what a team wants to record about an entry: where the
 rule came from, an owner, links. It is a structured block, and its value
 MUST be a mapping; anything else, such as a scalar, a list or `null`, is
 `invalid-meta`. This specification gives no key a meaning, and tools MAY
-define their own keys. A tool MUST NOT let `<meta>` change whether an
-entry is eligible. The document model keeps the mapping as parsed, in
+define their own keys. A tool MUST NOT let the keys and values of a
+valid `<meta>` change whether an entry is eligible. The document model keeps the mapping as parsed, in
 `meta`; an entry without `<meta>` has `meta: null`.
 
 `<meta>` is kept as parsed, whatever its keys. Under the core schema,
@@ -2398,28 +2424,29 @@ them.
 `src` names one file, not a glob. Its value MUST be a relative path:
 one or more segments separated by `/`, none of them empty (so no
 leading, trailing or doubled `/`), with `.` and `..` segments only at its
-start. Any other value, bare `src` included, is
-`invalid-attribute-value`.
+start, and a last segment that is neither `.` nor `..`. Any other value,
+bare `src` included, is `invalid-attribute-value`.
 
 - A `src` whose first segment is `.` or `..` is relative to the Lore
   file. It resolves from the directory that holds the Lore file: `.`
   stays in the directory, `..` moves up one. Such a path lets a context
   point at a document kept beside its rules, and MUST NOT leave the Lore
-  root, which is the repository root unless a `.loreconfig` sets
-  another (see [.loreconfig](#loreconfig)). A `..` that would move up
-  from the Lore root is `src-escapes-root`.
+  root (see [.loreconfig](#loreconfig)). A `..` that would move up from
+  the Lore root is `src-escapes-root`.
 - Any other `src` resolves against the governed repo: from the base, or
   for a file in an external folder through its `repo` mapping (see
   [External folders](#external-folders)).
-- Both `src` errors are entry-level, at the context's opening tag line. Among the attribute checks of [Attributes](#attributes), a
-  tool checks `src` for `invalid-attribute-value` first, then for
+- Both `src` errors are entry-level, at the context's opening tag line.
+  Among the attribute checks of [Attributes](#attributes), a tool checks
+  `src` for `invalid-attribute-value` first, then for
   `src-escapes-root`.
 
 In the document model, `src` is the resolved path, from the governed
-repo's root, or null when the context has no `src`. A path that resolves
-into an external folder's own files is written the way a `file` field is
-in the conformance examples, with the `external:` prefix and the path from
-that folder's repository root.
+repo's root, or null when the context has no `src`. A file-relative
+`src` in a file of an external folder names a file in that folder's
+repository, not in the governed repo. Its `src` in the document model is
+`external:<path>`, where `<path>` is from that repository's root, as in
+a `file` field.
 
 A context with a plain `src`, one with a `src` beside the Lore file and
 no body, and one with no `src`, whose body is the context:
@@ -2479,7 +2506,8 @@ Any price shown after that comes from a new quote.
 With no `.loreconfig`, the Lore root is the repository root. From
 `.lore/`, `./../README.md` reaches the root's `README.md`, while one more
 `..` leaves the Lore root. A `..` after the first named segment is not
-allowed at all:
+allowed at all, and a path that ends in `..` names a directory, not a
+file:
 
 ``````example parse
 === .lore/context.lore
@@ -2493,6 +2521,10 @@ Read for the organization's review conventions.
 
 <context id="shop-readme-roundabout" src="docs/../README.md">
 Read for how the shop is built and deployed.
+</context>
+
+<context id="shop-root" src="./..">
+Read the repository's top-level files.
 </context>
 === expect
 {
@@ -2509,13 +2541,14 @@ Read for how the shop is built and deployed.
   ],
   "errors": [
     { "name": "src-escapes-root", "file": ".lore/context.lore", "entry": "org-handbook", "line": 5 },
-    { "name": "invalid-attribute-value", "file": ".lore/context.lore", "entry": "shop-readme-roundabout", "line": 9 }
+    { "name": "invalid-attribute-value", "file": ".lore/context.lore", "entry": "shop-readme-roundabout", "line": 9 },
+    { "name": "invalid-attribute-value", "file": ".lore/context.lore", "entry": "shop-root", "line": 13 }
   ],
   "warnings": []
 }
 ``````
 
-**A missing target.** When the resolved `src` names no file, the context
+**A missing target.** When the resolved `src` names no tracked file, the context
 gets the warning `missing-src-target`, at its opening tag line, and stays
 eligible as usual. Parsing reads Lore files and `.loreconfig` files,
 never the governed repo's other files, so the document model does not
@@ -2524,8 +2557,10 @@ where the governed repo's files are known, for every context in the
 document model whose target is missing, eligible or not. A target in an
 external folder's own files is looked for among that folder's files.
 
-`docs/payments-architecture.md` is not in the governed repo. Both
-contexts are eligible, and the second carries a warning:
+`docs/payments-architecture.md` and `docs/refunds-architecture.md` are
+not in the governed repo. The first two contexts are eligible, and the
+second carries a warning. The third is not eligible, since its scope
+misses the change, and still carries one:
 
 ``````example eligibility
 === .lore/context.lore
@@ -2535,6 +2570,13 @@ Read before judging any change to how a price is computed.
 
 <context id="payments-architecture" src="docs/payments-architecture.md">
 Read before judging any change to how a payment is taken.
+</context>
+
+<context id="refunds-architecture" src="docs/refunds-architecture.md">
+<scope>
+files: ["apps/web/src/refunds/**"]
+</scope>
+Read before judging any change to how a refund is issued.
 </context>
 === docs/checkout-architecture.md
 # Checkout architecture
@@ -2549,7 +2591,8 @@ M apps/web/src/checkout/Price.tsx
   "hits": [],
   "excluded": [],
   "warnings": [
-    { "name": "missing-src-target", "file": ".lore/context.lore", "entry": "payments-architecture", "line": 5 }
+    { "name": "missing-src-target", "file": ".lore/context.lore", "entry": "payments-architecture", "line": 5 },
+    { "name": "missing-src-target", "file": ".lore/context.lore", "entry": "refunds-architecture", "line": 9 }
   ]
 }
 ``````
@@ -2587,7 +2630,8 @@ A rule's category is, in order:
    category is still eligible, so a team can wrap and scope existing
    rules first and classify them later.
 
-A category that is not known is `unknown-category`: an entry-level error
+A category that matches the category pattern but is not known is
+`unknown-category`: an entry-level error
 when a rule's attribute names it, and a file-level error when
 `<defaults>` names it (see [Defaults](#defaults)).
 

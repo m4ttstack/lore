@@ -157,7 +157,7 @@
   {
     "name": "src-escapes-root",
     "kind": "error",
-    "description": "A src path resolves outside the repository root."
+    "description": "A src path resolves outside the Lore root."
   },
   {
     "name": "invalid-loreconfig",
