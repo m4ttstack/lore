@@ -34,6 +34,9 @@ The specification text is licensed under
 [CC-BY-4.0](../LICENSE-CC-BY-4.0). The conformance examples, the JSON
 Schemas and `errors.json` are licensed under the
 [MIT License](../LICENSE), so an implementation can copy them freely.
+[`AGENT.md`](AGENT.md) is dedicated to the public domain under
+[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), so a team
+can paste it into its own instructions without a notice.
 
 ## Conventions
 
@@ -465,8 +468,9 @@ entry's children), a line that looks like a tag is read as one:
   attribute list, the attributes are malformed: `invalid-attribute-value`.
   A tool meets this problem at the first character where the list stops
   being valid, so a problem with an attribute before that character
-  (see [Attributes](#attributes)) is met first. On an entry or one of its children this is an entry-level error; on a
-  file block it is file-level. On a file block, the position errors of
+  (see [Attributes](#attributes)) is met first. On an entry or one of
+  its children this is an entry-level error; on a file block it is
+  file-level. On a file block, the position errors of
   [Top level](#top-level) (`file-block-after-entry`, then
   `duplicate-file-block`) are checked before the attributes.
 - When the entry's own opening tag is malformed, the error's `entry` is

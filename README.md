@@ -274,4 +274,7 @@ conversation.
 
 The specification text is licensed under
 [CC-BY-4.0](LICENSE-CC-BY-4.0). Schemas, examples and code are licensed
-under the [MIT License](LICENSE).
+under the [MIT License](LICENSE). The agent instructions in
+[`spec/AGENT.md`](spec/AGENT.md) are dedicated to the public domain under
+[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), so they can
+be pasted anywhere without a notice.
