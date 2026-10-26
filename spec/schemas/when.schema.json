@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "minProperties": 1,
   "properties": {
-    "addedContains": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "addedContains": { "type": "array", "items": { "type": "string", "minLength": 1, "pattern": "^[^\\n\\r]*$" } },
     "addedMatches": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "changed": { "type": "array", "items": { "$ref": "#/$defs/glob" } },
     "unchanged": { "type": "array", "items": { "$ref": "#/$defs/glob" } }

@@ -2951,8 +2951,9 @@ entry whose scope holds nothing for another reason, which then gets no
 warning.
 
 The first rule asks for Markdown files in a file whose scope holds only
-TypeScript files. The second rule's scope can still hold a `price*.ts`
-file:
+TypeScript files, so their tails conflict. The second rule's scope can
+still hold a `price*.ts` file. In the second file, the heads `checkout`
+and `cart` conflict:
 
 ``````example parse
 === .lore/checkout.lore
@@ -2972,6 +2973,17 @@ A documentation change links the changelog entry it describes.
 files: ["**/*.md", "**/price*.ts"]
 </scope>
 Prices are typed as `Money`, never as `number`.
+</rule>
+=== apps/web/src/.lore/checkout.lore
+<scope>
+files: ["checkout/**"]
+</scope>
+
+<rule id="cart-total-from-quote" category="functional_correctness">
+<scope>
+files: ["cart/**"]
+</scope>
+Cart totals come from the quote, never from summing line items.
 </rule>
 === expect
 {
@@ -2993,11 +3005,21 @@ Prices are typed as `Money`, never as `number`.
       "summary": "Prices are typed as `Money`, never as `number`.",
       "prose": "Prices are typed as `Money`, never as `number`.",
       "src": null
+    },
+    {
+      "kind": "rule", "id": "cart-total-from-quote", "file": "apps/web/src/.lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }, { "files": ["apps/web/src/cart/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Cart totals come from the quote, never from summing line items.",
+      "prose": "Cart totals come from the quote, never from summing line items.",
+      "src": null
     }
   ],
   "errors": [],
   "warnings": [
-    { "name": "empty-scope", "file": ".lore/checkout.lore", "entry": "docs-link-changelog", "line": 6 }
+    { "name": "empty-scope", "file": ".lore/checkout.lore", "entry": "docs-link-changelog", "line": 6 },
+    { "name": "empty-scope", "file": "apps/web/src/.lore/checkout.lore", "entry": "cart-total-from-quote", "line": 6 }
   ]
 }
 ``````
@@ -3272,8 +3294,14 @@ when every one of its conditions holds.
   off for (see [.loreconfig](#loreconfig)).
 - An **added line's text** is the line as it is in the file's new
   version, without its line break: the line feed, and a carriage return
-  directly before it. A byte that is not valid UTF-8 reads as U+FFFD
-  for matching. In a conformance example it is the `<text>` of a
+  directly before it. A line that is not valid UTF-8 is decoded for
+  matching by replacing each maximal subpart of an ill-formed sequence
+  with one U+FFFD, the practice the Unicode Standard recommends (U+FFFD
+  substitution of maximal subparts) and the WHATWG Encoding Standard's
+  UTF-8 decoder follows. A maximal subpart is the longest run of bytes,
+  starting at the first byte that cannot be decoded, that is the start of
+  some well-formed UTF-8 sequence, or that one byte when it starts none.
+  In a conformance example it is the `<text>` of a
   `+<n> <text>` line. Only added lines count. The unchanged lines around
   them and removed lines never do.
 - `addedContains` compares code point by code point and is
@@ -3556,7 +3584,7 @@ which part of it.
 - In `{n}`, `{n,}` and `{n,m}`, `n` and `m` are decimal numbers with no
   leading zero (`0` itself is allowed), at most 1000, and `n` is not
   more than `m`. A `{}` quantifier's bound is its `m`, or its `n` when it
-  has no `m`. The product of the bounds of a `{}` quantifier and of every
+  has no `m`, and is counted as 1 when that number is 0. The product of the bounds of a `{}` quantifier and of every
   `{}` quantifier on a group that holds it is at most 1000, so
   `(a{10}){100}` is allowed and `(a{10}){101}` is not.
 - `{` always starts a quantifier, so a literal `{` is written `\{`. A

@@ -38,6 +38,10 @@ test("loreconfig rejects lore: 2", () => invalid("loreconfig", "lore: 2"));
 test("loreconfig rejects a bad repo", () => invalid("loreconfig", "repo: https://github.com/acme/shop.git"));
 test("loreconfig rejects a trailing .git", () => invalid("loreconfig", "repo: github.com/acme/shop.git"));
 test("when rejects .. in unchanged", () => invalid("when", 'unchanged: ["../x/**"]'));
+test("when rejects a line break in an addedContains string", () => {
+  invalid("when", 'addedContains: ["a\\nb"]');
+  invalid("when", 'addedContains: ["a\\rb"]');
+});
 test("JSON input parses to the same value as YAML", () => valid("scope", '{ "files": ["**/*.ts"] }'));
 test("every registry entry has a unique kebab name", () => {
   const entries = JSON.parse(readFileSync(new URL("../spec/errors.json", import.meta.url), "utf8")) as {
