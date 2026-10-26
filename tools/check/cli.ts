@@ -16,7 +16,9 @@ const markdown = readFileSync(specPath, "utf8");
 const registry = readJson(new URL("errors.json", spec)) as RegistryEntry[];
 const schemas = Object.fromEntries(schemaNames.map((n) => [n, readJson(new URL(`schemas/${n}.schema.json`, spec))])) as SchemaSet;
 
-const problems = checkSpec({ markdown, registry, schemas });
+const agentPath = new URL("AGENT.md", spec);
+const agent = existsSync(agentPath) ? readFileSync(agentPath, "utf8") : undefined;
+const problems = checkSpec({ markdown, registry, schemas, agent });
 if (problems.length > 0) {
   for (const p of problems) console.error(`SPEC.md:${p.line} ${p.rule}: ${p.message}`);
   process.exit(1);

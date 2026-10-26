@@ -208,3 +208,15 @@ test("extract: a malformed example becomes one problem", () => {
     { rule: "extract", line: 31, message: "unterminated example opened at line 31" },
   ]);
 });
+
+test("agent-copy: the For agents quote must equal AGENT.md", () => {
+  const agent = "# Lore v1 agent instructions\n\n1. Read the rules.\n";
+  const section = "\n## For agents (non-normative)\nIt reads:\n\n```markdown\n" + agent + "```\n\nMore prose.";
+  const run = (md: string, text?: string) => checkSpec({ markdown: md, registry, schemas, agent: text }).map((p) => p.rule);
+  expect(run(clean + section, agent)).toEqual([]);
+  expect(run(clean, undefined)).toEqual([]);
+  expect(run(clean + section.replace("Read the rules.", "Read the rules"), agent)).toEqual(["agent-copy"]);
+  expect(run(clean + section, agent + "2. Report.\n")).toEqual(["agent-copy"]);
+  expect(run(clean + section.replace("```markdown", "```"), agent)).toEqual(["agent-copy"]);
+  expect(run(clean + section, undefined)).toEqual(["agent-copy"]);
+});

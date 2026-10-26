@@ -5215,8 +5215,8 @@ A document model is an object with three members:
 | Member | Value |
 |---|---|
 | `entries` | Every entry that no error excludes, rules and contexts alike, disabled entries included (see [Error reach](#error-reach)). |
-| `errors` | A diagnostic for every error, in a Lore file or in a `.loreconfig`. |
-| `warnings` | A diagnostic for every `missing-category`, `empty-scope` and `unknown-disabled-id`. The other warnings are found when computing eligibility, and only an eligibility result carries them. |
+| `errors` | A diagnostic for each error that [Parsing](#parsing) and [Error reach](#error-reach) say the model lists, in a Lore file or in a `.loreconfig`. |
+| `warnings` | A diagnostic for each `missing-category`, `empty-scope` and `unknown-disabled-id` found outside an excluded file, entry or `.loreconfig`. The other warnings are found when computing eligibility, and only an eligibility result carries them. |
 
 Each array is in the order that [Conformance examples](#conformance-examples)
 gives under Order, and every `file` field follows Paths there.
@@ -5227,10 +5227,10 @@ given folder's repository has `external:` before its path, so that it is
 never mistaken for a file of the governed repo. The prefix does not say
 which repository the file is in, so a tool given folders of two
 repositories can list two different files with the same `file`. This
-version of the format does not tell them apart. Every other path in the
-model (`scopes`, plain `src` values and hits) names a path in the
-governed repo, apart from a file-relative `src` in an external folder
-(see [Context](#context)).
+version of the format does not tell them apart. Every other path in
+either output (globs in `scopes`, plain `src` values and hits) names a
+path in the governed repo, apart from a file-relative `src` in an
+external folder (see [Context](#context)).
 
 ### Entry fields
 
@@ -5338,17 +5338,17 @@ version of this specification it follows. It reads, in full:
 ```markdown
 # Lore v1 agent instructions
 
-1. Find the tracked `.lore/` folders whose base (the folder that holds
-   `.lore/`) contains a changed file, and read every `.lore` file in them.
-2. Read each `.loreconfig` from a changed file's folder up to the Lore root:
-   the nearest folder whose `.loreconfig` has `root: true`, else the repo root.
-3. Select each entry that is not `disabled`, whose `<scope>` globs (relative
-   to the base) match a changed file that no `disable` list switches it off
-   for, and whose `<when>` holds. Read each selected `<context>` and its `src`.
-4. Treat a `<check>` as a hint about where to look, never as a verdict.
-5. Report each selected `<rule>` by its id as pass, fail or not applicable,
-   with evidence such as a file and line.
-6. Never invent rules from prose outside `.lore` files.
+1. Find the tracked `.lore/` folders whose base (the folder holding `.lore/`)
+   contains a changed file. Read their `.lore` files, and each `.loreconfig`
+   from a changed file's folder up to the nearest `root: true` or the repo root.
+2. Select each entry not `disabled` whose scope (file and entry `<scope>`, each
+   defaulting to the whole base; globs relative to the base) holds a changed file
+   that no `disable` list switches it off for, and whose `<when>` holds.
+3. Read each selected `<context>` and the file its `src` names: a plain `src`
+   from the base, one starting `./` or `../` from the folder of its `.lore` file.
+4. Report each selected `<rule>` by id as pass, fail or not applicable, with
+   evidence such as a file and line. Treat a `<check>` as a hint, not a verdict.
+5. Never invent rules from prose outside `.lore` files.
 ```
 
 An agent that follows these steps selects rules by reading them, so it

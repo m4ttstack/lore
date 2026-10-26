@@ -18,6 +18,7 @@ const EXEMPT = new Set([
   "Adopting Lore (non-normative)",
 ]);
 const REGISTRY_HEADING = "Errors and warnings";
+const AGENT_HEADING = "For agents (non-normative)";
 const HEADING = /^(#{2,3})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const FENCE_OPEN = /^(`{3,}|~{3,})/;
 const EXAMPLE_CLOSE = /^`{6}$/;
@@ -30,8 +31,8 @@ const PLUS_LINE = /^\+([1-9]\d*) (.*)$/;
 interface Diagnostic { name: string }
 interface Expected { errors?: Diagnostic[]; warnings?: Diagnostic[]; excluded?: Diagnostic[]; eligible?: string[]; hits?: { rule: string }[] }
 
-export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; schemas: SchemaSet }): Problem[] {
-  const { markdown, registry, schemas } = input;
+export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; schemas: SchemaSet; agent?: string }): Problem[] {
+  const { markdown, registry, schemas, agent } = input;
   const problems: Problem[] = [];
   const cr = markdown.indexOf("\r");
   if (cr >= 0) problems.push({ rule: "cr", line: markdown.slice(0, cr).split("\n").length, message: "the spec contains a CR character" });
@@ -109,7 +110,25 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
       problems.push({ rule: "registry-table", line: 1, message });
     }
   }
+
+  const agentHeading = sections.find((s) => s.level === 2 && s.name === AGENT_HEADING);
+  if (agentHeading) {
+    const message = checkAgentCopy(markdown.split("\n").slice(agentHeading.line), agent);
+    if (message) problems.push({ rule: "agent-copy", line: agentHeading.line, message });
+  }
   return problems;
+}
+
+function checkAgentCopy(lines: string[], agent: string | undefined): string | null {
+  if (agent === undefined) return `"## ${AGENT_HEADING}" exists but no AGENT.md text was given`;
+  const end = lines.findIndex((l) => l.startsWith("## "));
+  const open = lines.findIndex((l, i) => (end < 0 || i < end) && /^`{3,}markdown[ \t]*$/.test(l));
+  if (open < 0) return `"## ${AGENT_HEADING}" has no markdown fence`;
+  const ticks = /^`+/.exec(lines[open]!)![0].length;
+  const close = lines.findIndex((l, i) => i > open && new RegExp(`^\`{${ticks},}[ \t]*$`).test(l));
+  if (close < 0) return "the markdown fence is not closed";
+  const quoted = lines.slice(open + 1, close).map((l) => l + "\n").join("");
+  return quoted === agent ? null : "the markdown fence does not equal spec/AGENT.md";
 }
 
 function checkDiff(ex: Example, report: (rule: string, message: string) => void): void {
