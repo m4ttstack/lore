@@ -226,10 +226,20 @@ before merge. `advisory` means raise it and the author decides.
 
 `<context id src>` points at a prose document a reviewer should read when it
 is eligible. It takes `<scope>` and `<when>` like a rule, never `<check>`,
-and gets no verdict. `src` resolves like a glob (relative to the base, or
-to the repo root through `repo`). The optional body is a short note on when
-or why to read it. Context documents stay where they already live; Lore only
-points at them.
+and gets no verdict. The optional body is a short note on when or why to
+read it. Context documents stay where they already live; Lore only points at
+them.
+
+- `src` is one path, not a glob.
+- A plain path resolves against the governed repo: relative to the base, or
+  through `repo` for an external folder.
+- A path starting with `./` or `../` resolves relative to the `.lore` file
+  itself, so a document kept beside the rules (for example in a team's own
+  repo) can be pointed at. It may not leave the folder tree the tool was
+  given.
+- `src` may be omitted; the body is then the context itself.
+- A missing target is a warning, not an error: parsing never needs the
+  governed repo's files to be present.
 
 ### Scope and globs
 
@@ -251,8 +261,12 @@ A JSON object. Each key is a condition; all keys must hold. v1 conditions:
 | `diffContains` | string[] | any added line in an in-scope changed file contains any of the strings |
 | `diffMatches` | regex string[] | any added line in an in-scope changed file matches any of the patterns |
 
-Regexes use ECMAScript syntax. Unknown keys are an error, so a file never
-silently means less than its author wrote.
+Regexes, here and in `regex` checks, use a portable subset: ECMAScript
+syntax limited to what RE2-style engines support (no lookaround, no
+backreferences), so Go, Rust, Python and JavaScript implementations agree.
+The spec lists the subset and its conformance examples test its edges.
+Unknown keys are an error, so a file never silently means less than its
+author wrote.
 
 ### `<check>`: hints for the reviewer
 
@@ -265,7 +279,14 @@ passed.
 |---|---|---|
 | `regex` | one ECMAScript pattern; optional `flags` attribute | an added line that matches |
 | `ast-grep` | one ast-grep pattern; language from the file extension | a match that overlaps an added line |
-| `cochange` | JSON `{ "when": glob[], "expect": glob[] }` | a changed file matches `when` and no changed file matches `expect` |
+| `cochange` | JSON `{ "when": glob[], "expect": glob[] }` | an in-scope changed file matches `when` and no changed file anywhere matches `expect` |
+
+`cochange` is the one check that looks past the rule's scope: `when` is
+matched against in-scope changed files, `expect` against every changed file
+in the diff. `expect` globs resolve against the base, or against the repo
+root when they start with `/`, since generated output often sits outside a
+nested folder's base. Its hit names the triggering file with no line, and
+the expected globs that nothing matched.
 
 Supporting `<check>` is optional for a conforming tool, per language. A tool
 that does not support a check's language skips it and says so; the rule is
@@ -320,6 +341,16 @@ everything below it, inherited the way `.gitignore` is.
   `.loreconfig` below it may not name a different repo. The value is
   `<host>/<path>`.
 - **`lore`**: the spec version these files follow. Defaults to 1.
+
+Where inheritance stops, so results never depend on the machine:
+
+- Inside a repo, lookup stops at the repo root. Files above it never count.
+- For an external folder, lookup stops at the root of the folder the tool
+  was given. A `.loreconfig` there, above the directory marked with `repo`,
+  applies to everything below it, so an org can declare shared categories
+  once.
+- The two trees resolve independently: external files don't see the repo's
+  `.loreconfig` files, and the other way round.
 
 A team can keep its Lore outside the repo it governs:
 
@@ -378,6 +409,17 @@ These were not settled in conversation; each is my default:
   when.
 - `disabled` as a boolean rule attribute (a team page needs a switch).
 - Ids unique per repo across all Lore files, since verdicts key on them.
+  Rules and context share one namespace. Uniqueness is checked over the
+  files the tool collected (the repo's own plus any external folders it was
+  given). No overriding: a repo can't replace or disable a rule from an
+  external folder by reusing its id; a duplicate is an error.
+- `src` is one path; `./` paths resolve beside the `.lore` file; a missing
+  target warns.
+- `cochange` looks past the rule's scope for `expect`; `/`-prefixed `expect`
+  globs are repo-rooted.
+- Regexes are an RE2-compatible subset of ECMAScript syntax.
+- `.loreconfig` lookup stops at the repo root, or at the root of a given
+  external folder; the two trees don't mix.
 - v1 `<when>` keys limited to `diffContains` and `diffMatches`, on added
   lines only.
 - Strict column-0, own-line tags; JSONC for every JSON block and
