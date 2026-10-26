@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lore.dev/schemas/v1/eligibility.schema.json",
+  "title": "Lore eligibility result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eligible", "hits", "excluded", "warnings"],
+  "properties": {
+    "eligible": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" } },
+    "hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "file", "line", "text"],
+        "properties": {
+          "rule": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "file": { "type": "string" },
+          "line": { "type": "integer", "minimum": 1 },
+          "text": { "type": "string" }
+        }
+      }
+    },
+    "excluded": { "type": "array", "items": { "$ref": "https://lore.dev/schemas/v1/document-model.schema.json#/$defs/diagnostic" } },
+    "warnings": { "type": "array", "items": { "$ref": "https://lore.dev/schemas/v1/document-model.schema.json#/$defs/diagnostic" } }
+  }
+}

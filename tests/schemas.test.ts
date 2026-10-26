@@ -14,6 +14,11 @@ function check(name: string, yamlText: string): boolean {
   if (!validate) throw new Error(`schema ${name} not loaded`);
   return validate(parse(yamlText, { version: "1.2" })) as boolean;
 }
+function checkJson(name: string, value: unknown): boolean {
+  const validate = ajv.getSchema(`https://lore.dev/schemas/v1/${name}.schema.json`);
+  if (!validate) throw new Error(`schema ${name} not loaded`);
+  return validate(value) as boolean;
+}
 const valid = (name: string, text: string) => expect(check(name, text)).toBe(true);
 const invalid = (name: string, text: string) => expect(check(name, text)).toBe(false);
 
@@ -48,3 +53,26 @@ test("every registry entry has a unique kebab name", () => {
     expect(e.description.length).toBeGreaterThan(0);
   }
 });
+
+const ruleEntry = {
+  kind: "rule", id: "currency-from-settings", file: "lore/pricing.lore", category: "functional_correctness",
+  severity: "blocking", disabled: false, scopes: [{ files: ["apps/web/**"], ignores: [] }], when: null,
+  checks: [], meta: null, summary: "Read currency from settings.", prose: "Read currency from settings.", src: null,
+};
+const model = (entry: object) => ({ entries: [entry], errors: [], warnings: [] });
+
+test("document model accepts a minimal rule entry", () => expect(checkJson("document-model", model(ruleEntry))).toBe(true));
+test("document model rejects severity on a context entry", () =>
+  expect(checkJson("document-model", model({ ...ruleEntry, kind: "context", category: null, severity: "blocking" }))).toBe(false));
+test("document model accepts a context entry with null category and severity", () =>
+  expect(checkJson("document-model", model({ ...ruleEntry, kind: "context", category: null, severity: null }))).toBe(true));
+test("document model rejects an entry without summary", () => {
+  const { summary: _s, ...rest } = ruleEntry;
+  expect(checkJson("document-model", model(rest))).toBe(false);
+});
+test("document model keeps an unknown check language", () =>
+  expect(checkJson("document-model", model({ ...ruleEntry, checks: [{ lang: "semgrep", body: "x" }] }))).toBe(true));
+test("eligibility accepts an empty result", () =>
+  expect(checkJson("eligibility", { eligible: [], hits: [], excluded: [], warnings: [] })).toBe(true));
+test("eligibility hit requires line and text", () =>
+  expect(checkJson("eligibility", { eligible: [], hits: [{ rule: "a", file: "f" }], excluded: [], warnings: [] })).toBe(false));

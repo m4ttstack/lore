@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lore.dev/schemas/v1/document-model.schema.json",
+  "title": "Lore document model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["entries", "errors", "warnings"],
+  "properties": {
+    "entries": { "type": "array", "items": { "$ref": "#/$defs/entry" } },
+    "errors": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } },
+    "warnings": { "type": "array", "items": { "$ref": "#/$defs/diagnostic" } }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "category": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "file", "entry", "line"],
+      "properties": {
+        "name": { "$ref": "#/$defs/id" },
+        "file": { "type": "string" },
+        "entry": { "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "file", "category", "severity", "disabled", "scopes", "when", "checks", "meta", "summary", "prose", "src"],
+      "properties": {
+        "kind": { "enum": ["rule", "context"] },
+        "id": { "$ref": "#/$defs/id" },
+        "file": { "type": "string" },
+        "category": { "anyOf": [{ "$ref": "#/$defs/category" }, { "type": "null" }] },
+        "severity": { "enum": ["blocking", "advisory", null] },
+        "disabled": { "type": "boolean" },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["files", "ignores"],
+            "properties": {
+              "files": { "type": "array", "items": { "type": "string" } },
+              "ignores": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "when": { "anyOf": [{ "$ref": "https://lore.dev/schemas/v1/when.schema.json" }, { "type": "null" }] },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["lang", "body"],
+            "properties": {
+              "lang": { "type": "string", "minLength": 1 },
+              "body": { "type": "string" }
+            }
+          }
+        },
+        "meta": { "anyOf": [{ "$ref": "https://lore.dev/schemas/v1/meta.schema.json" }, { "type": "null" }] },
+        "summary": { "type": "string" },
+        "prose": { "type": "string" },
+        "src": { "type": ["string", "null"] }
+      },
+      "if": { "properties": { "kind": { "const": "context" } }, "required": ["kind"] },
+      "then": { "properties": { "category": { "type": "null" }, "severity": { "type": "null" } } }
+    }
+  }
+}
