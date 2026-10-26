@@ -343,8 +343,8 @@ A hit is a pointer, never a verdict; no hits does not mean the rule passed.
 | `regex` (the default) | exactly one line: a pattern in the dialect above | an added line that matches |
 | `ast-grep` | one ast-grep pattern, possibly several lines; language from the file extension | a match that overlaps an added line |
 
-- A check's body is the lines strictly between its tags, joined with `\n`,
-  with nothing trimmed. A `regex` body of more than one line is an error
+- A check's body is the lines strictly between its tags, with the common
+  indentation removed, joined with `\n`; nothing else is trimmed. A `regex` body of more than one line is an error
   (`regex-not-one-line`).
 - `ast-grep` patterns follow the pattern syntax of a named ast-grep release
   (the spec states which) and rely only on the `$NAME` and `$$$`
@@ -379,8 +379,18 @@ that is every change.
 
 ### Parsing rules
 
-- Element tags start at column 0. Opening tags are alone on their line
+- Top-level tags (`<defaults>`, `<scope>`, `<rule>`, `<context>` and their
+  closing tags) start at column 0. Opening tags are alone on their line
   (attributes included); closing tags are alone on their line.
+- Indentation inside an element is optional and carries no meaning. Child
+  tags may be indented to any depth. Before an element's contents are
+  interpreted, the whitespace prefix common to all of its non-blank lines is
+  removed, so an indented file and a flush-left file mean the same thing.
+  - Tabs and spaces both work, but every non-blank line of one element must
+    start with the same prefix; a mix is an error
+    (`inconsistent-indentation`).
+  - YAML forbids tabs for its own nesting, so nested YAML keeps using spaces
+    after the common prefix.
 - Attributes are `name="value"` in double quotes, or a bare name for a
   boolean.
 - Element contents are raw text: no entities, no escaping.

@@ -13,24 +13,24 @@ or AI, can work out exactly which rules matter for a given change.
 > before a first stable version. Feedback is very welcome; see
 > [Participate](#participate).
 
-```
+```html
 <scope>
-files: ["src/checkout/**/*.{ts,tsx}"]
+  files: ["src/checkout/**/*.{ts,tsx}"]
 </scope>
 
 <rule id="price-from-quote" category="functional_correctness" severity="blocking">
-A displayed price must come from the quote that produced it.
+  A displayed price must come from the quote that produced it.
 
-Recomputing a price from its inputs drops quote-level discounts, so the
-customer sees one total and is charged another.
+  Recomputing a price from its inputs drops quote-level discounts, so the
+  customer sees one total and is charged another.
 </rule>
 
 <rule id="money-in-minor-units" category="functional_correctness">
-<when>
-addedMatches: ['parseFloat\(|toFixed\(']
-</when>
-Amounts are integers in minor units (cents). Floating point never touches
-money.
+  <when>
+    addedMatches: ['parseFloat\(|toFixed\(']
+  </when>
+  Amounts are integers in minor units (cents). Floating point never touches
+  money.
 </rule>
 ```
 
@@ -87,25 +87,26 @@ services/billing/
 ```
 
 A `.lore` file is a sequence of tagged sections. Structured parts are YAML
-(JSON works too); the rule text is Markdown.
+(JSON works too); the rule text is Markdown. Indenting inside a section is
+optional: tools strip it, so use whatever reads best.
 
 ### Scope
 
 A `<scope>` at the top of a file applies to every rule in it. A rule can
 narrow that scope, never widen it.
 
-```
+```html
 <scope>
-files: ["src/components/**/*.tsx"]
-ignores: ["**/*.stories.tsx"]
+  files: ["src/components/**/*.tsx"]
+  ignores: ["**/*.stories.tsx"]
 </scope>
 
 <rule id="icon-buttons-have-labels" category="accessibility">
-<when>
-addedContains: ["<IconButton"]
-</when>
-Every `IconButton` has an `aria-label` that names the action, not the
-icon: "Delete invoice", not "Trash".
+  <when>
+    addedContains: ["<IconButton"]
+  </when>
+  Every `IconButton` has an `aria-label` that names the action, not the
+  icon: "Delete invoice", not "Trash".
 </rule>
 ```
 
@@ -116,15 +117,15 @@ icon: "Delete invoice", not "Trash".
 change (`changed`, `unchanged`). A rule applies only when its scope matches
 a changed file and all of its conditions hold.
 
-```
+```html
 <rule id="migration-with-schema" category="backwards_compatibility" severity="blocking">
-<scope>
-files: ["db/migrations/**"]
-</scope>
-<when>
-unchanged: ["/db/schema.sql"]
-</when>
-A new migration ships with the regenerated `db/schema.sql`.
+  <scope>
+    files: ["db/migrations/**"]
+  </scope>
+  <when>
+    unchanged: ["/db/schema.sql"]
+  </when>
+  A new migration ships with the regenerated `db/schema.sql`.
 </rule>
 ```
 
@@ -136,16 +137,16 @@ the rule is broken. Checks are regular expressions or
 [ast-grep](https://ast-grep.github.io/) patterns. Lore never runs shell
 commands.
 
-```
+```html
 <rule id="tenant-scoped-queries" category="security" severity="blocking">
-<scope>
-files: ["server/**/*.ts"]
-</scope>
-<check lang="ast-grep">
-db.$MODEL.findMany($$$)
-</check>
-Every query on customer data filters by `tenantId`. A query without it can
-return another customer's records.
+  <scope>
+    files: ["server/**/*.ts"]
+  </scope>
+  <check lang="ast-grep">
+    db.$MODEL.findMany($$$)
+  </check>
+  Every query on customer data filters by `tenantId`. A query without it can
+  return another customer's records.
 </rule>
 ```
 
@@ -156,9 +157,9 @@ such as an architecture document, and tells the reviewer when it is
 relevant. Context uses the same scope and conditions as rules, but is never
 pass or fail.
 
-```
+```html
 <context id="billing-architecture" src="docs/billing.md">
-Read before reviewing changes to how invoices are calculated.
+  Read before reviewing changes to how invoices are calculated.
 </context>
 ```
 
