@@ -318,6 +318,15 @@ renamed, and by its old path if deleted.
 - Errors have names (for example `unknown-category`, `duplicate-id`,
   `glob-escapes-base`, `unknown-condition`) that the conformance examples
   refer to. The spec enumerates them.
+- An error reaches as far as it must and no further. An error inside an
+  entry (a bad attribute, invalid JSON in its `<when>`, a duplicate id)
+  excludes that entry only; every entry that shares the duplicate id is
+  excluded. An error in a file's structure, `<defaults>` or `<scope>`
+  excludes the whole file, since every entry in it depends on them. Other
+  files are unaffected.
+- A conforming tool must report every excluded entry and file, with the
+  error name, wherever it reports eligibility (for example "38 rules
+  applied, 2 skipped: unknown-category"). An exclusion is never silent.
 
 ### `.loreconfig`
 
