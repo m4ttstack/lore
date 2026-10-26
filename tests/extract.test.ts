@@ -129,6 +129,32 @@ test("treats remote, diff and expect as sections, never files", () => {
   expect(ex.expect).toBe("e");
 });
 
+test("throws on an unterminated example, naming the line", () => {
+  expect(() => extractExamples(doc("## S", F + "example parse", "=== a", "b"))).toThrow("line 2");
+});
+
+test("throws on a duplicate named section", () => {
+  expect(() =>
+    extractExamples(doc(F + "example parse", "=== diff", "a", "=== diff", "b", F)),
+  ).toThrow('duplicate "diff"');
+});
+
+test("throws on text before the first section", () => {
+  expect(() =>
+    extractExamples(doc("x", F + "example parse", "requires: git", "stray", "=== a", "b", F)),
+  ).toThrow("line 4");
+});
+
+test("throws on an example opener with no kind", () => {
+  expect(() => extractExamples(doc("x", F + "example", "=== a", "b", F))).toThrow("line 2");
+});
+
+test("throws on a section marker with an empty or padded path", () => {
+  expect(() => extractExamples(doc(F + "example parse", "=== ", "b", F))).toThrow("line 2");
+  expect(() => extractExamples(doc(F + "example parse", "=== a ", "b", F))).toThrow("line 2");
+  expect(() => extractExamples(doc(F + "example parse", "===  a", "b", F))).toThrow("line 2");
+});
+
 test("returns diff and expect as null when absent", () => {
   const ex = extractExamples(doc(F + "example parse", "=== a", "b", F))[0]!;
   expect(ex.remote).toBeNull();
