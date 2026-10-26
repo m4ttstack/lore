@@ -59,25 +59,28 @@ severity: blocking
 
 <scope>
 files: ["**/*.{ts,tsx,graphql}"]
-ignores: ["**/*.test.ts"]
+ignores: ["**/*.test.{ts,tsx}"]
 </scope>
 
 <rule id="price-from-quote">
-A displayed price must come from the quote that produced it. No helper
-that recomputes a price separately from the quote.
+A displayed price must come from the quote that produced it.
+
+No helper may recompute a price separately from the quote, even when the
+inputs look identical: the quote carries discounts the inputs don't.
 </rule>
 ```
 
 The file's `<scope>` covers every rule in it. That rule applies to any
 change touching a `.ts`, `.tsx` or `.graphql` file under `checkout/`,
-tests excluded.
+tests excluded. A rule's prose states the whole rule on its own, and its
+first paragraph doubles as the summary tools show in lists and verdicts.
 
 Structured blocks are YAML 1.2, and JSON is valid YAML, so a team writes
 whichever it prefers. This `<scope>` means the same as the one above:
 
 ```
 <scope>
-{ "files": ["**/*.{ts,tsx,graphql}"], "ignores": ["**/*.test.ts"] }
+{ "files": ["**/*.{ts,tsx,graphql}"], "ignores": ["**/*.test.{ts,tsx}"] }
 </scope>
 ```
 
@@ -88,32 +91,41 @@ A rule can narrow its file's scope, never widen it.
 ```
 <rule id="regen-types-after-graphql">
 <scope>
-{ "files": ["**/*.graphql"] }
+files: ["**/*.graphql"]
 </scope>
-A `.graphql` change ships with regenerated types.
+<when>
+unchanged: ["/apps/web/src/__generated__/**"]
+</when>
+A `.graphql` change ships with regenerated types in
+`apps/web/src/__generated__/`.
 </rule>
 ```
 
 ### Conditions on the diff
 
-`<when>` makes a rule apply only when the change contains something.
+`<when>` makes a rule apply only when the change looks a certain way:
+added lines containing or matching something (`addedContains`,
+`addedMatches`), or files elsewhere in the diff that did or didn't change
+(`changed`, `unchanged`). The rule above only applies when a `.graphql`
+file changed and nothing under `__generated__/` did. A leading `/` means
+the repo root.
 
 ```
 <rule id="currency-from-settings" severity="advisory">
 <when>
-{ "diffContains": ["'USD'", "'EUR'"] }
+addedContains: ["'USD'", "'EUR'"]
 </when>
-Hard-coded currency codes in display text are wrong; use the shop's
+Display text never hard-codes a currency code; it uses the shop's
 `currency` setting.
 </rule>
 ```
 
 ### Pointing the reviewer at lines
 
-`<check>` is a cheap, deterministic search over the changed files. Its
-hits go to the reviewer with file and line. A hit is a pointer, not a
-verdict: the reviewer still decides, and no hits doesn't mean the rule
-passed.
+`<check>` is a cheap, deterministic search over the rule's in-scope
+changed files. Its hits go to the reviewer with file and line. A hit is a
+pointer, not a verdict: the reviewer still decides, and no hits doesn't
+mean the rule passed.
 
 ```
 <rule id="no-or-across-columns">
@@ -126,17 +138,34 @@ queries.
 ```
 
 ```
-<rule id="regen-types-after-graphql">
-<check lang="cochange">
-{ "when": ["**/*.graphql"], "expect": ["**/__generated__/**"] }
+<rule id="currency-from-settings" severity="advisory">
+<check>
+'(USD|EUR)'
 </check>
-A `.graphql` change ships with regenerated types.
+Display text never hard-codes a currency code; it uses the shop's
+`currency` setting.
 </rule>
 ```
 
-Checks come in three flavors: `regex`, `ast-grep` and `cochange`
-(files that should change together). No shell commands, so reading Lore
-never means running code.
+Checks are `regex` (the default, in a small dialect every language agrees
+on) or `ast-grep`. No shell commands, so reading Lore never means running
+code.
+
+### Notes for tools
+
+A `<meta>` block holds anything the spec doesn't interpret, like where a
+rule came from or who owns it. Tools keep it but never use it to decide
+what applies.
+
+```
+<rule id="price-from-quote">
+<meta>
+source: docs/pricing-review.md#prices
+owner: checkout
+</meta>
+A displayed price must come from the quote that produced it.
+</rule>
+```
 
 ### Context documents
 
@@ -154,11 +183,14 @@ Read before judging any change to how a price is computed.
 
 Given a diff, a rule or context entry applies when:
 
-1. at least one changed file is in its scope, and
-2. its `<when>`, if any, holds.
+1. it isn't marked `disabled` (or switched off by a `.loreconfig`, below),
+2. at least one changed file is in its scope, and
+3. its `<when>`, if any, holds.
 
-An entry with no scope and no conditions applies to every change. This is
-computed by code, the same way in every tool.
+An entry with no scope and no conditions applies to every change under its
+folder's parent; at the repo root, that's every change. This is computed
+by code, the same way in every tool. A broken entry is skipped and always
+reported, never silently dropped.
 
 ## `.loreconfig`
 
@@ -167,15 +199,20 @@ it, inherited the way `.gitignore` is.
 
 ```yaml
 lore: 1
-categories: [data-provenance]
+categories: [data_provenance]
+disable: [currency-from-settings]
 ```
 
-Every rule has one of nine built-in categories
-(`functional_correctness`, `test_coverage`, `security`, `performance`,
-`accessibility`, `observability`, `backwards_compatibility`,
-`documentation`, `code_style`) or one a `.loreconfig` above it adds.
-Severity is `blocking` (fix or explicitly waive before merge) or
-`advisory` (raise it, the author decides).
+`disable` switches rules off for changes at or below that directory, even
+rules that come from a shared Lore folder another team owns. `root: true`
+stops the lookup from going further up, as in EditorConfig.
+
+A rule has one of nine built-in categories (`functional_correctness`,
+`test_coverage`, `security`, `performance`, `accessibility`,
+`observability`, `backwards_compatibility`, `documentation`, `code_style`)
+or one a `.loreconfig` above it adds. Severity is `blocking` (fix or
+explicitly waive before merge) or `advisory` (raise it, the author
+decides), and defaults to `advisory`.
 
 ### Keeping Lore outside the repo
 
@@ -184,10 +221,26 @@ covers. A team can keep it in its own repo and point it at the code:
 
 ```
 team-repo/lore/shop/
-  .loreconfig        { "repo": "github.com/acme/shop" }
+  .loreconfig        repo: github.com/acme/shop
   .lore/
     checkout.lore    globs resolve from the shop repo's root
 ```
+
+## Adopting it
+
+Lore files are only read from version control, so nothing in
+`node_modules` or an ignored folder can add rules.
+
+Until Lore has its own grammar, one line in `.gitattributes` highlights
+`.lore` files as Markdown on GitHub and GitLab:
+
+```
+*.lore linguist-language=Markdown gitlab-language=markdown
+```
+
+The spec will also ship a short paragraph to paste into `AGENTS.md`,
+`CLAUDE.md`, Cursor rules or Copilot instructions, so agents you already
+use apply Lore with nothing installed.
 
 ## Prior art
 
@@ -206,7 +259,8 @@ Lore borrows from tools that each do part of this:
    examples every implementation can test against
 2. Editor support: a Prettier plugin, a language server, syntax
    highlighting
-3. How Lore gets applied: from files and a diff to a verdict per rule
+3. How Lore gets applied: from files and a diff to a verdict per rule,
+   with a playground to try it
 4. A first integration into an agent review pipeline
 5. A team view for browsing and editing rules
 
@@ -220,4 +274,6 @@ don't fit it are the most useful thing right now.
 
 ## License
 
-Not chosen yet.
+The specification text is licensed under
+[CC-BY-4.0](LICENSE-CC-BY-4.0). Schemas, examples and code are licensed
+under [MIT](LICENSE).
