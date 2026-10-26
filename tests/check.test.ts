@@ -198,7 +198,6 @@ test("registry-table: the table must mirror the registry", () => {
   expect(rules(swap("| `bad-thing` | error |", "| `bad-thing` | warning |"))).toContain("registry-table");
   expect(rules(swap("\n| `odd-thing` | warning | An odd thing. |", ""))).toContain("registry-table");
   expect(rules(clean, [registry[1]!, registry[0]!])).toContain("registry-table");
-  expect(rules(swap("| `bad-thing` | error | A bad thing. |", "| `bad-thing` | error | Reworded. |"))).toEqual([]);
   const problems = check(clean.slice(0, clean.indexOf("\n| Name")));
   expect(problems).toContainEqual(expect.objectContaining({ rule: "registry-table", line: 1 }));
 });
@@ -219,4 +218,104 @@ test("agent-copy: the For agents quote must equal AGENT.md", () => {
   expect(run(clean + section, agent + "2. Report.\n")).toEqual(["agent-copy"]);
   expect(run(clean + section.replace("```markdown", "```"), agent)).toEqual(["agent-copy"]);
   expect(run(clean + section, undefined)).toEqual(["agent-copy"]);
+});
+
+const ruleEntry = (id: string, file = "lore/a.lore") => ({
+  kind: "rule", id, file, category: "code_style", severity: "advisory", disabled: false,
+  scopes: [{ files: ["**"], ignores: [] }], when: null, checks: [], meta: null, summary: "", prose: "", src: null,
+});
+const diag = (name: string, file: string, entry: string | null, line: number) => ({ name, file, entry, line });
+const withParse = (value: object, md = clean) => swap(parseExpect, JSON.stringify(value), md);
+const withElig = (value: object, md = clean) => swap(eligExpect, JSON.stringify(value), md);
+const shape = (md: string) => rules(md).filter((r) => r !== "untested-name");
+
+test("order: diagnostics are ordered by file, line, name, then entry with null first", () => {
+  const md = swap('<rule id="a-rule">', '<rule id="a-rule">\n<rule id="c-rule">\n=== lore/z.lore\n<rule id="z-rule">');
+  const errs = (errors: object[]) => shape(withParse({ entries: [], errors, warnings: [] }, md));
+  expect(errs([diag("bad-thing", "lore/a.lore", null, 1), diag("bad-thing", "lore/a.lore", null, 2)])).toEqual([]);
+  expect(errs([diag("bad-thing", "lore/z.lore", null, 1), diag("bad-thing", "lore/a.lore", null, 2)])).toEqual(["order"]);
+  expect(errs([diag("bad-thing", "lore/a.lore", null, 2), diag("bad-thing", "lore/a.lore", null, 1)])).toEqual(["order"]);
+  expect(errs([diag("odd-thing", "lore/a.lore", null, 1), diag("bad-thing", "lore/a.lore", null, 1)])).toEqual(["order"]);
+  expect(errs([diag("bad-thing", "lore/a.lore", "a-rule", 1), diag("bad-thing", "lore/a.lore", null, 1)])).toEqual(["order"]);
+  expect(errs([diag("bad-thing", "lore/a.lore", "c-rule", 1), diag("bad-thing", "lore/a.lore", "a-rule", 1)])).toEqual(["order"]);
+  const warnings = [diag("odd-thing", "lore/a.lore", null, 2), diag("odd-thing", "lore/a.lore", null, 1)];
+  expect(shape(withParse({ entries: [], errors: [], warnings }, md))).toEqual(["order"]);
+  const excluded = [diag("bad-thing", "lore/b.lore", null, 2), diag("bad-thing", "lore/b.lore", null, 1)];
+  expect(shape(withElig({ eligible: [], hits: [], excluded, warnings: [] }))).toEqual(["order"]);
+});
+
+test("order: entries are ordered by file, then position in the file", () => {
+  const md = swap('<rule id="a-rule">', '<rule id="a-rule">\n<rule id="c-rule">\n=== lore/0.lore\n<rule id="z-rule">');
+  const entries = (...list: object[]) => shape(withParse({ entries: list, errors: [], warnings: [] }, md));
+  expect(entries(ruleEntry("z-rule", "lore/0.lore"), ruleEntry("a-rule"), ruleEntry("c-rule"))).toEqual([]);
+  expect(entries(ruleEntry("c-rule"), ruleEntry("a-rule"))).toEqual(["order"]);
+  expect(entries(ruleEntry("a-rule"), ruleEntry("z-rule", "lore/0.lore"))).toEqual(["order"]);
+});
+
+test("order: hits are ordered by rule, file, then line", () => {
+  const md = swap('<rule id="b-rule">', '<rule id="b-rule">\n<rule id="c-rule">');
+  const hit = (rule: string, file: string, line: number) => ({ rule, file, line, text: "two" });
+  const hits = (...list: object[]) => shape(withElig({ eligible: ["b-rule", "c-rule"], hits: list, excluded: [], warnings: [] }, md));
+  expect(hits(hit("b-rule", "src/x.ts", 1), hit("b-rule", "src/x.ts", 2), hit("c-rule", "src/a.ts", 1))).toEqual([]);
+  expect(hits(hit("b-rule", "src/x.ts", 2), hit("b-rule", "src/x.ts", 1))).toEqual(["order"]);
+  expect(hits(hit("c-rule", "src/a.ts", 1), hit("b-rule", "src/x.ts", 1))).toEqual(["order"]);
+  expect(hits(hit("b-rule", "src/y.ts", 1), hit("b-rule", "src/x.ts", 1))).toEqual(["order"]);
+});
+
+test("order: strings compare by code point", () => {
+  const astral = "lore/\u{1F600}.lore";
+  const bmp = "lore/�.lore";
+  const md = swap('<rule id="a-rule">', `<rule id="a-rule">\n=== ${astral}\nx\n=== ${bmp}\ny`);
+  const errors = [diag("bad-thing", bmp, null, 1), diag("bad-thing", astral, null, 1)];
+  expect(shape(withParse({ entries: [], errors, warnings: [] }, md))).toEqual([]);
+  expect(shape(withParse({ entries: [], errors: [...errors].reverse(), warnings: [] }, md))).toEqual(["order"]);
+});
+
+test("unknown-file: a diagnostic's file is an input or a diff path", () => {
+  expect(shape(withParse({ entries: [], errors: [diag("bad-thing", "lore/q.lore", null, 1)], warnings: [] }))).toEqual(["unknown-file"]);
+  expect(shape(withParse({ entries: [ruleEntry("a-rule", "lore/q.lore")], errors: [], warnings: [] }))).toEqual(["unknown-file"]);
+  const warnings = [diag("odd-thing", "src/x.ts", "b-rule", 1)];
+  expect(shape(withElig({ eligible: ["b-rule"], hits: [], excluded: [], warnings }))).toEqual([]);
+  const excluded = [diag("bad-thing", "src/q.ts", null, 1)];
+  expect(shape(withElig({ eligible: ["b-rule"], hits: [], excluded, warnings: [] }))).toEqual(["unknown-file"]);
+});
+
+test("unknown-entry: a diagnostic's entry is an id in its Lore file, or in some input for another file", () => {
+  expect(shape(withParse({ entries: [], errors: [diag("bad-thing", "lore/a.lore", "a-rule", 1)], warnings: [] }))).toEqual([]);
+  expect(shape(withParse({ entries: [], errors: [diag("bad-thing", "lore/a.lore", "b-rule", 1)], warnings: [] }))).toEqual(["unknown-entry"]);
+  const warnings = [diag("odd-thing", "src/x.ts", "q-rule", 1)];
+  expect(shape(withElig({ eligible: ["b-rule"], hits: [], excluded: [], warnings }))).toEqual(["unknown-entry"]);
+});
+
+test("requires: values are regex or ast-grep", () => {
+  const opener = F + "example eligibility";
+  expect(rules(swap(opener, opener + "\nrequires: regex\nrequires: ast-grep"))).toEqual([]);
+  expect(rules(swap(opener, opener + "\nrequires: git"))).toEqual(["requires"]);
+});
+
+test("requires: an eligibility example whose inputs hold a check needs requires", () => {
+  const withCheck = swap('<rule id="b-rule">', '<rule id="b-rule">\n<check>\ntwo\n</check>');
+  expect(rules(withCheck)).toEqual(["requires"]);
+  expect(rules(swap(F + "example eligibility", F + "example eligibility\nrequires: regex", withCheck))).toEqual([]);
+  expect(rules(swap('<rule id="a-rule">', '<rule id="a-rule">\n<check>\nx\n</check>'))).toEqual([]);
+});
+
+test("remote: the remote section is one line", () => {
+  const add = (text: string) => swap("=== diff", `=== remote\n${text}\n=== diff`);
+  expect(rules(add("https://github.com/acme/shop"))).toEqual([]);
+  expect(rules(add("https://github.com/acme/shop\nhttps://github.com/acme/other"))).toEqual(["remote"]);
+  expect(rules(add(""))).toEqual(["remote"]);
+});
+
+test("diff-agrees: a deleted path is not an input file", () => {
+  expect(rules(swap("M src/x.ts\n+2 two", "D src/x.ts"))).toContain("diff-agrees");
+  expect(rules(swap("M src/x.ts\n+2 two", "M src/x.ts\n+2 two\nD src/gone.ts"))).toEqual([]);
+});
+
+test("sorted: eligible ids are strictly ascending", () => {
+  expect(shape(withElig({ eligible: ["b-rule", "b-rule"], hits: [], excluded: [], warnings: [] }))).toEqual(["sorted"]);
+});
+
+test("registry-table: descriptions must match the registry", () => {
+  expect(rules(swap("| `bad-thing` | error | A bad thing. |", "| `bad-thing` | error | Reworded. |"))).toEqual(["registry-table"]);
 });

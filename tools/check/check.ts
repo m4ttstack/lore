@@ -28,8 +28,13 @@ const FILE_LINE = /^([AMD]) (\S(?:.*\S)?)$/;
 const RENAME_LINE = /^R (\S(?:.*?\S)?) -> (\S(?:.*\S)?)$/;
 const PLUS_LINE = /^\+([1-9]\d*) (.*)$/;
 
-interface Diagnostic { name: string }
-interface Expected { errors?: Diagnostic[]; warnings?: Diagnostic[]; excluded?: Diagnostic[]; eligible?: string[]; hits?: { rule: string }[] }
+const CAPABILITIES = new Set(["regex", "ast-grep"]);
+const CHECK_TAG = /^[ \t]*<check[ \t>]/m;
+
+interface Diagnostic { name: string; file: string; entry: string | null; line: number }
+interface Hit { rule: string; file: string; line: number; text: string }
+interface Entry { id: string; file: string }
+interface Expected { entries?: Entry[]; errors?: Diagnostic[]; warnings?: Diagnostic[]; excluded?: Diagnostic[]; eligible?: string[]; hits?: Hit[] }
 
 export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; schemas: SchemaSet; agent?: string }): Problem[] {
   const { markdown, registry, schemas, agent } = input;
@@ -57,6 +62,11 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
       continue;
     }
     if (ex.files.length === 0) report("inputs", "no input file");
+    for (const r of ex.requires) if (!CAPABILITIES.has(r)) report("requires", `unknown capability "${r}"`);
+    if (ex.kind === "eligibility" && ex.requires.length === 0 && ex.files.some((f) => CHECK_TAG.test(f.content))) {
+      report("requires", "an eligibility example whose inputs hold a <check> needs a requires line");
+    }
+    if (ex.remote !== null && (ex.remote === "" || ex.remote.includes("\n"))) report("remote", "the remote section is not one line");
     if (ex.kind === "eligibility" && ex.diff === null) report("diff", "an eligibility example needs a diff");
     if (ex.kind === "parse" && (ex.diff !== null || ex.remote !== null)) report("diff", "a parse example takes no diff or remote");
     if (ex.diff !== null) checkDiff(ex, report);
@@ -79,14 +89,23 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
       continue;
     }
 
-    const diagnostics = ex.kind === "parse" ? [...value.errors!, ...value.warnings!] : [...value.excluded!, ...value.warnings!];
+    const lists = ex.kind === "parse" ? { errors: value.errors!, warnings: value.warnings! } : { excluded: value.excluded!, warnings: value.warnings! };
+    const diagnostics = Object.values(lists).flat();
     for (const { name } of diagnostics) {
       tested.add(name);
       if (!known.has(name)) report("unknown-name", `"${name}" is not in the registry`);
     }
+    checkReferences(ex, diagnostics, value.entries ?? [], report);
+    for (const [list, items] of Object.entries(lists)) {
+      if (!inOrder(items, compareDiagnostics)) report("order", `${list} are out of order`);
+    }
+    if (ex.kind === "parse" && !inOrder(value.entries!, (a, b) => compare(a.file, b.file) || position(ex, a) - position(ex, b))) {
+      report("order", "entries are out of order");
+    }
     if (ex.kind === "eligibility") {
       const eligible = value.eligible!;
-      if (eligible.some((id, i) => i > 0 && eligible[i - 1]! > id)) report("sorted", "eligible is not sorted");
+      if (eligible.some((id, i) => i > 0 && compare(eligible[i - 1]!, id) >= 0)) report("sorted", "eligible is not strictly ascending");
+      if (!inOrder(value.hits!, (a, b) => compare(a.rule, b.rule) || compare(a.file, b.file) || a.line - b.line)) report("order", "hits are out of order");
       const ids = new Set([...eligible, ...value.hits!.map((h) => h.rule)]);
       for (const id of ids) {
         if (!ex.files.some((f) => f.content.includes(`id="${id}"`))) report("unknown-id", `"${id}" does not appear in the inputs`);
@@ -119,6 +138,49 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
   return problems;
 }
 
+function compare(a: string, b: string): number {
+  const x = [...a];
+  const y = [...b];
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const d = x[i]!.codePointAt(0)! - y[i]!.codePointAt(0)!;
+    if (d !== 0) return d;
+  }
+  return x.length - y.length;
+}
+
+function compareDiagnostics(a: Diagnostic, b: Diagnostic): number {
+  const entry = a.entry === b.entry ? 0 : a.entry === null ? -1 : b.entry === null ? 1 : compare(a.entry, b.entry);
+  return compare(a.file, b.file) || a.line - b.line || compare(a.name, b.name) || entry;
+}
+
+function inOrder<T>(items: T[], cmp: (a: T, b: T) => number): boolean {
+  return items.every((item, i) => i === 0 || cmp(items[i - 1]!, item) <= 0);
+}
+
+function position(ex: Example, entry: Entry): number {
+  const tag = new RegExp(`^<(rule|context)[ \\t](?:[^>]*[ \\t])?id="${entry.id}"`);
+  return ex.files.find((f) => f.path === entry.file)?.content.split("\n").findIndex((l) => tag.test(l)) ?? -1;
+}
+
+function checkReferences(ex: Example, diagnostics: Diagnostic[], entries: Entry[], report: (rule: string, message: string) => void): void {
+  const paths = new Set(ex.files.map((f) => f.path));
+  for (const text of ex.diff?.split("\n") ?? []) {
+    const file = FILE_LINE.exec(text);
+    const rename = RENAME_LINE.exec(text);
+    if (file) paths.add(file[2]!);
+    if (rename) paths.add(rename[1]!).add(rename[2]!);
+  }
+  for (const { file } of [...diagnostics, ...entries]) {
+    if (!paths.has(file)) report("unknown-file", `"${file}" is neither an input nor a diff path`);
+  }
+  for (const { file, entry } of diagnostics) {
+    if (entry === null) continue;
+    const own = ex.files.find((f) => f.path === file);
+    const where = file.endsWith(".lore") && own ? [own] : ex.files;
+    if (!where.some((f) => f.content.includes(`id="${entry}"`))) report("unknown-entry", `"${entry}" does not appear as an id in ${file.endsWith(".lore") ? file : "the inputs"}`);
+  }
+}
+
 function checkAgentCopy(lines: string[], agent: string | undefined): string | null {
   if (agent === undefined) return `"## ${AGENT_HEADING}" exists but no AGENT.md text was given`;
   const end = lines.findIndex((l) => l.startsWith("## "));
@@ -138,6 +200,7 @@ function checkDiff(ex: Example, report: (rule: string, message: string) => void)
     const file = FILE_LINE.exec(text);
     const rename = RENAME_LINE.exec(text);
     const plus = PLUS_LINE.exec(text);
+    if (file?.[1] === "D" && ex.files.some((f) => f.path === file[2])) report("diff-agrees", `diff line ${i + 1} deletes "${file[2]}", which is an input file`);
     if (file) target = file[1] === "D" ? null : file[2]!;
     else if (rename) target = rename[2]!;
     else if (!plus) bad("is malformed");
@@ -203,6 +266,8 @@ function checkRegistryTable(lines: string[], registry: RegistryEntry[]): string[
     else if (!entry) problems.push(`row ${i + 1}: "${name}" is not in the registry`);
     else if (name !== entry.name || row[1] !== entry.kind) {
       problems.push(`row ${i + 1}: table has "${name}" (${row[1]}), registry has "${entry.name}" (${entry.kind})`);
+    } else if (row[2] !== entry.description) {
+      problems.push(`row ${i + 1}: "${name}" is described as "${row[2]}" in the table but "${entry.description}" in the registry`);
     }
   }
   return problems;

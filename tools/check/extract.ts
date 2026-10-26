@@ -12,7 +12,7 @@ export interface Example {
   expect: string | null;   // raw section text
 }
 
-const EXAMPLE_OPEN = /^`{6}example[ \t]+(\S+)/;
+const EXAMPLE_OPEN = /^`{6}example[ \t]+(\S+)(.*)$/;
 const EXAMPLE_NO_KIND = /^`{6}example(?!\S)/;
 const EXAMPLE_CLOSE = /^`{6}$/;
 const FENCE_OPEN = /^(`{3,}|~{3,})/;
@@ -40,6 +40,7 @@ export function extractExamples(markdown: string): Example[] {
     const open = EXAMPLE_OPEN.exec(text);
     if (!open && EXAMPLE_NO_KIND.test(text)) throw new Error(`example opened at line ${i + 1} has no kind`);
     if (open) {
+      if (open[2] !== "") throw new Error(`example opened at line ${i + 1} has text after its kind`);
       const start = i;
       const body: string[] = [];
       i++;

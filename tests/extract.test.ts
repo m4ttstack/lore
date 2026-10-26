@@ -149,6 +149,11 @@ test("throws on an example opener with no kind", () => {
   expect(() => extractExamples(doc("x", F + "example", "=== a", "b", F))).toThrow("line 2");
 });
 
+test("throws on text after the kind on the opener line", () => {
+  expect(() => extractExamples(doc("x", F + "example parse extra", "=== a", "b", F))).toThrow("line 2");
+  expect(() => extractExamples(doc("x", F + "example parse ", "=== a", "b", F))).toThrow("line 2");
+});
+
 test("throws on a section marker with an empty or padded path", () => {
   expect(() => extractExamples(doc(F + "example parse", "=== ", "b", F))).toThrow("line 2");
   expect(() => extractExamples(doc(F + "example parse", "=== a ", "b", F))).toThrow("line 2");
