@@ -48,18 +48,18 @@ apps/web/src/checkout/
 ```
 
 A `.lore` file is made of tagged sections, a bit like a Svelte or Vue
-component. JSON where tools need structure, Markdown where people write.
+component. YAML or JSON where tools need structure, Markdown where people
+write.
 
 ```
 <defaults>
-{ "category": "functional_correctness", "severity": "blocking" }
+category: functional_correctness
+severity: blocking
 </defaults>
 
 <scope>
-{
-  "files": ["**/*.{ts,tsx,graphql}"],
-  "ignores": ["**/*.test.ts"]
-}
+files: ["**/*.{ts,tsx,graphql}"]
+ignores: ["**/*.test.ts"]
 </scope>
 
 <rule id="price-from-quote">
@@ -71,6 +71,15 @@ that recomputes a price separately from the quote.
 The file's `<scope>` covers every rule in it. That rule applies to any
 change touching a `.ts`, `.tsx` or `.graphql` file under `checkout/`,
 tests excluded.
+
+Structured blocks are YAML 1.2, and JSON is valid YAML, so a team writes
+whichever it prefers. This `<scope>` means the same as the one above:
+
+```
+<scope>
+{ "files": ["**/*.{ts,tsx,graphql}"], "ignores": ["**/*.test.ts"] }
+</scope>
+```
 
 ### Narrowing a rule's scope
 
@@ -156,11 +165,9 @@ computed by code, the same way in every tool.
 A `.loreconfig` can sit in any directory and applies to everything below
 it, inherited the way `.gitignore` is.
 
-```jsonc
-{
-  "lore": 1,
-  "categories": ["data-provenance"]
-}
+```yaml
+lore: 1
+categories: [data-provenance]
 ```
 
 Every rule has one of nine built-in categories

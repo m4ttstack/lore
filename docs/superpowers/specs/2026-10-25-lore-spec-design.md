@@ -66,7 +66,7 @@ conversion is done before the format is proposed to that team.
 - Deterministic eligibility: given a set of Lore files and a diff, every
   conforming tool computes the same set of eligible rules and context.
 - A spec testable by any implementation: numbered conformance examples
-  (input and expected output) and JSON Schemas for every JSON block.
+  (input and expected output) and JSON Schemas for every structured block.
 - Files a plain agent reads correctly with no tooling.
 
 ## Non-goals
@@ -97,8 +97,8 @@ conversion is done before the format is proposed to that team.
 
 ## Constraints
 
-- Zero dependencies to read. Parsing a `.lore` file needs a JSON parser and
-  the spec's tokenizing rules, nothing else.
+- Zero special dependencies to read. Parsing a `.lore` file needs a YAML 1.2
+  parser and the spec's tokenizing rules, nothing else.
 - UTF-8 text, line-oriented, friendly to diffs and code review.
 - The name may change before the spec is published as stable: `lorehq/lore`
   already uses a `.lore/` folder for a different purpose.
@@ -109,7 +109,7 @@ conversion is done before the format is proposed to that team.
 |---|---|---|
 | Where rules are stored | A database behind an editing view; files | Files. Git is the source of truth and history; a page or index is built from them. |
 | Prose rules vs structured rules | Rules only; context docs only; two kinds | Two kinds, as Aviator separates invariants from runtime context. Rules get verdicts; context is reference prose that is loaded when relevant but never scored. |
-| File format | Markdown + frontmatter; YAML; JSON with prose in sibling files; executable JS config; a single-file format with tagged sections | Tagged sections, in the style of Svelte and Vue single-file components. JSON where tools query (scope, conditions), Markdown where people write. Agents already read XML-tagged text natively. Markdown frontmatter has no good per-rule structure; YAML and JSON are poor at long prose with code samples; JS config must be executed. |
+| File format | Markdown + frontmatter; YAML; JSON with prose in sibling files; executable JS config; a single-file format with tagged sections | Tagged sections, in the style of Svelte and Vue single-file components. YAML or JSON where tools query (scope, conditions), Markdown where people write. Agents already read XML-tagged text natively. Markdown frontmatter has no good per-rule structure; YAML and JSON are poor at long prose with code samples; JS config must be executed. |
 | Where files live | One root folder; next to the code; either | Either. A `.lore/` folder may sit anywhere; globs resolve relative to it, so a set can move with its code. A folder outside the repo maps to it with `repo`. |
 | A rule's scope vs its file's scope | Replaces; narrows | Narrows. A file's scope keeps its meaning; rules that cross areas go in a file with a wider scope. |
 | Code in rules | None; content conditions only; conditions and search hints | Both: `<when>` for selection, `<check>` for hints to the reviewer. |
@@ -185,8 +185,8 @@ Top-level elements:
 
 | Element | Contents | Count |
 |---|---|---|
-| `<defaults>` | JSON: `category`, `severity` defaults for every rule in the file | 0 or 1 |
-| `<scope>` | JSON: `files`, `ignores` (globs). The default scope of every rule and context in the file | 0 or 1 |
+| `<defaults>` | Structured: `category`, `severity` defaults for every rule in the file | 0 or 1 |
+| `<scope>` | Structured: `files`, `ignores` (globs). The default scope of every rule and context in the file | 0 or 1 |
 | `<rule>` | Optional child elements, then Markdown prose | any |
 | `<context>` | Optional child elements, then optional Markdown note | any |
 | `<!-- -->` | Comment, ignored | any |
@@ -207,9 +207,9 @@ Attributes:
 
 Child elements, each optional and at most once, before the prose:
 
-- **`<scope>`**: JSON `files` / `ignores`. The rule's scope is the file's
+- **`<scope>`**: structured `files` / `ignores`. The rule's scope is the file's
   scope intersected with this one.
-- **`<when>`**: JSON content conditions (below).
+- **`<when>`**: structured content conditions (below).
 - **`<check>`**: a search whose hits go to the reviewer (below). A rule may
   have several `<check>` elements.
 
@@ -255,7 +255,7 @@ them.
 
 ### `<when>`: content conditions
 
-A JSON object. Each key is a condition; all keys must hold. v1 conditions:
+A structured mapping. Each key is a condition; all keys must hold. v1 conditions:
 
 | Key | Value | Holds when |
 |---|---|---|
@@ -280,7 +280,7 @@ passed.
 |---|---|---|
 | `regex` | one ECMAScript pattern; optional `flags` attribute | an added line that matches |
 | `ast-grep` | one ast-grep pattern; language from the file extension | a match that overlaps an added line |
-| `cochange` | JSON `{ "when": glob[], "expect": glob[] }` | an in-scope changed file matches `when` and no changed file anywhere matches `expect` |
+| `cochange` | structured `{ when: glob[], expect: glob[] }` | an in-scope changed file matches `when` and no changed file anywhere matches `expect` |
 
 `cochange` is the one check that looks past the rule's scope: `when` is
 matched against in-scope changed files, `expect` against every changed file
@@ -315,12 +315,17 @@ renamed, and by its old path if deleted.
   boolean.
 - Element contents are raw text: no entities, no escaping. A line inside
   prose that would read as a closing tag at column 0 must be indented.
-- JSON blocks are JSONC (comments and trailing commas allowed).
+- Structured blocks (`<defaults>`, `<scope>`, `<when>`, `cochange`) and
+  `.loreconfig` are YAML 1.2, core schema. JSON is valid YAML 1.2, so a team
+  writes either, and may mix them across files. Anchors, aliases and custom
+  tags are not allowed, so every implementation reads the same values and
+  no reader has to guard against alias expansion. Comments use YAML's `#`;
+  JSONC's `//` comments and trailing commas are not accepted.
 - Errors have names (for example `unknown-category`, `duplicate-id`,
   `glob-escapes-base`, `unknown-condition`) that the conformance examples
   refer to. The spec enumerates them.
 - An error reaches as far as it must and no further. An error inside an
-  entry (a bad attribute, invalid JSON in its `<when>`, a duplicate id)
+  entry (a bad attribute, invalid YAML in its `<when>`, a duplicate id)
   excludes that entry only; every entry that shares the duplicate id is
   excluded. An error in a file's structure, `<defaults>` or `<scope>`
   excludes the whole file, since every entry in it depends on them. Other
@@ -331,15 +336,13 @@ renamed, and by its old path if deleted.
 
 ### `.loreconfig`
 
-A JSONC file that may sit in any directory and applies to that directory and
+A YAML (or JSON) file that may sit in any directory and applies to that directory and
 everything below it, inherited the way `.gitignore` is.
 
-```jsonc
-{
-  "lore": 1,                                   // spec version
-  "repo": "github.com/acme/shop",              // only for folders outside the repo
-  "categories": ["data-provenance"]            // added to the fixed nine
-}
+```yaml
+lore: 1                          # spec version
+repo: github.com/acme/shop       # only for folders outside the repo
+categories: [data-provenance]    # added to the fixed nine
 ```
 
 - **`categories`**: added to the nine fixed ones for this directory and
@@ -383,7 +386,7 @@ Written in RFC 2119 language. It carries:
 - a normative **document model**: the JSON shape of a parsed set of Lore
   files (rules and context with resolved scope, defaults applied, errors),
   which examples compare against and which tools may emit;
-- JSON Schemas for `<defaults>`, `<scope>`, `<when>`, the `cochange` check
+- JSON Schemas (applied to the parsed YAML) for `<defaults>`, `<scope>`, `<when>`, the `cochange` check
   and `.loreconfig`;
 - the enumerated error names;
 - numbered conformance examples, CommonMark style, inline in the spec. Each
@@ -396,8 +399,8 @@ Written in RFC 2119 language. It carries:
 ## Decided in this design (as decided)
 
 - Two kinds of entry, rules and context; only rules get verdicts.
-- `.lore` single-file format with tagged sections; JSON metadata, Markdown
-  prose.
+- `.lore` single-file format with tagged sections; YAML or JSON metadata,
+  Markdown prose.
 - `.lore/` folders anywhere; globs relative to the folder's base; one file or
   many.
 - File scope with rule scope narrowing it.
@@ -432,8 +435,7 @@ These were not settled in conversation; each is my default:
   external folder; the two trees don't mix.
 - v1 `<when>` keys limited to `diffContains` and `diffMatches`, on added
   lines only.
-- Strict column-0, own-line tags; JSONC for every JSON block and
-  `.loreconfig`.
+- Strict column-0, own-line tags.
 - Deleted files count for eligibility by their old path.
 - A tool may skip unsupported check languages; the rule stays eligible.
 - Spec version lives in `.loreconfig` (`lore: 1`), not in each file.
