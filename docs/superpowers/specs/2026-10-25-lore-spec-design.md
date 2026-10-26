@@ -10,7 +10,7 @@ A team's domain knowledge decides whether a change is right as often as
 generic code quality does: "a value's source must come from the exact data
 that derived it", "every GraphQL change ships with regenerated types". Today
 that knowledge lives in long prose: agent skills, `AGENTS.md` files, review
-docs, plugin packs. The prose links to more prose, the same rule is written
+docs, agent plugins. The prose links to more prose, the same rule is written
 twice for two areas of the code, and a reviewer gets all of it or none of
 it.
 
@@ -21,7 +21,7 @@ That has three costs:
 - **No selection.** Nothing knows which rules matter for a given change, so
   a reviewer either reads everything or misses rules. One team in the first
   adopter's org has a whole rule set that never reaches review because the
-  pack only triggers on a different directory.
+  instructions that load it only trigger on a different directory.
 - **No record.** Nobody can say which rules a review actually checked.
 
 Lore is an open file format for that knowledge. Each rule is a separate,
@@ -31,10 +31,10 @@ to a change by code, not by reading prose, and hand them to a reviewer.
 
 It is a specification, not a product, the way GraphQL is a spec with many
 implementations. Any repo can adopt it, and an agent with no tooling can
-read a Lore file and know what to do with it. mattstack is the first
-implementation and will add tooling (editor support, review integration, a
-team page), but the format carries no mattstack terms and needs no
-mattstack to be useful.
+read a Lore file and know what to do with it. The first implementation is
+an agent review pipeline, which will add tooling (editor support, review
+integration, an editing view), but the format carries none of its terms
+and needs no particular tool to be useful.
 
 Prior art and how Lore differs:
 
@@ -52,10 +52,10 @@ Prior art and how Lore differs:
    highlighting. They come with the reference parser.
 3. How Lore is applied: going from files plus a diff to a verdict, and what
    an agent does and does not do.
-4. mattstack's review integration.
-5. mattstack's team view and editor.
+4. A first integration into an agent review pipeline.
+5. A team view for browsing and editing rules.
 
-The first adopter's rules (about 100, spread across a plugin pack and
+The first adopter's rules (about 100, spread across agent plugins and
 in-repo skills and docs) get converted as the test bed for step 3. The full
 conversion is done before the format is proposed to that team.
 
@@ -75,15 +75,16 @@ conversion is done before the format is proposed to that team.
   the verdict and waiver shape, fan-out). That is step 3. This spec stops at
   "these rules and context are eligible, and these check hits were found".
 - Parser, formatter, language server, highlighting (step 2).
-- mattstack integration and the team page (steps 4 and 5).
+- Review pipeline integration and the team view (steps 4 and 5).
 - Using Lore while code is being written (as editor context). The format
   allows it later; it is not designed for here.
 - Converting any team's rules.
 
 ## Anti-goals
 
-- **A mattstack-only format.** No mattstack terms, paths or behavior in the
-  spec. A team that never installs mattstack loses nothing.
+- **A format tied to one tool.** No tool-specific terms, paths or behavior
+  in the spec. A team that uses none of the first implementation's tooling
+  loses nothing.
 - **Reading a file requires running code.** No executable config (no
   `lore.config.js`), and no shell commands as checks.
 - **A check that decides by itself.** A `<check>` points a reviewer at
@@ -106,7 +107,7 @@ conversion is done before the format is proposed to that team.
 
 | Question | Options | Picked, and why |
 |---|---|---|
-| Where rules are stored | A database behind a team page; files | Files. Git is the source of truth and history; a page or index is built from them. |
+| Where rules are stored | A database behind an editing view; files | Files. Git is the source of truth and history; a page or index is built from them. |
 | Prose rules vs structured rules | Rules only; context docs only; two kinds | Two kinds, as Aviator separates invariants from runtime context. Rules get verdicts; context is reference prose that is loaded when relevant but never scored. |
 | File format | Markdown + frontmatter; YAML; JSON with prose in sibling files; executable JS config; a single-file format with tagged sections | Tagged sections, in the style of Svelte and Vue single-file components. JSON where tools query (scope, conditions), Markdown where people write. Agents already read XML-tagged text natively. Markdown frontmatter has no good per-rule structure; YAML and JSON are poor at long prose with code samples; JS config must be executed. |
 | Where files live | One root folder; next to the code; either | Either. A `.lore/` folder may sit anywhere; globs resolve relative to it, so a set can move with its code. A folder outside the repo maps to it with `repo`. |
@@ -115,7 +116,7 @@ conversion is done before the format is proposed to that team.
 | Categories | Fixed list; free-form; fixed + custom | Aviator's nine fixed, plus categories declared in `.loreconfig`, inherited down the tree. |
 | Severity | Two levels; three; RFC 2119 words; configurable | Two: `blocking` and `advisory`. Rule authors think in must versus should; tools map to their own scales. |
 | How the spec is written | Prose + schemas; prose + schemas + conformance examples; grammar-first | Conformance examples, as CommonMark does. Every implementation (parser, formatter, LSP, selector) tests against one shared set. A grammar for highlighting can come out of step 2, tested against the same examples. |
-| Where the project lives | Inside mattstack's monorepo; its own repo | Its own public repo, so it reads as a neutral format and versions on its own. |
+| Where the project lives | Inside the first implementation's repo; its own repo | Its own public repo, so it reads as a neutral format and versions on its own. |
 
 ## The format
 
@@ -364,7 +365,7 @@ Where inheritance stops, so results never depend on the machine:
 A team can keep its Lore outside the repo it governs:
 
 ```
-team-store/lore/shop/
+team-repo/lore/shop/
   .loreconfig        { "repo": "github.com/acme/shop" }
   .lore/
     checkout.lore    globs resolve from the shop repo's root
@@ -416,7 +417,7 @@ These were not settled in conversation; each is my default:
 - `<defaults>` as a top-level element for a file's category and severity.
 - `<context>` element shape: `id`, `src`, optional note, takes scope and
   when.
-- `disabled` as a boolean rule attribute (a team page needs a switch).
+- `disabled` as a boolean rule attribute (an editing view needs a switch).
 - Ids unique per repo across all Lore files, since verdicts key on them.
   Rules and context share one namespace. Uniqueness is checked over the
   files the tool collected (the repo's own plus any external folders it was
