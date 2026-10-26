@@ -20,6 +20,7 @@ const EXEMPT = new Set([
 const REGISTRY_HEADING = "Errors and warnings";
 const HEADING = /^(#{2,3})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const FENCE_OPEN = /^(`{3,}|~{3,})/;
+const EXAMPLE_CLOSE = /^`{6}$/;
 const RFC_2119 = /\b(MUST|REQUIRED|SHALL|SHOULD|RECOMMENDED|MAY|OPTIONAL)\b/;
 const INLINE_CODE = /(`+).*?\1/g;
 const FILE_LINE = /^([AMD]) (\S(?:.*\S)?)$/;
@@ -31,17 +32,17 @@ interface Expected { errors?: Diagnostic[]; warnings?: Diagnostic[]; excluded?: 
 
 export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; schemas: SchemaSet }): Problem[] {
   const { markdown, registry, schemas } = input;
+  const problems: Problem[] = [];
+  const cr = markdown.indexOf("\r");
+  if (cr >= 0) problems.push({ rule: "cr", line: markdown.slice(0, cr).split("\n").length, message: "the spec contains a CR character" });
+
   let examples: Example[];
   try {
     examples = extractExamples(markdown);
   } catch (e) {
     const message = (e as Error).message;
-    return [{ rule: "extract", line: Number(/line (\d+)/.exec(message)?.[1] ?? 1), message }];
+    return [...problems, { rule: "extract", line: Number(/line (\d+)/.exec(message)?.[1] ?? 1), message }];
   }
-
-  const problems: Problem[] = [];
-  const cr = markdown.indexOf("\r");
-  if (cr >= 0) problems.push({ rule: "cr", line: markdown.slice(0, cr).split("\n").length, message: "the spec contains a CR character" });
 
   const ajv = new Ajv({ allErrors: true, strict: true });
   for (const schema of Object.values(schemas)) ajv.addSchema(schema);
@@ -137,18 +138,19 @@ export function specSections(markdown: string, examples: Example[]): SpecSection
   const sections: SpecSection[] = [];
   const exampleLines = new Set(examples.map((e) => e.line));
   let parentExempt = false;
-  let fence: string | null = null;
+  let closer: RegExp | null = null;
 
   for (const [i, text] of markdown.split("\n").entries()) {
     const current = sections.at(-1);
-    if (fence !== null) {
-      if (new RegExp(`^${fence[0]}{${fence.length},}[ \\t]*$`).test(text)) fence = null;
+    if (closer !== null) {
+      if (closer.test(text)) closer = null;
       continue;
     }
     const open = FENCE_OPEN.exec(text);
     if (open) {
-      fence = open[1]!;
-      if (exampleLines.has(i + 1) && current) current.examples++;
+      const isExample = exampleLines.has(i + 1);
+      closer = isExample ? EXAMPLE_CLOSE : new RegExp(`^${open[1]![0]}{${open[1]!.length},}[ \\t]*$`);
+      if (isExample && current) current.examples++;
       continue;
     }
     const heading = HEADING.exec(text);

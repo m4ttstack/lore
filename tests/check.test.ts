@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { checkSpec, type RegistryEntry, type SchemaName, type SchemaSet } from "../tools/check/check";
+import { extractExamples } from "../tools/check/extract";
+import { checkSpec, specSections, type RegistryEntry, type SchemaName, type SchemaSet } from "../tools/check/check";
 
 const F = "``````";
 const names: SchemaName[] = ["defaults", "scope", "when", "meta", "loreconfig", "document-model", "eligibility"];
@@ -77,6 +78,10 @@ test("rejects CR characters", () => {
   expect(problems).toContainEqual(expect.objectContaining({ rule: "cr", line: 4 }));
 });
 
+test("reports CR for a CRLF spec even when extraction fails", () => {
+  expect(check(clean.replaceAll("\n", "\r\n"))).toContainEqual(expect.objectContaining({ rule: "cr", line: 1 }));
+});
+
 test("kind: rejects an unknown example kind", () => {
   const problems = check(swap(F + "example parse", F + "example lint"));
   expect(problems).toContainEqual(expect.objectContaining({ rule: "kind", line: 6 }));
@@ -94,8 +99,9 @@ test("requires a diff exactly for eligibility examples", () => {
 });
 
 test("diff-syntax: rejects malformed diff lines", () => {
-  const bad = ["X src/x.ts", "+0 two", "+2two", "R src/x.ts", "", "M  src/x.ts"];
+  const bad = ["X src/x.ts", "R src/x.ts", "", "M  src/x.ts"];
   for (const line of bad) expect(rules(swap("M src/x.ts\n", `${line}\nM src/x.ts\n`))).toContain("diff-syntax");
+  for (const line of ["+0 two", "+2two"]) expect(rules(swap("M src/x.ts\n", `M src/x.ts\n${line}\n`))).toContain("diff-syntax");
   expect(rules(swap("M src/x.ts\n+2 two", "+2 two\nM src/x.ts"))).toContain("diff-syntax");
   expect(rules(swap("M src/x.ts\n+2 two", "D src/x.ts\n+2 two"))).toContain("diff-syntax");
   expect(rules(swap("M src/x.ts\n+2 two", "D src/old.ts\nA src/new.ts\nR src/y.ts -> src/x.ts\n+2 two"))).toEqual([]);
@@ -153,9 +159,21 @@ test("coverage: a parent's examples do not cover its subsections", () => {
 test("ignores RFC words inside examples and code", () => {
   const md = swap(
     "## Errors and warnings",
-    "## Notes\nThe word `MUST` is code.\n```\nThis MUST be ignored.\n```\nLowercase must is fine. MUSTARD too.\n## Errors and warnings",
+    "## Notes\nThe word `MUST` is code.\n" + F + "example parse\n=== lore/c.lore\nThis MUST be ignored.\n=== expect\n" + parseExpect + "\n" + F + "\n```\nThis MUST be ignored.\n```\nLowercase must is fine. MUSTARD too.\n## Errors and warnings",
   );
   expect(check(md)).toEqual([]);
+});
+
+test("an example input line of 6+ backticks does not end the example early", () => {
+  const md = swap('<rule id="a-rule">', '<rule id="a-rule">\n`````` \n```````');
+  expect(check(md)).toEqual([]);
+  const uncovered = swap("## Errors and warnings", "## Late\nThis MUST be covered.\n## Errors and warnings", md);
+  expect(rules(uncovered)).toEqual(["coverage"]);
+});
+
+test("a keyword inside an example body does not make its section normative", () => {
+  const md = "## Notes\nPlain prose.\n" + F + "example parse\n=== lore/c.lore\nThis MUST be ignored.\n" + F;
+  expect(specSections(md, extractExamples(md)).map((s) => s.normative)).toEqual([false]);
 });
 
 test("exempt sections need no example", () => {
