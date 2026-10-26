@@ -162,17 +162,17 @@
   {
     "name": "invalid-loreconfig",
     "kind": "error",
-    "description": "A .loreconfig file fails its schema."
+    "description": "A .loreconfig file is not valid YAML or fails its schema."
   },
   {
     "name": "repo-inside-repo",
     "kind": "error",
-    "description": "A .loreconfig repo key appears inside another repository."
+    "description": "A .loreconfig in the governed repo has a repo key."
   },
   {
     "name": "nested-repo",
     "kind": "error",
-    "description": "A repository is nested inside another Lore root."
+    "description": "A directory marked with repo is below another marked directory."
   },
   {
     "name": "missing-category",
@@ -202,6 +202,6 @@
   {
     "name": "unknown-disabled-id",
     "kind": "warning",
-    "description": "A disable list names an id that does not exist."
+    "description": "A disable list names an id of no entry it can switch off."
   }
 ]

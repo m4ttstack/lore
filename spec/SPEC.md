@@ -165,8 +165,10 @@ of the order of their members. In both kinds:
   after a comment's `-->`. For a closing tag that closes nothing, or a
   malformed closing tag, at the top level or inside an entry, it is the
   offending line. For an invalid UTF-8 byte it is that byte's line, and
-  for an unclosed comment the line where the comment opens. For a `.loreconfig`
-  problem it is the offending key's line. For any other problem in an
+  for an unclosed comment the line where the comment opens. For a
+  problem in a `.loreconfig`, it is the line that
+  [.loreconfig](#loreconfig) and [External folders](#external-folders)
+  define. For any other problem in an
   element it is the opening tag line of the element at fault. A problem
   with no line has line 1.
 - **Diagnostic entry.** A diagnostic's `entry` is the id of the entry the
@@ -4099,5 +4101,1048 @@ M apps/web/src/checkout/quote.graphql
   "warnings": [
     { "name": "ast-grep-no-language", "file": "apps/web/src/checkout/quote.graphql", "entry": "totals-from-quote", "line": 1 }
   ]
+}
+``````
+
+## Eligibility
+
+A tool finds the entries that apply to a change by computing their
+eligibility from the collected files (see
+[Collecting files](#collecting-files)) and the change. An entry is
+**eligible** when all of these hold:
+
+1. it is in the document model: its file is collected, and neither the
+   file nor the entry has an error (see [Error reach](#error-reach));
+2. it is not disabled (see [Attributes](#attributes));
+3. it has at least one counted file (see [Conditions](#conditions)):
+   a changed file in its scope that no `disable` list switches it off
+   for (see [Disable](#disable));
+4. its `<when>`, if it has one, holds.
+
+Every changed file has one or two **paths**:
+
+- An added or a modified file has one path: its path.
+- A deleted file has one path: its old path. It has no added lines.
+- A renamed file has two paths: its old path and its new path. It is in
+  a scope when either path is, and `changed` and `unchanged` see both.
+  Its added lines are lines of its new version, and a hit names it by
+  its new path (see [Running checks](#running-checks)), whichever path
+  made it a counted file.
+
+A Lore file or a `.loreconfig` in the change is a changed file like any
+other, and counts for every entry whose scope holds it. The entries
+themselves are read from the files as the change leaves them, so an
+entry the change adds is eligible for that same change.
+
+An entry with no `<scope>` and no `<when>`, in a file with no
+`<scope>`, has the whole of its base as its scope. Unless it is
+disabled or switched off, it is eligible for every change to a file
+under its base, and an entry in a Lore folder at the repository root is
+eligible for every change.
+
+An **eligibility result** holds four lists:
+
+- `eligible`: the id of every eligible entry, rules and contexts alike.
+- `hits`: the hits of the checks of every eligible rule (see
+  [Running checks](#running-checks)).
+- `excluded`: every error in the document model, each naming the file,
+  entry or `.loreconfig` it excludes (see [Error reach](#error-reach)).
+- `warnings`: every warning in the document model (`missing-category`,
+  `empty-scope` and `unknown-disabled-id`), whether or not its entry is
+  eligible; `missing-src-target` for every context in the document
+  model whose target is missing, eligible or not (see
+  [Context](#context)); and `unsupported-check-language` and
+  `ast-grep-no-language`, for eligible rules only (see
+  [Running checks](#running-checks)).
+
+The rule at the repository root has no scope and no condition, so it is
+eligible for this change. The rule under `apps/api/` is eligible because
+the changed file is under its base. The one under the checkout folder
+is not:
+
+``````example eligibility
+=== .lore/shop.lore
+<rule id="changelog-updated" category="documentation">
+A change that alters what users see adds a line to the changelog.
+</rule>
+=== apps/web/src/checkout/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== apps/api/.lore/api.lore
+<rule id="api-errors-typed" category="functional_correctness">
+Every error the API returns carries a typed error code.
+</rule>
+=== diff
+M apps/api/src/orders.ts
++18   throw new HttpError(500)
+=== expect
+{ "eligible": ["api-errors-typed", "changelog-updated"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+A deleted file counts by its old path, and a renamed file by both of its
+paths. `OldPrice.tsx` was deleted under `legacy/`. `Price.tsx` moved
+from the checkout folder to the pricing folder, so it is in the scope of
+the rules of both. Its added line is on its new path: the checkout
+rule's check finds it there, and the pricing rule's condition holds:
+
+``````example eligibility
+requires: regex
+=== apps/web/src/checkout/.lore/checkout.lore
+<rule id="checkout-currency-from-settings" category="functional_correctness">
+<check>
+'USD'
+</check>
+Checkout display text never hard-codes a currency code.
+</rule>
+=== apps/web/src/pricing/.lore/pricing.lore
+<rule id="pricing-currency-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</when>
+Pricing code never hard-codes a currency code.
+</rule>
+=== apps/web/src/legacy/.lore/legacy.lore
+<rule id="legacy-removals-logged" category="documentation">
+Removing a legacy page adds a line to the migration log.
+</rule>
+=== diff
+D apps/web/src/legacy/OldPrice.tsx
+R apps/web/src/checkout/Price.tsx -> apps/web/src/pricing/Price.tsx
++3   const label = 'USD'
+=== expect
+{
+  "eligible": ["checkout-currency-from-settings", "legacy-removals-logged", "pricing-currency-from-settings"],
+  "hits": [
+    { "rule": "checkout-currency-from-settings", "file": "apps/web/src/pricing/Price.tsx", "line": 3, "text": "  const label = 'USD'" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+A change to a Lore file is a change to a file under its base. Here the
+change adds `quote-expiry-shown` to the checkout's Lore file, so every
+rule in that file is eligible, the new one included, and so is the rule
+whose scope holds Lore files:
+
+``````example eligibility
+=== .lore/lore.lore
+<rule id="lore-rules-owned" category="documentation">
+<scope>
+files: ["**/.lore/**/*.lore"]
+</scope>
+Every new rule records its owner in its `<meta>`.
+</rule>
+=== apps/web/src/checkout/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>
+=== diff
+M apps/web/src/checkout/.lore/checkout.lore
++5 <rule id="quote-expiry-shown" category="functional_correctness">
++6 A checkout page that shows a quoted price also shows when the quote expires.
++7 </rule>
+=== expect
+{ "eligible": ["lore-rules-owned", "price-from-quote", "quote-expiry-shown"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+## Error reach
+
+An error reaches as far as it must and no further, and is never silent.
+
+- A **file-level error** excludes its Lore file. None of the file's
+  entries is in the document model, and none counts towards
+  [Ids](#attributes).
+- An **entry-level error** excludes only its entry. The other entries in
+  the file are read as usual.
+- An error in a `.loreconfig` excludes that `.loreconfig`, and
+  `repo-inside-repo` and `nested-repo` also exclude everything at or
+  below it (see [.loreconfig](#loreconfig) and
+  [External folders](#external-folders)).
+- A warning excludes nothing.
+
+Wherever a tool reports eligibility, it MUST also report every error in
+the document model, by name, so that no excluded file, entry or
+`.loreconfig` goes unmentioned: for example, "38 rules applied, 2
+skipped: unknown-category".
+
+These errors are always file-level:
+
+- `unreadable-structure`, `top-level-text`, `unknown-element`,
+  `duplicate-file-block` and `file-block-after-entry`, which concern
+  the file's structure (see [Parsing](#parsing));
+- `invalid-defaults` (see [Defaults](#defaults)).
+
+These are always entry-level:
+
+- `missing-id`, `invalid-id`, `duplicate-attribute`,
+  `disabled-has-value` and `src-escapes-root`, on an entry's opening
+  tag (see [Attributes](#attributes) and [Context](#context));
+- `unknown-child`, `duplicate-child`, `invalid-meta`, `invalid-when`,
+  `empty-when`, `unknown-condition`, `regex-not-one-line` and
+  `regex-outside-dialect`, in an entry's children;
+- `duplicate-id`, across files.
+
+These are file-level in a file block (`<defaults>` or the file's
+`<scope>`), and entry-level in an entry or one of its children:
+`invalid-attribute-value`, `unknown-attribute`,
+`inconsistent-indentation`, `invalid-yaml`, `duplicate-key`,
+`yaml-feature-not-allowed`, `invalid-scope`, `empty-files`,
+`leading-slash`, `invalid-glob` and `glob-escapes-base`. Likewise,
+`unknown-category` is file-level in `<defaults>` and entry-level on a
+rule's `category` attribute.
+
+`invalid-loreconfig`, `repo-inside-repo` and `nested-repo` are errors
+in a `.loreconfig`.
+
+The middle rule's condition has an unknown key. Only that rule is
+excluded, and the rules around it are eligible:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContain: ["'USD'"]
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12   const label = 'USD'
+=== expect
+{
+  "eligible": ["price-from-quote", "quote-expiry-shown"],
+  "hits": [],
+  "excluded": [
+    { "name": "unknown-condition", "file": "apps/web/src/checkout/.lore/checkout.lore", "entry": "currency-from-settings", "line": 6 }
+  ],
+  "warnings": []
+}
+``````
+
+The file scope of `display.lore` has an unclosed brace, so no entry in
+that file is eligible, and the second one's missing category is not
+reported either. The rule in the other file is eligible:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/display.lore
+<scope>
+files: ["**/*.{ts,tsx"]
+</scope>
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale">
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== apps/web/src/checkout/.lore/pricing.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12   const label = 'USD'
+=== expect
+{
+  "eligible": ["price-from-quote"],
+  "hits": [],
+  "excluded": [
+    { "name": "invalid-glob", "file": "apps/web/src/checkout/.lore/display.lore", "entry": null, "line": 1 }
+  ],
+  "warnings": []
+}
+``````
+
+## .loreconfig
+
+A **`.loreconfig`** file holds settings for the directory it is in and
+every directory below it. It MAY sit in any directory of the governed
+repo or of an external folder, except inside a Lore folder: a file
+there is not a Lore file, and a tool ignores it (see
+[Files and folders](#files-and-folders)).
+
+A `.loreconfig` is UTF-8 text, read as a Lore file is (see
+[Files and folders](#files-and-folders)). Its whole content is one
+structured block (see [Structured blocks](#structured-blocks)). It is
+not an element, so no indentation is removed from it. Its value MUST be
+a mapping whose keys are all optional:
+
+| Key | Value | Meaning |
+|---|---|---|
+| `lore` | `1` | The version of this specification that the files follow. Without it, the version is 1. |
+| `root` | `true` or `false` | `true` makes this directory a Lore root (see [Lore root](#lore-root)). Without it, `false`. |
+| `repo` | `<host>/<path>` | Marks this directory as standing for the root of the repository it names (see [External folders](#external-folders)). |
+| `categories` | A list of categories | Categories declared for this directory and below (see [Categories](#categories)). |
+| `disable` | A list of ids | Entries switched off for changed files in this directory and below (see [Disable](#disable)). |
+
+An empty `.loreconfig`, or one that holds only comments, is an empty
+mapping and sets nothing. The shape is also given as
+[`loreconfig.schema.json`](schemas/loreconfig.schema.json).
+
+Every problem with the content of a `.loreconfig` is
+`invalid-loreconfig`: each problem that
+[Structured blocks](#structured-blocks) names, a byte that is not
+valid UTF-8, and any value the table does not allow, such as a key it
+does not name, `lore: 2`, or `root: yes` (which the core schema reads
+as a string). A tool ignores a `.loreconfig` with a problem as a whole,
+as if it did not exist, and reports the error once, with a null
+`entry`. Entries that relied on it then fail on their own: an entry
+whose category it declared is `unknown-category`. The error's line is:
+
+- for a problem that [Structured blocks](#structured-blocks) names, the
+  line that section gives, counted in the file, where a document that
+  ends before it is complete is reported at the file's last line;
+- for an invalid UTF-8 byte, that byte's line;
+- when the value is not a mapping, 1;
+- otherwise, the line of the first key, in the order of the file, that
+  the table does not name or whose value it does not allow.
+
+The first `.loreconfig` has a `disable` that is not a list, the second
+repeats a key, and the third has a `root` that is not a boolean. All
+three are ignored: the categories they declare are unknown, and
+`currency-from-settings` is not switched off:
+
+``````example eligibility
+=== .loreconfig
+categories: [data_provenance]
+disable: currency-from-settings
+=== apps/api/.loreconfig
+lore: 1
+categories: [api_contracts]
+categories: [api_latency]
+=== apps/web/.loreconfig
+root: yes
+categories: [web_vitals]
+=== apps/api/.lore/api.lore
+<rule id="order-schema-versioned" category="api_contracts">
+Every change to the order schema bumps its version.
+</rule>
+=== .lore/provenance.lore
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+=== apps/web/.lore/web.lore
+<rule id="checkout-render-budget" category="web_vitals">
+The checkout page shows its first price within the page's time budget.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12   const label = 'USD'
+=== expect
+{
+  "eligible": ["currency-from-settings"],
+  "hits": [],
+  "excluded": [
+    { "name": "unknown-category", "file": ".lore/provenance.lore", "entry": "price-source-recorded", "line": 1 },
+    { "name": "invalid-loreconfig", "file": ".loreconfig", "entry": null, "line": 2 },
+    { "name": "unknown-category", "file": "apps/api/.lore/api.lore", "entry": "order-schema-versioned", "line": 1 },
+    { "name": "invalid-loreconfig", "file": "apps/api/.loreconfig", "entry": null, "line": 3 },
+    { "name": "unknown-category", "file": "apps/web/.lore/web.lore", "entry": "checkout-render-budget", "line": 1 },
+    { "name": "invalid-loreconfig", "file": "apps/web/.loreconfig", "entry": null, "line": 1 }
+  ],
+  "warnings": []
+}
+``````
+
+### Lore root
+
+`.loreconfig` files cascade: the settings that hold for a directory come
+from the `.loreconfig` in it and those above it. The **Lore root** of a directory is where that lookup stops, so that
+the result never depends on where a tool was pointed. A `.loreconfig`
+**applies** to a directory when it is in that directory or in one above
+it, up to and including the directory's Lore root, and is not ignored.
+
+- In the governed repo, the Lore root of a directory is the nearest
+  directory, at or above it, whose `.loreconfig` has `root: true`. When
+  there is none, it is the repository's root. Lookup never goes above
+  the repository's root.
+- In an external folder, the Lore root is defined in
+  [External folders](#external-folders).
+- A Lore file's Lore root is the Lore root of the directory that holds
+  it. A file-relative `src` MUST NOT leave it (see [Context](#context)).
+
+`apps/web/.loreconfig` has `root: true`, so lookup from `apps/web/`
+stops there: `data_provenance`, declared at the repository root, is not
+known in `apps/web/.lore/`, and `./../../README.md` leaves the Lore root.
+At the repository root, with no `root: true` anywhere above, the Lore
+root is the repository's root, and `./../../handbook/review.md` leaves
+it:
+
+``````example eligibility
+=== .loreconfig
+categories: [data_provenance]
+=== apps/web/.loreconfig
+root: true
+categories: [web_vitals]
+=== .lore/shop.lore
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
+</rule>
+
+<context id="org-handbook" src="./../../handbook/review.md">
+Read for the organization's review conventions.
+</context>
+=== apps/web/.lore/web.lore
+<rule id="checkout-render-budget" category="web_vitals">
+The checkout page shows its first price within the page's time budget.
+</rule>
+
+<rule id="web-prices-recorded" category="data_provenance">
+Every price the web app stores records the quote it came from.
+</rule>
+
+<context id="web-readme" src="./../README.md">
+Read for how the web app is built.
+</context>
+
+<context id="shop-readme" src="./../../README.md">
+Read for how the shop is built and deployed.
+</context>
+=== apps/web/README.md
+# Web app
+=== diff
+M apps/web/src/checkout/Price.tsx
+=== expect
+{
+  "eligible": ["checkout-render-budget", "price-source-recorded", "web-readme"],
+  "hits": [],
+  "excluded": [
+    { "name": "src-escapes-root", "file": ".lore/shop.lore", "entry": "org-handbook", "line": 5 },
+    { "name": "unknown-category", "file": "apps/web/.lore/web.lore", "entry": "web-prices-recorded", "line": 5 },
+    { "name": "src-escapes-root", "file": "apps/web/.lore/web.lore", "entry": "shop-readme", "line": 13 }
+  ],
+  "warnings": []
+}
+``````
+
+### Categories
+
+The categories known for a Lore file are the fixed ones and those that
+the `categories` lists of the `.loreconfig` files that apply to its
+directory declare (see [Categories and severity](#categories-and-severity)).
+
+- Lists add down the tree. A `.loreconfig` cannot take away a category
+  that one above it declares, and an empty list declares nothing.
+- A category declared in a directory below a Lore file's directory, or
+  beside it, is not known for that file.
+- Declaring a fixed category, or one already declared above, changes
+  nothing.
+
+`apps/web/` adds `web_vitals` to `data_provenance` from the root, and
+`apps/api/`'s empty list takes nothing away. At the root, `web_vitals`
+is unknown:
+
+``````example eligibility
+=== .loreconfig
+categories: [data_provenance]
+=== apps/web/.loreconfig
+categories: [web_vitals]
+=== apps/api/.loreconfig
+categories: []
+=== .lore/shop.lore
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
+</rule>
+
+<rule id="render-budgets-kept" category="web_vitals">
+Every page shows its first content within its time budget.
+</rule>
+=== apps/web/.lore/web.lore
+<rule id="checkout-render-budget" category="web_vitals">
+The checkout page shows its first price within the page's time budget.
+</rule>
+
+<rule id="web-prices-recorded" category="data_provenance">
+Every price the web app stores records the quote it came from.
+</rule>
+=== apps/api/.lore/api.lore
+<rule id="api-prices-recorded" category="data_provenance">
+Every price the API stores records the quote it came from.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+M apps/api/src/orders.ts
+=== expect
+{
+  "eligible": ["api-prices-recorded", "checkout-render-budget", "price-source-recorded", "web-prices-recorded"],
+  "hits": [],
+  "excluded": [
+    { "name": "unknown-category", "file": ".lore/shop.lore", "entry": "render-budgets-kept", "line": 5 }
+  ],
+  "warnings": []
+}
+``````
+
+### Disable
+
+`disable` lists the ids of entries that a `.loreconfig` switches off for
+changed files in its directory and below. It is the consumer's switch,
+where `disabled` is the author's (see [Attributes](#attributes)): a team
+switches an entry off for part of a repository without editing the file
+that holds it.
+
+- An entry is **switched off** for a path when its id is in the
+  `disable` list of a `.loreconfig` that applies to the directory that
+  holds the path. Lists add down the tree, as `categories` lists do, so
+  a `.loreconfig` below cannot switch the entry back on. An id MAY name
+  a context as well as a rule.
+- An entry is switched off for a changed file when it is switched off
+  for each of the file's paths that is in its scope. Such a file is not
+  one of the entry's counted files: it does not make the entry eligible,
+  its added lines do not count for `addedContains` and `addedMatches`,
+  and checks do not search it. `changed` and `unchanged` still see it
+  (see [Conditions](#conditions)).
+- An entry switched off for every changed file in its scope is not
+  eligible. A counted file elsewhere keeps it eligible.
+- A `disable` list in the governed repo also switches off entries from
+  external folders. [External folders](#external-folders) says which
+  lists apply to those entries.
+
+An id in a `disable` list that names no entry the list can switch off
+is the warning `unknown-disabled-id`, once for each such item, at the
+line where the item starts, with a null `entry`. The entries a list can
+switch off are those whose ids count in [Ids](#attributes): for a list
+in the governed repo, every such entry collected from anywhere; for a
+list in an external folder, see [External folders](#external-folders).
+The warning is part of the document model.
+
+`legacy/` switches off three rules. `currency-from-settings` stays
+eligible through `Total.tsx`. `currency-codes-from-settings` counts only
+`Total.tsx`, where no `'USD'` was added. `legacy-prices-from-quote` has
+no counted file:
+
+``````example eligibility
+=== apps/web/src/legacy/.loreconfig
+disable: [currency-from-settings, currency-codes-from-settings, legacy-prices-from-quote]
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code; it uses the shop's
+`currency` setting.
+</rule>
+
+<rule id="currency-codes-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</when>
+Display text never spells out a currency code.
+</rule>
+=== apps/web/src/legacy/.lore/legacy.lore
+<rule id="legacy-prices-from-quote" category="functional_correctness">
+Legacy pages take their prices from the quote too.
+</rule>
+=== diff
+M apps/web/src/legacy/Price.tsx
++4   const label = 'USD'
+M apps/web/src/checkout/Total.tsx
++9   return <span>{total}</span>
+=== expect
+{ "eligible": ["currency-from-settings"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+A `disable` list may switch off a context. `curency-from-settings` names
+no entry, while `dates-from-locale` names an entry that is excluded by
+an error and still counts:
+
+``````example eligibility
+=== .loreconfig
+disable:
+  - checkout-architecture
+  - curency-from-settings
+  - dates-from-locale
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness" severity="high">
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+Read before judging any change to how a price is computed.
+</context>
+=== ARCHITECTURE.md
+# Checkout architecture
+=== diff
+M apps/web/src/checkout/Price.tsx
+=== expect
+{
+  "eligible": ["currency-from-settings"],
+  "hits": [],
+  "excluded": [
+    { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 5 }
+  ],
+  "warnings": [
+    { "name": "unknown-disabled-id", "file": ".loreconfig", "entry": null, "line": 3 }
+  ]
+}
+``````
+
+## External folders
+
+A team MAY keep Lore outside the repository it governs, for example in
+its own repository, so that one set of rules serves several
+repositories:
+
+```
+team-repo/lore/
+  .loreconfig          root: true
+                       categories: [data_provenance]
+  shop/
+    .loreconfig        repo: github.com/acme/shop
+    .lore/
+      checkout.lore    base: the shop repo's root
+    apps/web/.lore/
+      web.lore         base: apps/web/ in the shop repo
+```
+
+- A tool is **given** an external folder: a directory in a working copy
+  of another repository, which the tool's user names, for example with
+  a command-line option or a setting. A tool MAY be given any number of
+  external folders, and treats each one the same way. In a conformance
+  example, the tool is given the root of the repository that holds the
+  `external:` input files.
+- A `.loreconfig` with a `repo` key **marks** its directory: the
+  directory stands for the root of the repository that `repo` names. A
+  tool looks for marked directories in the given directory and below
+  it.
+- For each marked directory whose `repo` names the governed repo (see
+  [Matching the governed repo](#matching-the-governed-repo)), the tool
+  collects the Lore files at or below it (see
+  [Collecting files](#collecting-files)). No other Lore file of an
+  external folder is collected, including one below a directory marked
+  for another repository.
+- Below a marked directory, directories mirror the governed repo: the
+  directory `<marked>/<path>` stands for `<path>` in the governed repo.
+  The base of a Lore file below a marked directory is found as
+  [Files and folders](#files-and-folders) says, counting from the marked
+  directory instead of the repository root, and is the directory it
+  stands for. Its globs, its plain `src` paths and its `changed` and
+  `unchanged` globs resolve from there, as in the governed repo, and a
+  leading `/` means the governed repo's root.
+- A file-relative `src` (one that starts with `./` or `../`) resolves
+  in the external folder's own repository, as [Context](#context)
+  describes.
+
+**The Lore root** of a directory at or below a marked directory is the
+nearest directory, at or above it, whose `.loreconfig` has `root:
+true`, looking as far up as the root of the external folder's
+repository. When there is none, it is the marked directory. So a
+`.loreconfig` above the marked directory applies only when a
+`root: true` at or above it makes the Lore root higher than the marked
+directory. An organization that wants shared categories puts them, with
+`root: true`, in a `.loreconfig` above all its marked directories.
+
+The shop's Lore is kept in a team repository. `checkout.lore` has the
+shop repo's root as its base, and `web.lore` has `apps/web/`. The
+organization's `.loreconfig` makes `data_provenance` known in both, and
+its directory is the Lore root, so the context can point at the
+organization's handbook beside it:
+
+``````example eligibility
+=== external:lore/.loreconfig
+root: true
+categories: [data_provenance]
+=== external:lore/handbook.md
+# Review handbook
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/.lore/checkout.lore
+<scope>
+files: ["apps/web/src/checkout/**"]
+</scope>
+
+<rule id="price-source-recorded" category="data_provenance">
+Every price the checkout stores records the quote it came from.
+</rule>
+
+<context id="review-handbook" src="./../../handbook.md">
+Read for the organization's review conventions.
+</context>
+=== external:lore/shop/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<scope>
+files: ["src/**/*.tsx"]
+</scope>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== external:lore/shop/apps/api/.lore/api.lore
+<rule id="api-prices-recorded" category="data_provenance">
+Every price the API stores records the quote it came from.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12   const total = quote.total
+=== expect
+{
+  "eligible": ["price-source-recorded", "review-handbook", "web-prices-from-quote"],
+  "hits": [],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+### Matching the governed repo
+
+A `repo` value names a repository as `<host>/<path>`: a host of
+lowercase ASCII letters, digits, `.` and `-`, optionally followed by
+`:` and a port, then `/` and a path with no whitespace,
+ending in neither `/` nor `.git`. Any other value is
+`invalid-loreconfig`.
+
+The governed repo is named by its **remote**: a URL for it, such as the
+URL of the remote its change is to be merged into. When a repository
+has several, which one names it is up to the tool. In a conformance
+example, it is the `=== remote` line. A tool **normalizes** a remote in
+these steps:
+
+1. If it holds `://`, remove everything up to and including the first
+   `://`, then any user information: everything up to and including the
+   last `@` before the next `/`.
+2. Otherwise, if it holds a `:` before any `/`, it has the form
+   `[user@]host:path`: remove everything up to and including the last
+   `@` before that `:`, and replace that `:` with `/`.
+3. Remove every `/` at the end, then a `.git` at the end, if there is
+   one.
+
+A marked directory's `repo` **names** the governed repo when it equals
+the normalized remote, with ASCII letters compared regardless of case.
+So `https://github.com/acme/shop.git`, `git@github.com:Acme/shop.git`
+and `ssh://git@github.com/acme/shop` all match `github.com/acme/shop`,
+while `ssh://git@github.com:22/acme/shop` keeps its port and does not.
+A governed repo without a remote matches no `repo`. A tool MAY also let
+its user map a `repo` value to the governed repo explicitly.
+
+The remote is written in the scp-like form, with a different case and
+`.git` at the end, and still names `github.com/acme/shop`. The
+directory marked for another repository is not collected:
+
+``````example eligibility
+=== remote
+git@github.com:Acme/shop.git
+=== external:shop/.loreconfig
+repo: github.com/acme/shop
+=== external:shop/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== external:payments/.loreconfig
+repo: github.com/acme/payments
+=== external:payments/.lore/payments.lore
+<rule id="refunds-logged" category="observability">
+Every refund is logged with the order it refunds.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+=== expect
+{ "eligible": ["price-from-quote"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+With a remote for another repository, the folder marked for
+`github.com/acme/shop` is not collected, and only the governed repo's
+own Lore applies:
+
+``````example eligibility
+=== remote
+https://github.com/acme/other
+=== .lore/orders.lore
+<rule id="orders-logged" category="observability">
+Every order is logged with its quote.
+</rule>
+=== external:shop/.loreconfig
+repo: github.com/acme/shop
+=== external:shop/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+=== expect
+{ "eligible": ["orders-logged"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+### Trees
+
+The governed repo's files form one **tree**. Each marked directory that
+names the governed repo forms another: the files at or below it, and
+the `.loreconfig` files above it that apply to it. Trees resolve their
+`.loreconfig` files separately:
+
+- **Categories.** A Lore file knows the categories of its own tree only.
+  Categories declared in the governed repo are unknown in an external
+  folder's files, and the other way round.
+- **Disable.** An entry of an external folder is switched off for a path
+  when a `.loreconfig` of the governed repo switches it off, as
+  [Disable](#disable) says, or when a `.loreconfig` of its own tree
+  applies to the directory that stands for the path's directory and
+  lists its id. An external folder's `disable` lists never switch off
+  the governed repo's entries, nor those of another tree. For
+  `unknown-disabled-id`, the entries such a list can switch off are
+  those of the trees it belongs to. A list of an external folder that
+  belongs to no tree switches nothing off and is not checked.
+- **Ids.** Ids MUST be unique across every tree, as [Ids](#attributes)
+  says. An id used in two trees is `duplicate-id` in both: neither entry
+  overrides the other.
+
+Each tree knows only its own category, so one rule in each is
+excluded:
+
+``````example eligibility
+=== .loreconfig
+categories: [web_vitals]
+=== .lore/web.lore
+<rule id="checkout-render-budget" category="web_vitals">
+The checkout page shows its first price within the page's time budget.
+</rule>
+
+<rule id="web-prices-recorded" category="data_provenance">
+Every price the web app stores records the quote it came from.
+</rule>
+=== external:lore/.loreconfig
+root: true
+categories: [data_provenance]
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/.lore/shop.lore
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
+</rule>
+
+<rule id="render-budgets-kept" category="web_vitals">
+Every page shows its first content within its time budget.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+=== expect
+{
+  "eligible": ["checkout-render-budget", "price-source-recorded"],
+  "hits": [],
+  "excluded": [
+    { "name": "unknown-category", "file": ".lore/web.lore", "entry": "web-prices-recorded", "line": 5 },
+    { "name": "unknown-category", "file": "external:lore/shop/.lore/shop.lore", "entry": "render-budgets-kept", "line": 5 }
+  ],
+  "warnings": []
+}
+``````
+
+The shop switches off a shared rule for `apps/web/` without editing the
+team's file. The team's own `disable` list cannot switch off the shop's
+rule, so the id it names is unknown to it:
+
+``````example eligibility
+=== apps/web/.loreconfig
+disable: [shared-currency-from-settings]
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+=== external:shop/.loreconfig
+repo: github.com/acme/shop
+disable: [currency-from-settings]
+=== external:shop/.lore/shared.lore
+<rule id="shared-currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code; it uses the shop's
+`currency` setting.
+</rule>
+
+<rule id="shared-dates-from-locale" category="functional_correctness">
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+=== expect
+{
+  "eligible": ["currency-from-settings", "shared-dates-from-locale"],
+  "hits": [],
+  "excluded": [],
+  "warnings": [
+    { "name": "unknown-disabled-id", "file": "external:shop/.loreconfig", "entry": null, "line": 2 }
+  ]
+}
+``````
+
+The same id in the governed repo and in an external folder is an error
+in both files, not an override:
+
+``````example eligibility
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness" severity="blocking">
+The checkout page shows the price from the quote, never a recomputed one.
+</rule>
+=== external:shop/.loreconfig
+repo: github.com/acme/shop
+=== external:shop/.lore/shared.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+=== expect
+{
+  "eligible": ["dates-from-locale"],
+  "hits": [],
+  "excluded": [
+    { "name": "duplicate-id", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 1 },
+    { "name": "duplicate-id", "file": "external:shop/.lore/shared.lore", "entry": "price-from-quote", "line": 1 }
+  ],
+  "warnings": []
+}
+``````
+
+### Where repo may appear
+
+- A `.loreconfig` in the governed repo MUST NOT have a `repo` key. One
+  that does is `repo-inside-repo`: Lore in the governed repo already
+  governs it.
+- A marked directory MUST NOT be below another marked directory of the
+  same repository, whichever repositories they name. The lower one is
+  `nested-repo`.
+
+A tool checks for these errors only in a `.loreconfig` that has no
+other problem; an `invalid-loreconfig` marks nothing. Either error is
+reported at the line of the `repo` key, with a null `entry`. It
+excludes its `.loreconfig` and every Lore file and `.loreconfig` in
+that file's directory or below it: none of them is collected or read,
+and nothing in them is reported. A tool reads `.loreconfig` files from
+the top of the tree down, so when such errors nest, only the highest is
+reported.
+
+`apps/web/.loreconfig` has a `repo` key, so nothing under `apps/web/` is
+read: not `web.lore`, and not the broken `.loreconfig` below it. In the
+team repository, `apps/web/` is marked below the shop's marked
+directory, so its rules are excluded too:
+
+``````example eligibility
+=== apps/web/.loreconfig
+repo: github.com/acme/shop
+categories: [web_vitals]
+=== apps/web/.lore/web.lore
+<rule id="checkout-render-budget" category="web_vitals">
+The checkout page shows its first price within the page's time budget.
+</rule>
+=== apps/web/src/checkout/.loreconfig
+categories: [checkout_flow
+=== .lore/shop.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/.lore/shared.lore
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== external:lore/shop/apps/web/.loreconfig
+lore: 1
+repo: github.com/acme/web
+=== external:lore/shop/apps/web/.lore/web.lore
+<rule id="web-dates-from-locale" category="functional_correctness">
+Dates the web app displays are formatted with the shop's locale.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+=== expect
+{
+  "eligible": ["dates-from-locale", "price-from-quote"],
+  "hits": [],
+  "excluded": [
+    { "name": "repo-inside-repo", "file": "apps/web/.loreconfig", "entry": null, "line": 1 },
+    { "name": "nested-repo", "file": "external:lore/shop/apps/web/.loreconfig", "entry": null, "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+## Collecting files
+
+A tool collects the files it reads from the governed repo and from the
+external folders it was given. It MUST collect only files tracked by
+version control, and MUST NOT find them by walking a file system, so a
+Lore folder in an installed dependency, a build output or an ignored
+scratch folder cannot add rules to a review.
+
+- **The governed repo.** A tool reads the governed repo as the change
+  leaves it: the files tracked in the change's new version. It collects
+  every Lore file (see [Files and folders](#files-and-folders)) and
+  reads every `.loreconfig`. A Lore file the change deletes is not
+  collected, and one it adds is.
+- **An external folder.** A tool reads the files tracked in the working
+  copy it was given. It reads every `.loreconfig` of that repository in
+  the given directory, below it or above it, and collects the Lore files
+  at or below each marked directory that names the governed repo (see
+  [External folders](#external-folders)).
+- A `.loreconfig` is a file named exactly `.loreconfig`, outside any
+  Lore folder. A file of that name inside a Lore folder is ignored.
+- Files that `repo-inside-repo` or `nested-repo` excludes are neither
+  collected nor read (see [Where repo may appear](#where-repo-may-appear)).
+- Every `.loreconfig` that is read is checked, and its errors are
+  reported, whether or not it applies to a collected Lore file. A
+  `.loreconfig` with a problem marks no directory, so a tool cannot
+  tell which repository it was meant for.
+
+The `.loreconfig` inside the root Lore folder is ignored, so
+`data_provenance` is unknown. In the team repository, `team.lore` is
+under no marked directory, and the broken `.loreconfig` of `payments/`
+is reported although it marks nothing, which leaves `payments.lore`
+uncollected:
+
+``````example eligibility
+=== .lore/.loreconfig
+categories: [data_provenance]
+=== .lore/provenance.lore
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
+</rule>
+=== external:.lore/team.lore
+<rule id="team-rules-reviewed" category="documentation">
+Every change to the team's rules is reviewed by two people.
+</rule>
+=== external:shop/.loreconfig
+repo: github.com/acme/shop
+=== external:shop/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== external:payments/.loreconfig
+repo: github.com/acme/payments
+categories: [Payments]
+=== external:payments/.lore/payments.lore
+<rule id="refunds-logged" category="observability">
+Every refund is logged with the order it refunds.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+=== expect
+{
+  "eligible": ["price-from-quote"],
+  "hits": [],
+  "excluded": [
+    { "name": "unknown-category", "file": ".lore/provenance.lore", "entry": "price-source-recorded", "line": 1 },
+    { "name": "invalid-loreconfig", "file": "external:payments/.loreconfig", "entry": null, "line": 2 }
+  ],
+  "warnings": []
 }
 ``````
