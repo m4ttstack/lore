@@ -182,7 +182,7 @@
   {
     "name": "empty-scope",
     "kind": "warning",
-    "description": "An entry's scope can match no path."
+    "description": "Each of an entry's files globs is disjoint from each of its file scope's files globs."
   },
   {
     "name": "missing-src-target",

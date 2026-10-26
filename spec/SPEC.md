@@ -94,8 +94,9 @@ starting at 1, and belong to the section under the nearest heading
 before them.
 
 Lines of the form `requires: <capability>` may directly follow the
-opening line. The only capability defined is `ast-grep`: a tool that does
-not support `ast-grep` checks skips examples that require it.
+opening line. Two capabilities are defined, `regex` and `ast-grep`: an
+example that requires one is run only by a tool that supports checks in
+that language (see [Checks](#checks)), and other tools skip it.
 
 The rest of the example is a series of sections. Each starts with a line
 `=== ` followed by a name, and runs to the next such line or to the end
@@ -153,7 +154,9 @@ of the order of their members. In both kinds:
 - **Scopes.** Globs in an entry's `scopes` are resolved to paths from the
   governed repo's root: a glob `g` in a file whose base is `b` appears as
   `b/g`, and a glob in a file whose base is the repo root appears as `g`.
-  Globs in external files resolve through their `repo` mapping.
+  The `b/` part is a literal path prefix, not glob syntax, since a base
+  may hold `[`, `{`, `*` or `?`. Globs in external files resolve through
+  their `repo` mapping.
 - **Diagnostic lines.** A diagnostic's `line` counts from 1 within its
   file. For a YAML problem (`invalid-yaml`, `duplicate-key`,
   `yaml-feature-not-allowed`) it is the offending line, counted in the
@@ -174,7 +177,8 @@ of the order of their members. In both kinds:
 - **Hits.** A hit's `line` is the `+<n>` line number from the diff, and
   its `text` is that line's text.
 - **Order.** Entries are ordered by `file`, then by position in the file.
-  Diagnostics are ordered by `file`, then `line`, then `name`. `eligible`
+  Diagnostics are ordered by `file`, then `line`, then `name`, then
+  `entry`, null first. `eligible`
   is in ascending order, and hits are ordered by `rule`, then `file`,
   then `line`. Strings compare code point by code point.
 
@@ -2824,9 +2828,9 @@ finds:
    `glob-escapes-base` when one of its `/`-separated segments is `..`.
 
 The shape is also given as
-[`scope.schema.json`](schemas/scope.schema.json). The schema rules out
-an empty `files`, a leading `/` and a `..` segment too; for those, the
-names above apply instead of `invalid-scope`.
+[`scope.schema.json`](schemas/scope.schema.json); where a name above
+covers a value the schema rejects, that name applies instead of
+`invalid-scope`.
 
 - Paths in a scope are relative to the base, so a scope glob MUST NOT
   start with `/`. Only the `changed` and `unchanged` conditions allow a
@@ -2926,14 +2930,25 @@ M apps/web/src/checkout/Cart.test.tsx
 { "eligible": ["cart-tests-use-fixtures"], "hits": [], "excluded": [], "warnings": [] }
 ``````
 
-**An empty scope.** When an entry has its own `<scope>`, and no path
-matches both one of the file scope's `files` globs and one of the
-entry's own `files` globs, nothing can be in the entry's scope. The
-entry gets the warning `empty-scope`, at its `<scope>` opening tag line.
-A path here is any path a changed file can have: one or more non-empty
-segments, none of them `.` or `..`. Only `files` globs are compared, so
-an entry whose `ignores` leave nothing in its scope gets no warning. The
-entry stays in the document model, and is never eligible.
+**An empty scope.** An entry with its own `<scope>` gets the warning
+`empty-scope`, at its `<scope>` opening tag line, when each of its
+`files` globs is disjoint from each of its file scope's `files` globs.
+Both are compared as written, since they resolve against the same base.
+Two globs are **disjoint** when their heads conflict or their tails
+conflict:
+
+- A glob's **head** is its segments before the first segment that holds
+  `*`, `?`, `[` or `{`. Two heads conflict when, at some position both
+  of them have, their segments differ.
+- A glob whose last segment is not `**` has a **tail**: the characters of
+  its last segment after the last `*`, `?`, `]` or `}` in it, or the
+  whole segment when it holds none of them. Two tails conflict when
+  neither ends with the other. A glob with no tail conflicts with none.
+
+The entry stays in the document model, and is never eligible when its
+globs are disjoint. This is a deliberately simple test: it can miss an
+entry whose scope holds nothing for another reason, which then gets no
+warning.
 
 The first rule asks for Markdown files in a file whose scope holds only
 TypeScript files. The second rule's scope can still hold a `price*.ts`
@@ -3087,33 +3102,42 @@ segment of the path, except `**`:
 | any other character | itself |
 
 - Matching is by Unicode code point and case-sensitive, with no
-  normalization. Nothing in a glob matches `/`, so `*`, `?` and sets stay
-  within one segment.
+  normalization. Apart from `**`, nothing in a glob matches `/`, so `*`,
+  `?` and sets stay within one segment.
 - `*` and `?` match a `.` at the start of a name like any other
   character, so `*` matches dotfiles and `**` matches dot-directories.
-- A set holds one or more members, up to the next `]`. A `]` directly
-  after `[` or `[!` is a member. A member is a character, or a range
-  `x-y`: the characters from `x` to `y` by code point. A `-` that is the
-  first or last member is the character `-`.
-- Alternatives are separated by `,`. An alternative MAY be empty, and MAY
-  hold `*`, `?` and sets, but not another `{`.
+- A tool reads each segment from left to right. A `[` starts a set,
+  which runs to its closing `]`: the first `]` after it, except that a
+  `]` directly after `[` or `[!` is a member. Every character inside a
+  set is a member or part of a range, so `*`, `?`, `[`, `{`, `}` and `,`
+  in a set stand for themselves.
+- A set's members are read from left to right. A character followed by
+  `-` and then a character other than the closing `]` forms a range
+  `x-y` with them: the characters from `x` to `y` by code point. Any
+  other `-` is a member only when it is the set's first or last. So
+  `[--a]` is the range from `-` to `a`, and `[a-]` holds `a` and `-`.
+- Outside sets, a `{` starts alternatives, which close at the next `}`
+  outside a set and are separated by each `,` outside a set between
+  them. An alternative MAY be empty, and MAY hold `*`, `?` and sets.
 - There is no escape character and no negation. A special character is
-  matched by putting it in a set, so `[[]id].tsx` matches `[id].tsx`.
-  `]`, `}` and `,` outside a set or alternatives are ordinary characters.
-  To leave paths out, use `ignores`.
+  matched by putting it in a set, so `[[]id].tsx` matches `[id].tsx` and
+  `[{]slug}.tsx` matches `{slug}.tsx`. Outside sets, `]` is an ordinary
+  character, and so are `}` and `,` outside alternatives. To leave paths
+  out, use `ignores`.
 
 A glob is `invalid-glob` when:
 
 - it is empty, or one of its segments is empty (as in `src//a.ts` or
   `src/`) or is `.`;
 - it starts with `!`;
-- it holds `**` in a segment that is not exactly `**`, as in `**.ts`;
-- a `[` has no closing `]` in its segment, a `^` directly follows `[`, a
-  range ends before it starts, or a `-` in a set is neither first, last
-  nor part of a range;
-- a `{` has no closing `}` in its segment, or another `{` comes before
-  that `}`;
-- it holds a `\`.
+- outside sets, it holds `**` in a segment that is not exactly `**`, as
+  in `**.ts`;
+- a set has no closing `]` in its segment, a `^` directly follows its
+  `[`, one of its ranges ends before it starts, or a `-` in it is
+  neither part of a range nor its first or last member;
+- outside sets, a `{` has no closing `}` in its segment, or another `{`
+  comes before that `}`;
+- it holds a `\` anywhere, in a set or not.
 
 `**` matches zero segments, so `apps/web/src/**/checkout/*.tsx` matches
 `apps/web/src/checkout/Price.tsx`. `Price.tsx` starts with an uppercase
@@ -3164,8 +3188,9 @@ M apps/web/.env.production
 ``````
 
 An unclosed set, an unclosed brace, `**` inside a longer segment and a
-leading `!` are each `invalid-glob`. A `[` inside a set is an ordinary
-member, so the last rule's glob matches the file `pages/[id].tsx`:
+leading `!` are each `invalid-glob`. A `[` or `{` inside a set is an
+ordinary member, so the last rule's globs match the files
+`pages/[id].tsx` and `pages/{slug}.tsx`:
 
 ``````example parse
 === apps/web/.lore/pages.lore
@@ -3200,7 +3225,7 @@ Tests build their data from the shared fixtures.
 
 <rule id="product-page-prices" category="functional_correctness">
 <scope>
-files: ["pages/[[]id].tsx"]
+files: ["pages/[[]id].tsx", "pages/[{]slug}.tsx"]
 </scope>
 The product page shows the price from the product's current quote.
 </rule>
@@ -3210,7 +3235,7 @@ The product page shows the price from the product's current quote.
     {
       "kind": "rule", "id": "product-page-prices", "file": "apps/web/.lore/pages.lore",
       "category": "functional_correctness", "severity": "advisory", "disabled": false,
-      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }, { "files": ["apps/web/pages/[[]id].tsx"], "ignores": [] }],
+      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }, { "files": ["apps/web/pages/[[]id].tsx", "apps/web/pages/[{]slug}.tsx"], "ignores": [] }],
       "when": null, "checks": [], "meta": null,
       "summary": "The product page shows the price from the product's current quote.",
       "prose": "The product page shows the price from the product's current quote.",
@@ -3247,7 +3272,8 @@ when every one of its conditions holds.
   off for (see [.loreconfig](#loreconfig)).
 - An **added line's text** is the line as it is in the file's new
   version, without its line break: the line feed, and a carriage return
-  directly before it. In a conformance example it is the `<text>` of a
+  directly before it. A byte that is not valid UTF-8 reads as U+FFFD
+  for matching. In a conformance example it is the `<text>` of a
   `+<n> <text>` line. Only added lines count. The unchanged lines around
   them and removed lines never do.
 - `addedContains` compares code point by code point and is
@@ -3278,7 +3304,8 @@ finds:
 4. `unknown-condition`, when a key is not one of the four above;
 5. each condition, in the order of the table above: `invalid-when` when
    its value is not a list of strings, or when an `addedContains` string
-   is empty; then each item of the list in order. A pattern is checked
+   is empty or holds a line feed or a carriage return; then each item of
+   the list in order. A pattern is checked
    for `regex-not-one-line` and then `regex-outside-dialect` (see
    [Regex dialect](#regex-dialect)), and a glob for `invalid-glob` and
    then `glob-escapes-base` (see [Scope and globs](#scope-and-globs)).
@@ -3511,7 +3538,7 @@ which part of it.
 | `.` | any one character |
 | `\` and an ASCII punctuation character (a printable ASCII character that is not a letter, a digit or a space) | that character: `\.` matches `.`, `\{` matches `{` |
 | `\t`, `\n`, `\v`, `\f`, `\r` | a tab, line feed, vertical tab, form feed, carriage return |
-| `\x` and two hex digits | the character with that code, from U+0000 to U+00FF |
+| `\x` and two hex digits (`0`-`9`, `a`-`f`, `A`-`F`) | the character with that code, from U+0000 to U+00FF |
 | `\d`, `\D` | an ASCII digit `0` to `9`; any other character |
 | `\w`, `\W` | an ASCII letter, an ASCII digit or `_`; any other character |
 | `\s`, `\S` | a space, tab, line feed, vertical tab, form feed or carriage return; any other character |
@@ -3526,20 +3553,32 @@ which part of it.
 - A **word boundary** is a position with a `\w` character on one side,
   and on the other a character that is not `\w` or the start or end of
   the text. `\w` is ASCII, so `é` and `٣` are not word characters.
-- In `{n}`, `{n,}` and `{n,m}`, `n` and `m` are decimal numbers of at most
-  1000, and `n` is not more than `m`. `{` always starts a quantifier, so
-  a literal `{` is written `\{`. A literal `}` or `]` is written `\}` or
-  `\]`.
+- In `{n}`, `{n,}` and `{n,m}`, `n` and `m` are decimal numbers with no
+  leading zero (`0` itself is allowed), at most 1000, and `n` is not
+  more than `m`. A `{}` quantifier's bound is its `m`, or its `n` when it
+  has no `m`. The product of the bounds of a `{}` quantifier and of every
+  `{}` quantifier on a group that holds it is at most 1000, so
+  `(a{10}){100}` is allowed and `(a{10}){101}` is not.
+- `{` always starts a quantifier, so a literal `{` is written `\{`. A
+  literal `}` or `]` is written `\}` or `\]`.
+- An alternative or a group MAY be empty: `a|`, `(|s)`, `()` and `(?:)`
+  are all in the dialect. An empty alternative matches the empty
+  string.
 - A quantifier MAY be followed by `?`, which makes it lazy. Laziness
   changes which part of a line matches, so it changes no result.
-- A set holds one or more members up to its closing `]`. A member is a
-  character other than `\`, `[` and `]`; an escape from the table that
-  stands for one character, such as `\]`, `\t` or `\x41`; one of the
-  class escapes `\d`, `\D`, `\w`, `\W`, `\s` and `\S`; or a range `x-y` of
-  two characters, given directly or as such escapes, with `x` not after
-  `y` by code point. A `^` directly after `[` makes the set negated; a
-  `^` anywhere else is a member. A `-` that is the first or last member
-  is the character `-`.
+- A set holds one or more members up to its closing `]`, the first
+  unescaped `]` after it. A member is a character other than `\`, `[`
+  and `]`; an escape from the table that stands for one character, such
+  as `\]`, `\-`, `\t` or `\x41`; or one of the class escapes `\d`, `\D`,
+  `\w`, `\W`, `\s` and `\S`. A `^` directly after `[` makes the set
+  negated; a `^` anywhere else is a member.
+- A set's members are read from left to right. A member that stands for
+  one character, followed by an unescaped `-` and then another such
+  member, forms a range `x-y` with them: the characters from `x` to `y`
+  by code point, where `x` is not after `y`. Any other unescaped `-` is
+  a member only when it is the set's first or last. So `[a\-z]` holds
+  three members, `[--a]` is the range from `-` to `a`, and `[a-]` holds
+  `a` and `-`.
 - There are no flags, inline or otherwise. Matching is always as above.
   To match without regard to case, write the cases out:
   `[Uu][Ss][Dd]`.
@@ -3550,33 +3589,41 @@ Anything else is `regex-outside-dialect`. That includes:
   lookbehind (`(?=`, `(?!`, `(?<=`, `(?<!`), named groups (`(?<code>` or
   `(?P<code>`) and inline flags (`(?i)`, `(?i:`);
 - backreferences (`\1` to `\9`, `\k<code>`), and every other escape not
-  in the table, such as `\0`, `\A`, `\z`, `\p{L}`, `A`, `\cJ` and
-  `\é`;
+  in the table, such as `\0`, `\A`, `\z`, `\p{L}`, `\u0041`, `\cJ` and
+  `\é`, and `\b` or `\B` inside a set (`[\b]`);
 - a `{` that does not start a quantifier as described, as in `a{`,
-  `a{,2}` or `a{1001}`, and an unescaped `}` or `]` outside a set;
+  `a{,2}`, `a{01}`, `a{1001}` or `(a{10}){101}`, and an unescaped `}` or
+  `]` outside a set;
 - a quantifier with nothing to repeat: at the start of the pattern, a
   group or an alternative, after `^`, `$`, `\b` or `\B`, or after another
   quantifier other than as its lazy `?`;
 - a group or set that is not closed, a `)` that closes no group, an
   empty set (`[]`, `[^]`), an unescaped `[` in a set, a range whose end
-  comes before its start or that uses a class escape, and a `-` in the
-  middle of a set that is not part of a range;
-- the empty pattern.
+  comes before its start or that uses a class escape, and an unescaped
+  `-` in a set that is neither part of a range nor its first or last
+  member;
+- the empty pattern. (An empty alternative or group is allowed, as
+  above; a pattern with no characters at all is not.)
 
 A pattern MUST be one line. In `addedMatches`, a pattern holding a line
 feed or a carriage return is `regex-not-one-line`, and
-[Checks](#checks) says when a `regex` check is. A pattern is checked for
-`regex-not-one-line` first, then for `regex-outside-dialect`. Both are
-entry-level errors, at the opening tag line of the `<when>` or `<check>`
-that holds the pattern.
+[Checks](#checks) says when a `regex` check is `regex-not-one-line`. A
+pattern is checked for `regex-not-one-line` first, then for
+`regex-outside-dialect`. Both are entry-level errors, at the opening tag
+line of the `<when>` or `<check>` that holds the pattern.
 
 A tool can run the dialect on an existing engine by translating it. For
 example, an ECMAScript engine needs its `u` flag, so that it reads code
 points, and its `s` flag, so that `.` matches every character. It also
 needs `\s` and `\S` written out as sets, since its own are not ASCII, and
 needs punctuation escapes that its `u` flag rejects, such as `\'`,
-written as the character. An RE2-style engine needs `\s` and `\S`
-written out too, since its `\s` leaves out the vertical tab.
+written as the character. An RE2-style engine, such as Go's, needs `\s`
+and `\S` written out too, since its `\s` leaves out the vertical tab.
+Rust's and Python's standard engines make `\d`, `\w`, `\s` and `\b`
+match Unicode by default and need their ASCII modes, and some engines,
+such as Rust's, read `\<` and `\>` as word boundaries and `&&`, `--` and
+`~~` in a set as set operations, so a translation writes those
+characters so that the engine reads them literally.
 
 Each of the first five patterns is outside the dialect: a lookahead, a
 backreference, a named group, an inline flag, and a `{` that starts no
@@ -3683,6 +3730,25 @@ M apps/web/src/checkout/labels.ts
 { "eligible": ["currency-code-from-settings"], "hits": [], "excluded": [], "warnings": [] }
 ``````
 
+An empty alternative matches the empty string, so `(|export )` matches
+whether or not the line starts with `export `. The empty groups `()`
+and `(?:)` match the empty string too:
+
+``````example eligibility
+=== .lore/tax.lore
+<rule id="tax-rate-from-settings" category="functional_correctness">
+<when>
+addedMatches: ['^(|export )const(?:) TAX_RATE()']
+</when>
+The tax rate comes from the shop's settings, never from a constant.
+</rule>
+=== diff
+M apps/web/src/checkout/tax.ts
++1 const TAX_RATE = 0.2
+=== expect
+{ "eligible": ["tax-rate-from-settings"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
 ## Checks
 
 A `<check>` is a child of a rule that holds a search. When the rule is
@@ -3713,7 +3779,8 @@ A rule MAY have any number of checks. A context has none (see
 - A tool checks a `<check>` as [Children](#children) describes, and its
   contents last: for a `regex` check, `regex-not-one-line` and then
   `regex-outside-dialect`. A body in any other language is not checked
-  when parsing.
+  when parsing. These two checks are part of parsing, so they bind every
+  tool that parses Lore files, whether or not it runs `regex` checks.
 - Every error in a `<check>` is entry-level, at its opening tag line.
 - In the document model, `checks` lists each check's `lang` and `body`,
   in the order the checks appear, with `lang` `"regex"` for a check that
@@ -3797,15 +3864,14 @@ line, however many of its checks or matches find that line.
 A `regex` check has a hit for each added line whose text its pattern
 matches, as [Regex dialect](#regex-dialect) defines.
 
-A tool that computes eligibility MUST support `regex` checks, since it
-already runs the same dialect for `addedMatches`. Supporting `ast-grep`
-checks is OPTIONAL. A tool that does not support a check's language,
-which includes every language this specification does not define, MUST
-skip that check and report the warning `unsupported-check-language` for
-it, at the check's opening tag line. The rule stays eligible, and its
-other checks still run. Only the checks of eligible rules are reported
-this way. A plain agent with no tooling MAY read any check as a hint
-about what to look for.
+Supporting a check language is OPTIONAL for a conforming tool, language
+by language. A tool that does not support a check's language, which
+includes every language this specification does not define, MUST skip
+that check and report the warning `unsupported-check-language` for it,
+at the check's opening tag line. The rule stays eligible, and its other
+checks still run. Only the checks of eligible rules are reported this
+way, and the document model never carries this warning. A plain agent
+with no tooling MAY read any check as a hint about what to look for.
 
 The first check has no `lang`, so it is a `regex` check. Both checks
 find line 4 of `Summary.tsx`, which gives one hit. `currency.ts` is
@@ -3813,6 +3879,7 @@ outside the scope. The second rule is not eligible, so its check is not
 run:
 
 ``````example eligibility
+requires: regex
 === apps/web/src/checkout/.lore/display.lore
 <scope>
 files: ["**/*.tsx"]
@@ -3862,6 +3929,7 @@ the tool skips it and warns. The `regex` check still runs. The second
 rule is not eligible, so its unsupported check is not reported:
 
 ``````example eligibility
+requires: regex
 === .lore/checkout.lore
 <rule id="totals-from-quote" category="functional_correctness">
 <check lang="structural">
@@ -3921,7 +3989,8 @@ matches that release finds.
   for each rule and skipped file. The warning's `file` is the skipped
   file, its `entry` is the rule's id, and its line is 1.
 - Otherwise the pattern is matched against the whole new version of the
-  file, in its language, as ast-grep 0.51.0 matches it. A match covers
+  file, in its language, as ast-grep 0.51.0 matches it with its default
+  options (no project configuration, default strictness). A match covers
   the lines from the line of its first character to the line of its
   last. Each added line that a match covers is a hit. When ast-grep
   0.51.0 cannot read the pattern in a file's language, the check finds
