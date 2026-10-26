@@ -17,7 +17,7 @@
   {
     "name": "duplicate-file-block",
     "kind": "error",
-    "description": "A file contains more than one file block."
+    "description": "A file contains a second `<defaults>` or a second `<scope>`."
   },
   {
     "name": "file-block-after-entry",
@@ -142,7 +142,7 @@
   {
     "name": "inconsistent-indentation",
     "kind": "error",
-    "description": "A block body mixes indentation inconsistently."
+    "description": "An element's indented lines share no common indentation."
   },
   {
     "name": "unknown-category",
@@ -177,7 +177,7 @@
   {
     "name": "missing-category",
     "kind": "warning",
-    "description": "An entry has no category and no default supplies one."
+    "description": "A rule has no category and no default supplies one."
   },
   {
     "name": "empty-scope",

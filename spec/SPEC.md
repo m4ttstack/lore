@@ -26,7 +26,14 @@ The specification is written in the style of the CommonMark
 specification: normative prose, with numbered conformance examples inline
 that any implementation can run. JSON Schemas for the structured blocks
 and for the expected output of the examples are in [`schemas/`](schemas/).
+Their `$id`s start with `https://lore.dev/schemas/v1/`, a placeholder
+identifier that will change when the format's final name is chosen.
 The error and warning names are in [`errors.json`](errors.json).
+
+The specification text is licensed under
+[CC-BY-4.0](../LICENSE-CC-BY-4.0). The conformance examples, the JSON
+Schemas and `errors.json` are licensed under the
+[MIT License](../LICENSE), so an implementation can copy them freely.
 
 ## Conventions
 
@@ -47,10 +54,15 @@ Terms used throughout:
 - **Governed repo**: the repository whose change is being reviewed. Paths
   are relative to its root and separated by `/`.
 - **Lore folder**: a directory named `.lore`.
+- **Lore file**: a file whose name ends in `.lore` and that sits inside a
+  Lore folder (see [Files and folders](#files-and-folders)).
 - **Base**: the directory that contains a Lore file's Lore folder. When a
-  path holds more than one Lore folder, the first one counted from the
-  repository root decides (see [Files and folders](#files-and-folders)).
-  Globs and plain `src` paths in the file resolve relative to the base.
+  path holds more than one Lore folder, the first one decides, counted
+  from the repository root, or for a file in an external folder from its
+  marked directory (see
+  [Files and folders](#files-and-folders) and
+  [External folders](#external-folders)). Globs and plain `src` paths in
+  the file resolve relative to the base.
 - **External folder**: Lore kept outside the governed repo, in a
   directory tree that a `.loreconfig` `repo` key maps onto the governed
   repo. A tool finds external folders in the **given folders** its user
@@ -64,12 +76,13 @@ Terms used throughout:
 - **Entry**: a `<rule>` or `<context>` element.
 - **Change**: a set of changed files and, for each added, modified or
   renamed file, its added lines. A diff describes a change.
-- **Eligible**: an entry is eligible for a change when it is not
-  disabled, its scope matches at least one changed file that no
+- **Eligible**: an entry is eligible for a change when it has no error,
+  is not disabled, its scope matches at least one changed file that no
   `.loreconfig` `disable` list switches it off for, and its conditions
   hold (see [Eligibility](#eligibility)).
 - **Error** and **warning**: problems a tool reports by name. An error
-  excludes the file or entry it is found in; a warning excludes nothing.
+  excludes the file, entry or `.loreconfig` it is found in; a warning
+  excludes nothing.
 - **Blank line**: a line that is empty or holds only spaces and tabs.
 - **Column 0**: a line starts at column 0 when its first character is
   not a space or a tab.
@@ -133,6 +146,9 @@ renames to, and all of them are tracked by version control. A changed
 file that is not also an input file has unknown content apart from its
 added lines. When a changed file is also an input file, each of its
 `+<n> <text>` lines equals line `<n>` of that input.
+This document is UTF-8 text with line feeds, so an input file can hold
+neither a carriage return nor a byte that is not valid UTF-8. The rules
+for those bytes have no conformance examples.
 
 **External inputs.** The `=== external:<path>` input files are the
 tracked files of one other repository, and the tool was given that
@@ -318,6 +334,32 @@ M apps/web/src/checkout/CartTotal.tsx
 { "eligible": ["price-from-quote"], "hits": [], "excluded": [], "warnings": [] }
 ``````
 
+This file starts with a byte order mark (U+FEFF). A tool ignores it, so
+the opening tag after it is still at column 0:
+
+``````example parse
+=== .lore/checkout.lore
+﻿<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
 ## Parsing
 
 A tool reads a Lore file from top to bottom, one top-level element at a
@@ -421,7 +463,9 @@ entry's children), a line that looks like a tag is read as one:
   `unknown-element` whatever follows it.
 - If the text between the name and the final `>` is not a valid
   attribute list, the attributes are malformed: `invalid-attribute-value`.
-  On an entry or one of its children this is an entry-level error; on a
+  A tool meets this problem at the first character where the list stops
+  being valid, so a problem with an attribute before that character
+  (see [Attributes](#attributes)) is met first. On an entry or one of its children this is an entry-level error; on a
   file block it is file-level. On a file block, the position errors of
   [Top level](#top-level) (`file-block-after-entry`, then
   `duplicate-file-block`) are checked before the attributes.
@@ -1863,6 +1907,11 @@ and the first problem it meets is the entry's error:
    `advisory`.
 4. A tag that ends with no `id` attribute is `missing-id`.
 
+A malformed attribute list (see [Lines and tags](#lines-and-tags)) is
+met at the first character where it stops being valid, in the same
+left-to-right reading. So on `<rule id="x" owner="y" category=z>`,
+`owner` is met first, and the error is `unknown-attribute`.
+
 Every error in this section is entry-level, and its line is the entry's
 opening tag line. An entry's **readable id** is the value of the first
 `id` attribute on its opening tag, when that value matches the id
@@ -1920,7 +1969,8 @@ A checkout page that shows a quoted price also shows when the quote expires.
 
 An attribute the element does not define is an error, on a rule and on a
 context alike: a context has no category. A severity the format does not
-define is an invalid value:
+define is an invalid value. In `refunds-logged`, the unknown attribute
+comes before the malformed one, so it is met first:
 
 ``````example parse
 === .lore/checkout.lore
@@ -1935,6 +1985,10 @@ Display text never hard-codes a currency code.
 <context id="checkout-architecture" src="ARCHITECTURE.md" category="documentation">
 Read before judging any change to how a price is computed.
 </context>
+
+<rule id="refunds-logged" owner="payments" category=observability>
+Every refund is logged with the order it refunds.
+</rule>
 
 <rule id="dates-from-locale" category="functional_correctness">
 Displayed dates are formatted with the shop's locale.
@@ -1955,7 +2009,8 @@ Displayed dates are formatted with the shop's locale.
   "errors": [
     { "name": "unknown-attribute", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 1 },
     { "name": "invalid-attribute-value", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 5 },
-    { "name": "unknown-attribute", "file": ".lore/checkout.lore", "entry": "checkout-architecture", "line": 9 }
+    { "name": "unknown-attribute", "file": ".lore/checkout.lore", "entry": "checkout-architecture", "line": 9 },
+    { "name": "unknown-attribute", "file": ".lore/checkout.lore", "entry": "refunds-logged", "line": 13 }
   ],
   "warnings": []
 }
@@ -3486,6 +3541,47 @@ M apps/web/src/__generated__/graphql.ts
 { "eligible": ["regen-checkout-types-after-graphql"], "hits": [], "excluded": [], "warnings": [] }
 ``````
 
+With an empty list, `addedContains` never holds and `unchanged` always
+does. A rename changes two paths, and `changed` and `unchanged` see
+both: the old path `Price.tsx` makes `price-imports-updated` eligible
+and `price-shown-with-component` not:
+
+``````example eligibility
+=== .lore/checkout.lore
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: []
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="price-from-quote" category="functional_correctness">
+<when>
+unchanged: []
+</when>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="price-imports-updated" category="functional_correctness">
+<when>
+changed: ["/apps/web/src/checkout/Price.tsx"]
+</when>
+When `Price.tsx` moves or changes, every import of it is updated.
+</rule>
+
+<rule id="price-shown-with-component" category="code_style">
+<when>
+unchanged: ["/apps/web/src/checkout/Price.tsx"]
+</when>
+A price is shown with the `Price` component, never formatted by hand.
+</rule>
+=== diff
+R apps/web/src/checkout/Price.tsx -> apps/web/src/checkout/QuotedPrice.tsx
++3 export function QuotedPrice({ quote }) {
+=== expect
+{ "eligible": ["price-from-quote", "price-imports-updated"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
 An unknown key is an error, even next to another problem: it is checked
 before the shape of each condition. A `<when>` with no conditions is an
 error, and so is a condition whose value is not a list. A `..` segment
@@ -3766,6 +3862,33 @@ M apps/web/src/checkout/labels.ts
 { "eligible": ["currency-code-from-settings"], "hits": [], "excluded": [], "warnings": [] }
 ``````
 
+Line 4 holds a no-break space (U+00A0) between `Total` and `USD`. `\s`
+is ASCII, so it does not match that space. An added line's text holds
+no line break, so `$` matches right after the `'` that ends line 5:
+
+``````example eligibility
+=== .lore/labels.lore
+<rule id="total-label-translated" category="functional_correctness">
+<when>
+addedMatches: ['Total\sUSD']
+</when>
+The total's label comes from the shop's translated strings.
+</rule>
+
+<rule id="fallback-currency-from-settings" category="functional_correctness">
+<when>
+addedMatches: ["USD'$"]
+</when>
+A fallback currency comes from the shop's settings, never from a literal.
+</rule>
+=== diff
+M apps/web/src/checkout/labels.ts
++4 export const heading = 'Total USD:'
++5 const fallback = 'USD'
+=== expect
+{ "eligible": ["fallback-currency-from-settings"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
 An empty alternative matches the empty string, so `(|export )` matches
 whether or not the line starts with `export `. The empty groups `()`
 and `(?:)` match the empty string too:
@@ -4023,7 +4146,7 @@ matches that release finds.
   skipped,
   and the tool reports the warning `ast-grep-no-language` for it, once
   for each rule and skipped file. The warning's `file` is the skipped
-  file, its `entry` is the rule's id, and its line is 1.
+  file's new path, its `entry` is the rule's id, and its line is 1.
 - Otherwise the pattern is matched against the whole new version of the
   file, in its language, as ast-grep 0.51.0 matches it with its default
   options (no project configuration, default strictness). A match covers
@@ -4845,6 +4968,70 @@ M apps/web/src/checkout/Price.tsx
 }
 ``````
 
+In the document model, an external file's `file` keeps its `external:`
+path. Its globs and its plain `src` resolve to paths in the governed
+repo, from `apps/web/`. The file-relative `src` stays in the team
+repository: its four `..` segments lead from `lore/shop/apps/web/.lore/`
+up to the Lore root, `lore/`:
+
+``````example parse
+=== external:lore/.loreconfig
+root: true
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/apps/web/.lore/web.lore
+<scope>
+files: ["src/**/*.tsx"]
+</scope>
+
+<rule id="checkout-prices-from-quote" category="functional_correctness">
+<scope>
+files: ["src/checkout/**"]
+</scope>
+A price the checkout displays comes from the quote that produced it.
+</rule>
+
+<context id="web-architecture" src="docs/architecture.md">
+</context>
+
+<context id="review-handbook" src="../../../../handbook.md">
+</context>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "checkout-prices-from-quote", "file": "external:lore/shop/apps/web/.lore/web.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/**/*.tsx"], "ignores": [] }, { "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A price the checkout displays comes from the quote that produced it.",
+      "prose": "A price the checkout displays comes from the quote that produced it.",
+      "src": null
+    },
+    {
+      "kind": "context", "id": "web-architecture", "file": "external:lore/shop/apps/web/.lore/web.lore",
+      "category": null, "severity": null, "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/**/*.tsx"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "",
+      "prose": "",
+      "src": "apps/web/docs/architecture.md"
+    },
+    {
+      "kind": "context", "id": "review-handbook", "file": "external:lore/shop/apps/web/.lore/web.lore",
+      "category": null, "severity": null, "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/**/*.tsx"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "",
+      "prose": "",
+      "src": "external:lore/handbook.md"
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
 ### Matching the governed repo
 
 A `repo` value names a repository as `<host>/<path>`: a host of
@@ -5284,7 +5471,7 @@ given as [`errors.json`](errors.json).
 | `unreadable-structure` | error | The file structure cannot be read as Lore elements. |
 | `top-level-text` | error | Text appears at the top level outside any element. |
 | `unknown-element` | error | An element name is not part of the format. |
-| `duplicate-file-block` | error | A file contains more than one file block. |
+| `duplicate-file-block` | error | A file contains a second `<defaults>` or a second `<scope>`. |
 | `file-block-after-entry` | error | A file block appears after the first entry. |
 | `invalid-yaml` | error | A block body is not valid YAML. |
 | `duplicate-key` | error | A mapping repeats the same key. |
@@ -5309,14 +5496,14 @@ given as [`errors.json`](errors.json).
 | `empty-files` | error | A scope files list is empty. |
 | `regex-outside-dialect` | error | A regular expression uses syntax outside the allowed dialect. |
 | `regex-not-one-line` | error | A regular expression spans more than one line. |
-| `inconsistent-indentation` | error | A block body mixes indentation inconsistently. |
+| `inconsistent-indentation` | error | An element's indented lines share no common indentation. |
 | `unknown-category` | error | A category is not built in or declared in config. |
 | `duplicate-id` | error | Two entries resolve to the same id. |
 | `src-escapes-root` | error | A src path resolves outside the Lore root. |
 | `invalid-loreconfig` | error | A .loreconfig file is not valid UTF-8 or allowed YAML, or fails its schema. |
 | `repo-inside-repo` | error | A .loreconfig in the governed repo has a repo key. |
 | `nested-repo` | error | A directory marked with repo is below another marked directory. |
-| `missing-category` | warning | An entry has no category and no default supplies one. |
+| `missing-category` | warning | A rule has no category and no default supplies one. |
 | `empty-scope` | warning | Each of an entry's files globs is disjoint from each of its file scope's files globs. |
 | `missing-src-target` | warning | A src attribute points at a file that does not exist. |
 | `unsupported-check-language` | warning | A check uses a language the tool does not support. |
