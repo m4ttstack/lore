@@ -312,8 +312,8 @@ test("diff-agrees: a deleted path is not an input file", () => {
   expect(rules(swap("M src/x.ts\n+2 two", "M src/x.ts\n+2 two\nD src/gone.ts"))).toEqual([]);
 });
 
-test("sorted: eligible ids are strictly ascending", () => {
-  expect(shape(withElig({ eligible: ["b-rule", "b-rule"], hits: [], excluded: [], warnings: [] }))).toEqual(["sorted"]);
+test("a repeated eligible id fails the eligibility schema", () => {
+  expect(shape(withElig({ eligible: ["b-rule", "b-rule"], hits: [], excluded: [], warnings: [] }))).toEqual(["expect"]);
 });
 
 test("registry-table: descriptions must match the registry", () => {

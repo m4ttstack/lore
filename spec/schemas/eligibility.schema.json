@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["eligible", "hits", "excluded", "warnings"],
   "properties": {
-    "eligible": { "type": "array", "items": { "$ref": "https://lore.dev/schemas/v1/document-model.schema.json#/$defs/id" } },
+    "eligible": { "type": "array", "uniqueItems": true, "items": { "$ref": "https://lore.dev/schemas/v1/document-model.schema.json#/$defs/id" } },
     "hits": {
       "type": "array",
       "items": {

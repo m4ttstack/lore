@@ -78,6 +78,12 @@ test("document model rejects an entry without summary", () => {
 });
 test("document model keeps an unknown check language", () =>
   expect(checkJson("document-model", model({ ...ruleEntry, checks: [{ lang: "semgrep", body: "x" }] }))).toBe(true));
+test("document model rejects checks on a context entry", () =>
+  expect(checkJson("document-model", model({ ...ruleEntry, kind: "context", category: null, severity: null, checks: [{ lang: "regex", body: "x" }] }))).toBe(false));
+test("document model rejects a src on a rule entry", () =>
+  expect(checkJson("document-model", model({ ...ruleEntry, src: "docs/architecture.md" }))).toBe(false));
+test("eligibility rejects a repeated eligible id", () =>
+  expect(checkJson("eligibility", { eligible: ["a", "a"], hits: [], excluded: [], warnings: [] })).toBe(false));
 test("eligibility accepts an empty result", () =>
   expect(checkJson("eligibility", { eligible: [], hits: [], excluded: [], warnings: [] })).toBe(true));
 test("eligibility hit requires line and text", () =>

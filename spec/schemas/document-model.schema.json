@@ -66,8 +66,8 @@
         "src": { "type": ["string", "null"] }
       },
       "if": { "properties": { "kind": { "const": "context" } }, "required": ["kind"] },
-      "then": { "properties": { "category": { "type": "null" }, "severity": { "type": "null" } } },
-      "else": { "properties": { "severity": { "enum": ["blocking", "advisory"] } } }
+      "then": { "properties": { "category": { "type": "null" }, "severity": { "type": "null" }, "checks": { "type": "array", "maxItems": 0 } } },
+      "else": { "properties": { "severity": { "enum": ["blocking", "advisory"] }, "src": { "type": "null" } } }
     }
   }
 }
