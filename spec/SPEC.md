@@ -2041,12 +2041,6 @@ A checkout page that shows a quoted price also shows when the quote expires.
 <rule id="totals-from-quote" category="functional_correctness" disabled>
 Cart totals come from the quote, never from summing line items.
 </rule>
-=== .lore/drafts.lore
-Draft rules, not reviewed yet.
-
-<rule id="dates-from-locale" category="functional_correctness">
-Displayed dates use the shop's locale.
-</rule>
 === apps/web/src/checkout/.lore/rules.lore
 <rule id="price-from-quote" category="functional_correctness" severity="blocking">
 The checkout page shows the price from the quote, never a recomputed one.
@@ -2066,6 +2060,12 @@ The order total comes from the quote.
 
 <rule id="dates-from-locale" category="functional_correctness">
 Displayed dates are formatted with the shop's locale.
+</rule>
+=== .lore/drafts.lore
+Draft rules, not reviewed yet.
+
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates use the shop's locale.
 </rule>
 === expect
 {
@@ -2127,8 +2127,9 @@ rule came from, an owner, links. It is a structured block, and its value
 MUST be a mapping; anything else, such as a scalar, a list or `null`, is
 `invalid-meta`. This specification gives no key a meaning, and tools MAY
 define their own keys. A tool MUST NOT let the keys and values of a
-valid `<meta>` change whether an entry is eligible. The document model keeps the mapping as parsed, in
-`meta`; an entry without `<meta>` has `meta: null`.
+valid `<meta>` change whether an entry is eligible. The document model
+keeps the mapping as parsed, in `meta`; an entry without `<meta>` has
+`meta: null`.
 
 `<meta>` is kept as parsed, whatever its keys. Under the core schema,
 `2026-03-01` is a string, not a date:
