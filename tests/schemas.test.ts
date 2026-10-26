@@ -66,6 +66,8 @@ test("document model rejects severity on a context entry", () =>
   expect(checkJson("document-model", model({ ...ruleEntry, kind: "context", category: null, severity: "blocking" }))).toBe(false));
 test("document model accepts a context entry with null category and severity", () =>
   expect(checkJson("document-model", model({ ...ruleEntry, kind: "context", category: null, severity: null }))).toBe(true));
+test("document model rejects null severity on a rule", () =>
+  expect(checkJson("document-model", model({ ...ruleEntry, severity: null }))).toBe(false));
 test("document model rejects an entry without summary", () => {
   const { summary: _s, ...rest } = ruleEntry;
   expect(checkJson("document-model", model(rest))).toBe(false);

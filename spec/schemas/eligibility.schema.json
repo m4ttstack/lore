@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": ["eligible", "hits", "excluded", "warnings"],
   "properties": {
-    "eligible": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" } },
+    "eligible": { "type": "array", "items": { "$ref": "https://lore.dev/schemas/v1/document-model.schema.json#/$defs/id" } },
     "hits": {
       "type": "array",
       "items": {
@@ -14,7 +14,7 @@
         "additionalProperties": false,
         "required": ["rule", "file", "line", "text"],
         "properties": {
-          "rule": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "rule": { "$ref": "https://lore.dev/schemas/v1/document-model.schema.json#/$defs/id" },
           "file": { "type": "string" },
           "line": { "type": "integer", "minimum": 1 },
           "text": { "type": "string" }

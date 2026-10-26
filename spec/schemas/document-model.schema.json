@@ -66,7 +66,8 @@
         "src": { "type": ["string", "null"] }
       },
       "if": { "properties": { "kind": { "const": "context" } }, "required": ["kind"] },
-      "then": { "properties": { "category": { "type": "null" }, "severity": { "type": "null" } } }
+      "then": { "properties": { "category": { "type": "null" }, "severity": { "type": "null" } } },
+      "else": { "properties": { "severity": { "enum": ["blocking", "advisory"] } } }
     }
   }
 }
