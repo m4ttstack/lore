@@ -53,7 +53,8 @@ Terms used throughout:
   Globs and plain `src` paths in the file resolve relative to the base.
 - **External folder**: Lore kept outside the governed repo, in a
   directory tree that a `.loreconfig` `repo` key maps onto the governed
-  repo (see [External folders](#external-folders)).
+  repo. A tool finds external folders in the **given folders** its user
+  hands it (see [External folders](#external-folders)).
 - **Lore root**: the directory where the upward lookup of `.loreconfig`
   files stops (see [.loreconfig](#loreconfig)).
 - **Element**: a tagged section of a `.lore` file: an opening tag line,
@@ -135,7 +136,7 @@ added lines. When a changed file is also an input file, each of its
 
 **External inputs.** The `=== external:<path>` input files are the
 tracked files of one other repository, and the tool was given that
-repository's root as an external folder. Each `<path>` is relative to
+repository's root as a given folder. Each `<path>` is relative to
 that repository's root.
 
 **Expected output.** A parse example's expect is a document model,
@@ -1248,8 +1249,9 @@ A displayed price must come from the quote that produced it.
 ### Structured blocks
 
 `<defaults>`, `<scope>`, `<when>` and `<meta>` are **structured
-blocks**, and so is a `.loreconfig` file. Their contents, after
-[Indentation](#indentation), are YAML 1.2 read with the core schema.
+blocks**, and so is a `.loreconfig` file. Their contents are YAML 1.2
+read with the core schema: for a block in a Lore file, after
+[Indentation](#indentation); for a `.loreconfig`, as written.
 JSON is valid YAML 1.2, so a block MAY be written in JSON, and files MAY
 mix the two. A tool reads a block as one YAML document, with these
 rules:
@@ -4132,7 +4134,7 @@ Every changed file has one or two **paths**:
 A Lore file or a `.loreconfig` in the change is a changed file like any
 other, and counts for every entry whose scope holds it. The entries
 themselves are read from the files as the change leaves them, so an
-entry the change adds is eligible for that same change.
+entry the change adds can be eligible for that same change.
 
 An entry with no `<scope>` and no `<when>`, in a file with no
 `<scope>`, has the whole of its base as its scope. Unless it is
@@ -4183,16 +4185,15 @@ M apps/api/src/orders.ts
 A deleted file counts by its old path, and a renamed file by both of its
 paths. `OldPrice.tsx` was deleted under `legacy/`. `Price.tsx` moved
 from the checkout folder to the pricing folder, so it is in the scope of
-the rules of both. Its added line is on its new path: the checkout
-rule's check finds it there, and the pricing rule's condition holds:
+the rules of both. Its added line counts for both conditions, though
+the checkout rule counts the file by its old path only:
 
 ``````example eligibility
-requires: regex
 === apps/web/src/checkout/.lore/checkout.lore
 <rule id="checkout-currency-from-settings" category="functional_correctness">
-<check>
-'USD'
-</check>
+<when>
+addedContains: ["'USD'"]
+</when>
 Checkout display text never hard-codes a currency code.
 </rule>
 === apps/web/src/pricing/.lore/pricing.lore
@@ -4213,6 +4214,30 @@ R apps/web/src/checkout/Price.tsx -> apps/web/src/pricing/Price.tsx
 === expect
 {
   "eligible": ["checkout-currency-from-settings", "legacy-removals-logged", "pricing-currency-from-settings"],
+  "hits": [],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+A hit in a renamed file names its new path, even for a rule that counts
+the file by its old path:
+
+``````example eligibility
+requires: regex
+=== apps/web/src/checkout/.lore/checkout.lore
+<rule id="checkout-currency-from-settings" category="functional_correctness">
+<check>
+'USD'
+</check>
+Checkout display text never hard-codes a currency code.
+</rule>
+=== diff
+R apps/web/src/checkout/Price.tsx -> apps/web/src/pricing/Price.tsx
++3   const label = 'USD'
+=== expect
+{
+  "eligible": ["checkout-currency-from-settings"],
   "hits": [
     { "rule": "checkout-currency-from-settings", "file": "apps/web/src/pricing/Price.tsx", "line": 3, "text": "  const label = 'USD'" }
   ],
@@ -4280,9 +4305,12 @@ These errors are always file-level:
 
 These are always entry-level:
 
-- `missing-id`, `invalid-id`, `duplicate-attribute`,
-  `disabled-has-value` and `src-escapes-root`, on an entry's opening
-  tag (see [Attributes](#attributes) and [Context](#context));
+- `missing-id`, `invalid-id`, `disabled-has-value` and
+  `src-escapes-root`, on an entry's opening tag (see
+  [Attributes](#attributes) and [Context](#context));
+- `duplicate-attribute`, on an entry's opening tag or a child's (a
+  file block takes no attributes, so its first one is
+  `unknown-attribute`);
 - `unknown-child`, `duplicate-child`, `invalid-meta`, `invalid-when`,
   `empty-when`, `unknown-condition`, `regex-not-one-line` and
   `regex-outside-dialect`, in an entry's children;
@@ -4371,8 +4399,10 @@ M apps/web/src/checkout/Price.tsx
 ## .loreconfig
 
 A **`.loreconfig`** file holds settings for the directory it is in and
-every directory below it. It MAY sit in any directory of the governed
-repo or of an external folder, except inside a Lore folder: a file
+every directory below it, except those below a Lore root that cuts off
+the lookup (see [Lore root](#lore-root)). It MAY sit in any directory
+of the governed repo or of a given folder's repository, except inside a
+Lore folder: a file
 there is not a Lore file, and a tool ignores it (see
 [Files and folders](#files-and-folders)).
 
@@ -4402,15 +4432,20 @@ does not name, `lore: 2`, or `root: yes` (which the core schema reads
 as a string). A tool ignores a `.loreconfig` with a problem as a whole,
 as if it did not exist, and reports the error once, with a null
 `entry`. Entries that relied on it then fail on their own: an entry
-whose category it declared is `unknown-category`. The error's line is:
+whose category it declared is `unknown-category`.
 
-- for a problem that [Structured blocks](#structured-blocks) names, the
-  line that section gives, counted in the file, where a document that
-  ends before it is complete is reported at the file's last line;
-- for an invalid UTF-8 byte, that byte's line;
-- when the value is not a mapping, 1;
-- otherwise, the line of the first key, in the order of the file, that
-  the table does not name or whose value it does not allow.
+A tool checks a `.loreconfig` in this order, and reports the first
+problem it finds, at this line:
+
+1. a byte that is not valid UTF-8: that byte's line;
+2. the problems of [Structured blocks](#structured-blocks), in the order
+   that section gives: the line it gives, counted in the file. A
+   document that ends before it is complete is reported at the file's
+   last line, the line that holds the file's last character (for a file
+   that ends with a line feed, the line that the line feed ends);
+3. a value that is not a mapping: line 1;
+4. each key, in the order of the file: the line of the first key that
+   the table does not name, or whose value it does not allow.
 
 The first `.loreconfig` has a `disable` that is not a list, the second
 repeats a key, and the third has a `root` that is not a boolean. All
@@ -4618,8 +4653,10 @@ that holds it.
   lists apply to those entries.
 
 An id in a `disable` list that names no entry the list can switch off
-is the warning `unknown-disabled-id`, once for each such item, at the
-line where the item starts, with a null `entry`. The entries a list can
+is the warning `unknown-disabled-id`, once for each such item, with a
+null `entry`. Its line is the line where the item starts: in a block
+sequence, the line of the item's `-`; in a flow sequence, the line of
+the item's first character. The entries a list can
 switch off are those whose ids count in [Ids](#attributes): for a list
 in the governed repo, every such entry collected from anywhere; for a
 list in an external folder, see [External folders](#external-folders).
@@ -4715,22 +4752,23 @@ team-repo/lore/
       web.lore         base: apps/web/ in the shop repo
 ```
 
-- A tool is **given** an external folder: a directory in a working copy
-  of another repository, which the tool's user names, for example with
-  a command-line option or a setting. A tool MAY be given any number of
-  external folders, and treats each one the same way. In a conformance
-  example, the tool is given the root of the repository that holds the
-  `external:` input files.
+- A **given folder** is a directory in a working copy of another
+  repository that the tool's user hands to the tool, for example with a
+  command-line option or a setting. A tool MAY be given any number of
+  folders, and treats each one the same way. In a conformance example,
+  the tool is given one folder: the root of the repository that holds
+  the `external:` input files.
 - A `.loreconfig` with a `repo` key **marks** its directory: the
   directory stands for the root of the repository that `repo` names. A
-  tool looks for marked directories in the given directory and below
-  it.
-- For each marked directory whose `repo` names the governed repo (see
-  [Matching the governed repo](#matching-the-governed-repo)), the tool
-  collects the Lore files at or below it (see
-  [Collecting files](#collecting-files)). No other Lore file of an
-  external folder is collected, including one below a directory marked
-  for another repository.
+  tool looks for marked directories in each given folder and below it.
+- A marked directory whose `repo` names the governed repo (see
+  [Matching the governed repo](#matching-the-governed-repo)), with
+  everything below it, is an **external folder**. The tool collects the
+  Lore files at or below it (see [Collecting files](#collecting-files)).
+  No other Lore file of a given folder's repository is collected,
+  including one below a directory marked for another repository.
+- A file that more than one given folder reaches, such as when one given
+  folder holds another, is collected and read once.
 - Below a marked directory, directories mirror the governed repo: the
   directory `<marked>/<path>` stands for `<path>` in the governed repo.
   The base of a Lore file below a marked directory is found as
@@ -4745,7 +4783,7 @@ team-repo/lore/
 
 **The Lore root** of a directory at or below a marked directory is the
 nearest directory, at or above it, whose `.loreconfig` has `root:
-true`, looking as far up as the root of the external folder's
+true`, looking as far up as the root of the marked directory's
 repository. When there is none, it is the marked directory. So a
 `.loreconfig` above the marked directory applies only when a
 `root: true` at or above it makes the Lore root higher than the marked
@@ -4809,10 +4847,9 @@ lowercase ASCII letters, digits, `.` and `-`, optionally followed by
 ending in neither `/` nor `.git`. Any other value is
 `invalid-loreconfig`.
 
-The governed repo is named by its **remote**: a URL for it, such as the
-URL of the remote its change is to be merged into. When a repository
-has several, which one names it is up to the tool. In a conformance
-example, it is the `=== remote` line. A tool **normalizes** a remote in
+The governed repo is named by its **remotes**: the URLs of the
+repositories it is fetched from or pushed to. In a conformance example,
+it has one, the `=== remote` line. A tool **normalizes** a remote in
 these steps:
 
 1. If it holds `://`, remove everything up to and including the first
@@ -4825,7 +4862,8 @@ these steps:
    one.
 
 A marked directory's `repo` **names** the governed repo when it equals
-the normalized remote, with ASCII letters compared regardless of case.
+any of the governed repo's normalized remotes, with ASCII letters
+compared regardless of case.
 So `https://github.com/acme/shop.git`, `git@github.com:Acme/shop.git`
 and `ssh://git@github.com/acme/shop` all match `github.com/acme/shop`,
 while `ssh://git@github.com:22/acme/shop` keeps its port and does not.
@@ -5022,11 +5060,13 @@ M apps/web/src/checkout/Price.tsx
   `nested-repo`.
 
 A tool checks for these errors only in a `.loreconfig` that has no
-other problem; an `invalid-loreconfig` marks nothing. Either error is
-reported at the line of the `repo` key, with a null `entry`. It
-excludes its `.loreconfig` and every Lore file and `.loreconfig` in
-that file's directory or below it: none of them is collected or read,
-and nothing in them is reported. A tool reads `.loreconfig` files from
+other problem; an `invalid-loreconfig` marks nothing. The offending
+`.loreconfig` is read, and either error is reported at the line of its
+`repo` key, with a null `entry`. The error excludes that `.loreconfig`
+and every Lore file and `.loreconfig` in its directory or below it:
+none of those below is collected or read, and nothing in them is
+reported. An excluded `.loreconfig` is as if it did not exist, so its
+`root: true`, if it has one, does not cut off any lookup. A tool reads `.loreconfig` files from
 the top of the tree down, so when such errors nest, only the highest is
 reported.
 
@@ -5079,7 +5119,7 @@ M apps/web/src/checkout/Price.tsx
 ## Collecting files
 
 A tool collects the files it reads from the governed repo and from the
-external folders it was given. It MUST collect only files tracked by
+folders it was given. It MUST collect only files tracked by
 version control, and MUST NOT find them by walking a file system, so a
 Lore folder in an installed dependency, a build output or an ignored
 scratch folder cannot add rules to a review.
@@ -5088,11 +5128,14 @@ scratch folder cannot add rules to a review.
   leaves it: the files tracked in the change's new version. It collects
   every Lore file (see [Files and folders](#files-and-folders)) and
   reads every `.loreconfig`. A Lore file the change deletes is not
-  collected, and one it adds is.
-- **An external folder.** A tool reads the files tracked in the working
-  copy it was given. It reads every `.loreconfig` of that repository in
-  the given directory, below it or above it, and collects the Lore files
-  at or below each marked directory that names the governed repo (see
+  collected, and one it adds is. (So a change can delete a rule, or
+  switch it off with `disable`, for its own review: the rule's absence
+  is part of the change a reviewer sees.)
+- **A given folder.** A tool reads the files tracked in the working
+  copy that holds it. It reads every `.loreconfig` of that repository in
+  the given folder, below it or above it, and collects the Lore files of
+  each external folder found in it: those at or below each marked
+  directory that names the governed repo (see
   [External folders](#external-folders)).
 - A `.loreconfig` is a file named exactly `.loreconfig`, outside any
   Lore folder. A file of that name inside a Lore folder is ignored.

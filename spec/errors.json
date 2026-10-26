@@ -162,7 +162,7 @@
   {
     "name": "invalid-loreconfig",
     "kind": "error",
-    "description": "A .loreconfig file is not valid YAML or fails its schema."
+    "description": "A .loreconfig file is not valid UTF-8 or allowed YAML, or fails its schema."
   },
   {
     "name": "repo-inside-repo",
