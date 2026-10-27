@@ -1,0 +1,289 @@
+# Lore applying rules: design
+
+Status: draft for review, 2026-10-27. Step 3 of 5.
+
+Builds on the specification (`spec/SPEC.md`, 98 conformance examples),
+the step 1 design (`2026-10-25-lore-spec-design.md`) and the step 2
+editor tooling design (`2026-10-26-lore-editor-tooling-design.md`).
+
+## Why
+
+Lore's promise is that a reviewer reads the rules that bear on a change
+and nothing else. Today that promise stops at selection: the reference
+parser computes the eligible rules and hits for a change, but only as a
+library function, and nothing says what a reviewer gives back. A team
+that keeps its review rules as one long block of prose, read in full for
+every change, gets two costs at once: the reviewer's prompt is large, and
+its attention is spread over rules that do not apply.
+
+Step 3 closes the loop from a change to a judgment on each rule:
+
+- a `lore` command that any tool can call to get the rules that apply to
+  a change, ready to hand to a reviewer;
+- a verdict format, so a reviewer answers every selected rule and a
+  caller can tell a rule that passed from a rule nobody checked.
+
+The first adopter is a team converting about 100 existing review rules
+into Lore and wiring this command into its agent review pipeline. That
+work happens in its own private repository and is described there. This
+document covers only what lands in the public Lore repo, and is written so
+that any tool can use it the same way.
+
+## Goals
+
+- A `lore select` command that takes rules and a change and prints the
+  selected entries, their hits and the context to read, as JSON and as
+  text ready to paste into a reviewer's prompt.
+- Four ways to describe the change: a unified diff, a list of paths, the
+  spec's change as JSON, and two git refs.
+- Rules read from a folder or from a git ref, plus any number of given
+  folders (external folders), so the rules that judge a change can come
+  from the branch it merges into.
+- A verdict format in the spec: for each selected rule, `pass`, `fail` or
+  `not-applicable`, with evidence, and a rule for when a set of verdicts
+  is complete.
+- A `lore verdicts` command that checks a reviewer's verdicts against a
+  selection: well formed, every selected rule answered exactly once, no
+  rule answered that was not selected.
+- The step 2 gates that a command line tool exposes, closed (see
+  Constraints).
+
+## Non-goals
+
+- Running a reviewer. The command selects and checks; calling a model,
+  posting comments and deciding whether a change may merge stay with the
+  caller.
+- Talking to a forge. The command never calls GitLab or GitHub. A caller
+  that reviews a merge request fetches its diff and refs itself.
+- Fan-out (one reviewer per rule). The verdict format allows it; building
+  it is later work.
+- The online playground from the roadmap. It moves to a later step; the
+  command line tool comes first because the first adopter needs it.
+- Publishing to npm. The format's name is not final (see `spec/SPEC.md`,
+  Conventions), so the package name waits too. The command ships as a
+  single bundled JavaScript file attached to a GitHub release, and later
+  as standalone binaries.
+- A second implementation. A Rust port is planned as Lore's second
+  conforming implementation, after this step.
+
+## Anti-goals
+
+- A command that needs a checkout to be useful. A reviewer that only
+  reads a diff must get the same rules a checkout would give it, except
+  for the checks that need whole files (see ast-grep below).
+- Inputs shaped around one forge or one pipeline. Every input is
+  something a shell, a CI job or an agent can produce without Lore
+  knowing where it came from.
+- Verdicts that can be silently incomplete. A caller must be able to
+  tell, mechanically, that every selected rule got an answer.
+
+## Constraints
+
+- TypeScript, in this Bun workspace, built on `@lore/parser`. The command
+  is a thin layer: parsing and selection stay in the parser, and every
+  behaviour the spec defines is tested through the conformance examples
+  there, not again in the command.
+- Runs under both Node 20+ and Bun from one bundled file
+  (`bun build --target node`). This closes the step 2 gate where
+  `@lore/parser`'s `main` points at TypeScript source: the command never
+  imports source at run time.
+- Rules can come from an untrusted branch only if the caller says so
+  (see Rules). By default they are read from a ref the caller names, and
+  the first adopter names the branch a change merges into, so every rule
+  that runs has been merged. The linear-time regex gate from step 2 is
+  therefore not a blocker for this step; the remaining two small gates
+  are:
+  - a `RegexLimitError` message is truncated before it is printed;
+  - an ast-grep timeout or crash becomes a warning naming the rule and
+    file, never a crash of the command.
+- Selection must not read every repository file's content (the last step
+  2 gate). It lists tracked paths and reads only the `.lore` and
+  `.loreconfig` files, the files a `src` names, and, for ast-grep checks,
+  the changed files.
+- No forge, model or network access. Git is the only external program the
+  command runs, and only when a git input is used.
+
+## The command
+
+```
+lore select   [rules] [change] [--capabilities regex,ast-grep] [--format text|json]
+lore verdicts --selection <file> [<verdicts-file> | -]
+```
+
+### Rules
+
+| Flag | Meaning |
+|---|---|
+| `--repo <dir>` | The governed repo's working tree. Default: the git root above the current directory. |
+| `--rules-ref <ref>` | Read the repo's Lore files at this git ref instead of the working tree, through `git show` and `git ls-tree`. No checkout needed. |
+| `--given <dir>` | A given folder, as the spec defines it. Repeatable. External folders inside it are found and mapped by `repo`, exactly as `spec/SPEC.md` External folders says. |
+| `--remote <host/path>` | The governed repo's remote, for matching `repo`. Default: read from `git remote -v` in `--repo`. Repeatable. |
+
+With `--base`/`--head` (below) and no `--rules-ref`, the rules are read at
+`--base`.
+
+### Change
+
+Exactly one of these. Giving none, or two, is a usage error (exit 2).
+
+| Input | Meaning |
+|---|---|
+| `--diff <file>` or `--diff -` | A unified diff (`git diff`, `git format-patch`, a forge's `.diff` download). Renames are read from `rename from`/`rename to`; added lines and their new line numbers from the hunks. |
+| `--paths <path>...` or `--paths -` | Paths only, one per line on stdin with `-`. Each is a modified file with no added lines. |
+| `--change <file>` or `--change -` | The spec's change as JSON: `{ "files": [{ "kind": "A"\|"M"\|"D"\|"R", "path", "oldPath"?, "added": [{ "line", "text" }] }] }`. |
+| `--base <ref> --head <ref>` | Build the diff with `git diff --find-renames <base>...<head>` in `--repo`. |
+
+**Paths mode and added-line conditions.** With paths there are no added
+lines, so any rule whose `<when>` needs an `addedContains` or
+`addedMatches` condition is not eligible. That is correct selection, but
+a writer about to start work still wants to know about such rules. In
+paths mode only, the result therefore adds `conditional`: the ids of
+rules that would be eligible if their added-line conditions held. This
+is a command feature, not a change to eligibility, and the text output
+lists these rules under their own heading.
+
+**ast-grep and whole files.** An ast-grep check matches structure, so it
+needs the changed file's whole new content. The command has it with
+`--base`/`--head` (`git show <head>:<path>`) and with a working tree
+whose files match the change's new side. With `--diff`, `--paths` or
+`--change` and no working tree that matches, it skips each ast-grep
+check and reports the warning `check-needs-file` for it (a command
+warning, not a spec one), and the rule stays eligible.
+
+### Output
+
+`--format json` (the default when stdout is not a terminal) prints:
+
+```json
+{
+  "lore": "1",
+  "rules": [
+    {
+      "id": "...", "file": "...", "category": "...", "severity": "blocking",
+      "summary": "...", "prose": "...", "meta": null,
+      "hits": [{ "file": "...", "line": 12, "text": "..." }]
+    }
+  ],
+  "context": [{ "id": "...", "file": "...", "summary": "...", "prose": "...", "src": "...", "srcText": "..." }],
+  "conditional": [],
+  "excluded": [ /* the eligibility result's excluded diagnostics */ ],
+  "warnings": [ /* eligibility warnings, then command warnings */ ]
+}
+```
+
+Rules come in the order of the eligibility result. `srcText` is the
+content of the file a context's `src` names, read at the same ref as the
+rules, or null when it has none.
+
+`--format text` (the default on a terminal) prints the same content as
+Markdown a reviewer can read directly: a short preamble with the verdict
+instructions (below), then each rule as a heading with its id, severity
+and category, its prose, and its hits as `file:line` with the line text;
+then each context with its prose and `src` text; then warnings. The text
+form is what a caller pastes into a prompt, so its wording is part of
+this design's review, and it carries the verdict instructions so a
+reviewer never needs `AGENT.md` as well.
+
+Exit codes: 0 when selection ran, whatever it selected; 1 when the rules
+have errors that excluded entries and `--strict` is given; 2 on a usage
+or input error (unreadable diff, unknown ref).
+
+## Verdicts
+
+A new spec section, **Verdicts**, normative, with conformance examples
+of a new kind, `verdicts`, which give an eligibility result and a set of
+verdicts and expect the problems a checker reports.
+
+A verdict answers one eligible rule:
+
+```json
+{
+  "rule": "money-in-minor-units",
+  "verdict": "fail",
+  "evidence": [{ "file": "apps/web/src/pricing/Price.tsx", "line": 3, "text": "..." }],
+  "note": "Adds a float multiply on a price; the rule wants integer cents."
+}
+```
+
+- `verdict` is `pass`, `fail` or `not-applicable`.
+  - `pass`: the change keeps the rule.
+  - `fail`: the change breaks it. `evidence` MUST hold at least one
+    location in a changed file.
+  - `not-applicable`: the rule was selected but does not bear on this
+    change (selection is deliberately broad: a scope can match a file the
+    rule has nothing to say about). `note` MUST say why.
+- `note` is the reviewer's reason, in prose. Required for `fail` and
+  `not-applicable`, optional for `pass`.
+- Each hit is a pointer, not a verdict: a rule with hits can pass, and a
+  rule without hits can fail. A `fail` whose evidence includes a hit
+  location is the common case.
+
+A **verdict set** is `{ "lore": "1", "verdicts": [...] }`. It is
+**complete** for an eligibility result when it holds exactly one verdict
+for each eligible rule and none for any other id. Contexts get no
+verdict. A checker reports these problems, each naming the rule:
+`missing-verdict`, `duplicate-verdict`, `unselected-verdict`,
+`fail-without-evidence`, `evidence-outside-change` (a location in no
+changed file, or past its end where the checker knows it), and
+`missing-note`.
+
+Severity stays the rule's: a `fail` of a `blocking` rule is a blocking
+problem and a `fail` of an `advisory` rule is advice. How a caller maps
+that onto its own finding levels, and whether it re-checks a fail before
+acting on it, is the caller's business.
+
+`lore verdicts` reads the selection (the JSON from `lore select`) and a
+verdict set and prints the problems as JSON; exit 0 when there are none,
+1 otherwise.
+
+`AGENT.md` step 4 is updated to point at the verdict format, so a plain
+agent and a tool-backed one report the same shape.
+
+## The slice first
+
+The first adopter builds this end to end on a thin slice before widening
+it, so real numbers arrive early and spec gaps surface while they are
+cheap. In this repo the slice is:
+
+1. `lore select` with `--repo`, `--rules-ref`, `--given`, `--diff` and
+   `--format text|json`, plus the two small step 2 gates and the
+   path-listing change to collection.
+2. The bundled file attached to a GitHub release.
+
+The rest follows once the slice is running for the adopter:
+
+3. `--paths` (with `conditional`), `--change`, `--base`/`--head`, and
+   ast-grep with whole files.
+4. The Verdicts spec section with its examples, `lore verdicts`, and the
+   `AGENT.md` update.
+5. README: "How tools use Lore" gains the command, and the roadmap moves
+   the playground to a later step.
+
+The verdict format is drafted alongside the slice (the adopter's reviewer
+answers in it from the start), but it only becomes normative in 4, after
+real reviews have used it.
+
+## Testing
+
+- Each input form has a fixture test that produces a known change, then
+  checks that selecting with it matches the conformance example it was
+  built from. The unified diff parser gets its own tests: renames, new and
+  deleted files, `\ No newline at end of file`, binary files (no added
+  lines), CRLF.
+- `--rules-ref` is tested against a temporary git repository whose rules
+  differ between two commits.
+- The text output gets a snapshot test, and is looked at by a person, not
+  just snapshotted, before the slice ships.
+- `verdicts` examples run in the conformance check, as `parse` and
+  `eligibility` examples do.
+- CI builds the bundle and runs it under Node and Bun against one
+  example.
+
+## Left to the builder
+
+- Command line parsing library or none, and the internal layout of the
+  command package (`packages/cli`, name `@lore/cli`, binary `lore`).
+- The exact Markdown of the text output, within the content above.
+- How `--repo` lists tracked paths (`git ls-files` or `git ls-tree`) and
+  how the parser's input is shaped to avoid reading content it does not
+  need.
