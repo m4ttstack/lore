@@ -1,8 +1,8 @@
 import { readAttributes, type Entry, type Scope } from "@lore/parser";
 import { MarkupKind, type Diagnostic as LspDiagnostic, type Hover, type Position, type Range } from "vscode-languageserver/node";
-import { linesOf, placeOf, TAG_LINE } from "./completion";
 import { registryDescription } from "./diagnostics";
 import { ATTRIBUTE_DOCS, TAG_DOCS, WHEN_DOCS } from "./docs";
+import { isStructure, linesOf, placeAt, tagLine } from "./structure";
 
 // entries: the model's entries read from this file.
 export interface HoverFacts { diagnostics: readonly LspDiagnostic[]; entries: readonly Entry[] }
@@ -18,27 +18,25 @@ export function hover(text: string, position: Position, facts: HoverFacts): Hove
 
 function meaning(lines: readonly string[], { line, character }: Position, entries: readonly Entry[]): string[] {
   const text = lines[line] ?? "";
-  const tag = TAG_LINE.exec(text);
-  if (tag !== null) {
-    const [, indent, closing, name, rest] = tag as unknown as [string, string, string, string, string];
-    const nameStart = indent.length + 1 + closing.length;
+  const place = placeAt(lines, line);
+  const tag = tagLine(text);
+  if (tag !== null && isStructure(place, text)) {
+    const { indent, closing, name, rest } = tag;
+    const nameStart = indent.length + (closing ? 2 : 1);
     const nameEnd = nameStart + name.length;
-    if (closing === "") {
+    if (!closing) {
       for (const attribute of readAttributes(rest).attributes) {
         const start = nameEnd + attribute.offset;
         if (character >= start && character <= start + attribute.name.length) return described(attribute.name, ATTRIBUTE_DOCS);
       }
-      const opensEntry = indent === "" && (name === "rule" || name === "context");
-      if (opensEntry) return [...described(`<${name}>`, TAG_DOCS, name), ...scopeOf(rest, entries)];
+      if (place.at === "top" && (name === "rule" || name === "context")) return [...described(`<${name}>`, TAG_DOCS, name), ...scopeOf(rest, entries)];
     }
     return character >= nameStart && character <= nameEnd ? described(`<${name}>`, TAG_DOCS, name) : [];
   }
   const key = /^([ \t]*)([A-Za-z]+)[ \t]*:/.exec(text);
-  if (key === null) return [];
+  if (key === null || place.at !== "children" || place.child !== "when") return [];
   const [, indent, name] = key as unknown as [string, string, string];
-  const onKey = character >= indent.length && character <= indent.length + name.length;
-  const place = placeOf(lines, line);
-  return onKey && place.entry !== null && place.open === "when" ? described(name, WHEN_DOCS) : [];
+  return character >= indent.length && character <= indent.length + name.length ? described(name, WHEN_DOCS) : [];
 }
 
 function described(label: string, docs: Readonly<Record<string, string>>, key = label): string[] {

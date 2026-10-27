@@ -4,16 +4,13 @@ import {
 } from "vscode-languageserver/node";
 import type { Analysis } from "./diagnostics";
 import {
-  ATTRIBUTE_DOCS, BARE_ATTRIBUTES, CHECK_LANGUAGES, CHILD_TAGS, SEVERITIES, TAG_ATTRIBUTES, TAG_DOCS, TOP_LEVEL_TAGS,
-  WHEN_DOCS, WHEN_KEYS, type EntryKind,
+  ATTRIBUTE_DOCS, BARE_ATTRIBUTES, CHECK_LANGUAGES, CHILD_TAGS, SEVERITIES, SINGLE_CHILDREN, TAG_ATTRIBUTES, TAG_DOCS,
+  TOP_LEVEL_TAGS, WHEN_DOCS, WHEN_KEYS,
 } from "./docs";
+import { linesOf, placeAt, type Place } from "./structure";
 
 export interface CompletionFacts { categories: readonly string[]; ids: readonly string[] }
 
-// Where a line sits: the entry around it, and the innermost element still open above it.
-export interface Place { entry: EntryKind | null; open: string | null }
-
-export const TAG_LINE = /^([ \t]*)<(\/?)([A-Za-z][A-Za-z0-9-]*)((?:[ \t].*)?)>[ \t]*$/;
 const TAGS_WITH_ATTRIBUTES = new Set(Object.keys(TAG_ATTRIBUTES));
 
 export function factsFor(analysis: Analysis, name: string): CompletionFacts {
@@ -27,39 +24,21 @@ export function complete(text: string, position: Position, kind: "lore" | "confi
   const before = (lines[position.line] ?? "").slice(0, position.character);
   return kind === "config"
     ? disableIds(lines, position, before, facts)
-    : loreItems(lines, position, before, facts);
+    : loreItems(placeAt(lines, position.line), position, before, facts);
 }
 
-export function linesOf(text: string): string[] {
-  return text.split("\n").map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line));
-}
-
-// Scans upward: a column-0 closing entry tag ends the search at the top level.
-export function placeOf(lines: readonly string[], line: number): Place {
-  let open: string | null | undefined;
-  for (let at = line - 1; at >= 0; at--) {
-    const tag = TAG_LINE.exec(lines[at]!);
-    if (tag === null) continue;
-    const [, indent, closing, name] = tag as unknown as [string, string, string, string];
-    const entry = indent === "" && (name === "rule" || name === "context");
-    if (entry) return { entry: closing === "/" ? null : name as EntryKind, open: open ?? null };
-    if (open === undefined) open = closing === "/" ? null : name;
-  }
-  return { entry: null, open: open ?? null };
-}
-
-function loreItems(lines: readonly string[], position: Position, before: string, facts: CompletionFacts): CompletionItem[] {
-  const place = placeOf(lines, position.line);
+function loreItems(place: Place, position: Position, before: string, facts: CompletionFacts): CompletionItem[] {
   const replace = (length: number) => ({
     start: { line: position.line, character: position.character - length },
     end: position,
   });
+  const inChildren = place.at === "children" && place.child === null;
 
   const tag = /^([ \t]*)<([A-Za-z-]*)$/.exec(before);
   if (tag !== null) {
     const [, indent, typed] = tag as unknown as [string, string, string];
-    const names = place.entry !== null && place.open === null ? CHILD_TAGS[place.entry]
-      : place.entry === null && indent === "" && place.open === null ? TOP_LEVEL_TAGS
+    const names = inChildren ? CHILD_TAGS[place.entry].filter((name) => !(SINGLE_CHILDREN.has(name) && place.children.includes(name)))
+      : place.at === "top" && indent === "" ? TOP_LEVEL_TAGS
       : [];
     return names.map((name) => ({
       label: name,
@@ -69,9 +48,16 @@ function loreItems(lines: readonly string[], position: Position, before: string,
     }));
   }
 
-  const value = /^[ \t]*<(rule|context|check)\b.*[ \t]([a-z]+)="([^"]*)$/.exec(before);
-  if (value !== null) {
-    const [, element, attribute, typed] = value as unknown as [string, string, string, string];
+  // An entry's opening tag stands at column 0 of the top level; a check's among a rule's children.
+  const opening = /^([ \t]*)<(rule|context|check)\b/.exec(before);
+  const element = opening === null ? null
+    : opening[2] === "check" ? (inChildren && place.entry === "rule" ? "check" : null)
+    : place.at === "top" && opening[1] === "" ? opening[2]!
+    : null;
+
+  const value = /[ \t]([a-z]+)="([^"]*)$/.exec(before);
+  if (element !== null && value !== null) {
+    const [, attribute, typed] = value as unknown as [string, string, string];
     const values = element === "rule" && attribute === "category" ? facts.categories
       : element === "rule" && attribute === "severity" ? SEVERITIES
       : element === "check" && attribute === "lang" ? CHECK_LANGUAGES
@@ -79,9 +65,9 @@ function loreItems(lines: readonly string[], position: Position, before: string,
     return values.map((label) => valueItem(label, replace(typed.length)));
   }
 
-  const attribute = /^[ \t]*<(rule|context|check)((?:[ \t]+[A-Za-z][A-Za-z0-9-]*(?:="[^"]*")?)*)[ \t]+([A-Za-z-]*)$/.exec(before);
-  if (attribute !== null) {
-    const [, element, written, typed] = attribute as unknown as [string, string, string, string];
+  const attribute = /^[ \t]*<[a-z]+((?:[ \t]+[A-Za-z][A-Za-z0-9-]*(?:="[^"]*")?)*)[ \t]+([A-Za-z-]*)$/.exec(before);
+  if (element !== null && attribute !== null) {
+    const [, written, typed] = attribute as unknown as [string, string, string];
     const present = new Set([...written.matchAll(/([A-Za-z][A-Za-z0-9-]*)(?:="[^"]*")?/g)].map((match) => match[1]));
     return TAG_ATTRIBUTES[element]!.filter((name) => !present.has(name)).map((name) => ({
       label: name,
@@ -92,14 +78,14 @@ function loreItems(lines: readonly string[], position: Position, before: string,
     }));
   }
 
-  if (place.entry === null && place.open === "defaults") {
+  if (place.at === "block" && place.name === "defaults") {
     const field = /^[ \t]*(category|severity):[ \t]*([a-z0-9_]*)$/.exec(before);
     if (field === null) return [];
     const [, key, typed] = field as unknown as [string, string, string];
     return (key === "category" ? facts.categories : SEVERITIES).map((label) => valueItem(label, replace(typed.length)));
   }
 
-  if (place.entry !== null && place.open === "when") {
+  if (place.at === "children" && place.child === "when") {
     const key = /^[ \t]*([A-Za-z]*)$/.exec(before);
     if (key === null) return [];
     return WHEN_KEYS.map((name) => ({

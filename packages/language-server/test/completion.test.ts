@@ -59,6 +59,35 @@ describe("completion", () => {
     expect(at("<rule id=\"a\">\nText.\n</rule>\n  <|", "lore")).toEqual([]);
   });
 
+  test("no child tags once the prose has started", () => {
+    expect(at("<rule id=\"a\">\nSome prose.\n<|", "lore")).toEqual([]);
+    expect(at("<rule id=\"a\">\nSome prose.\n  <|\n</rule>\n", "lore")).toEqual([]);
+    expect(labels(at("<rule id=\"a\">\n\n<|\nSome prose.\n</rule>\n", "lore"))).toEqual(["meta", "scope", "when", "check"]);
+  });
+
+  test("a tag-shaped block after the prose starts is prose, so its keys get no completion", () => {
+    const shape = "<rule id=\"currency-from-settings\" category=\"functional_correctness\">\n"
+      + "Display text never hard-codes a currency code.\n<when>\n|\n</when>\n</rule>\n";
+    expect(at(shape, "lore")).toEqual([]);
+  });
+
+  test("a fenced closing tag in prose does not end the entry", () => {
+    const fenced = "<rule id=\"a\">\nShown like this:\n\n```lore\n<rule id=\"b\">\nText.\n</rule>\n```\n<|\n</rule>\n";
+    expect(at(fenced, "lore")).toEqual([]);
+    expect(labels(at(`${fenced.replace("<|", "More.")}\n<|`, "lore"))).toEqual(["rule", "context", "defaults", "scope"]);
+  });
+
+  test("comments and closed elements above are read in order", () => {
+    expect(labels(at("<!-- note\n<rule id=\"x\">\n-->\n<|", "lore"))).toEqual(["rule", "context", "defaults", "scope"]);
+    expect(at("<!-- note\n<|", "lore")).toEqual([]);
+    expect(labels(at("<defaults>\nseverity: blocking\n</defaults>\n\n<rule id=\"a\">\n<|", "lore"))).toEqual(["meta", "scope", "when", "check"]);
+  });
+
+  test("a child the entry already has is not offered again", () => {
+    const text = "<rule id=\"a\">\n<meta>\nowner: pricing\n</meta>\n<|\n<when>\nchanged: [\"x\"]\n</when>\n<check>\nx\n</check>\nText.\n</rule>\n";
+    expect(labels(at(text, "lore"))).toEqual(["scope", "check"]);
+  });
+
   test("attribute names per element, leaving out those already written", () => {
     expect(labels(at("<rule id=\"a\" |", "lore"))).toEqual(["category", "severity", "disabled"]);
     expect(labels(at("<context id=\"a\" |>", "lore"))).toEqual(["src", "disabled"]);

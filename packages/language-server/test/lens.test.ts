@@ -40,6 +40,14 @@ describe("could apply lens", () => {
     expect(shown(couldApply(diagnose(input), ROOT, "docs/guide.md"))).toBe("Lore: could apply: docs-linked, checkout-notes");
   });
 
+  test("a lens that cannot open its entry has a command with an empty id", () => {
+    const input = { repo: [{ path: ".lore/a.lore", content: rule("a") }], given: [], remotes: [] };
+    expect(couldApply(diagnose(input), ROOT, "src/app.ts", false)).toEqual([{
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+      command: { title: "Lore: could apply: a", command: "" },
+    }]);
+  });
+
   test("a file no entry covers, or a repository with no rules, gets no lens", () => {
     const covered = { repo: [{ path: ".lore/a.lore", content: rule("a", "src/**") }], given: [], remotes: [] };
     expect(couldApply(diagnose(covered), ROOT, "README.md")).toEqual([]);

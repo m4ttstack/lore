@@ -5,6 +5,7 @@ export const CHILD_TAGS: Readonly<Record<EntryKind, readonly string[]>> = {
   rule: ["meta", "scope", "when", "check"],
   context: ["meta", "scope", "when"],
 };
+export const SINGLE_CHILDREN: ReadonlySet<string> = new Set(["meta", "scope", "when"]);
 // Tags written with attributes; the others take none.
 export const TAG_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
   rule: ["id", "category", "severity", "disabled"],

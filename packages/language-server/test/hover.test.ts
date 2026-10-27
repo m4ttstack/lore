@@ -28,6 +28,17 @@ describe("hover", () => {
     expect(text(hover(content, { line: 8, character: 3 }, facts))).toMatch(/^`<rule>`: .+\.$/);
   });
 
+  test("tag-shaped lines in prose or in a fence are not described", () => {
+    const content = "<rule id=\"a\">\nDisplay text never hard-codes a currency code.\n<when>\nchanged: [\"x\"]\n</when>\n\n"
+      + "```lore\n<rule id=\"b\">\n</rule>\n```\n</rule>\n";
+    const facts = { diagnostics: [], entries: [] };
+    expect(hover(content, { line: 2, character: 2 }, facts)).toBeNull();
+    expect(hover(content, { line: 3, character: 2 }, facts)).toBeNull();
+    expect(hover(content, { line: 7, character: 2 }, facts)).toBeNull();
+    expect(hover(content, { line: 8, character: 3 }, facts)).toBeNull();
+    expect(text(hover(content, { line: 10, character: 3 }, facts))).toMatch(/^`<rule>`: /);
+  });
+
   test("an entry's opening tag shows its resolved scope", () => {
     const content = "<scope>\nfiles: [\"src/**\"]\n</scope>\n\n<rule id=\"a\">\n  <scope>\n  ignores: [\"gen/**\"]\n  </scope>\nText.\n</rule>\n";
     const name = "web/.lore/a.lore";

@@ -16,15 +16,21 @@ const located = new WeakMap<DocumentModel, Map<string, Map<string, Located>>>();
 
 // Scope and disable only: `<when>` depends on a change, so a covering entry could apply, not does.
 // One lens per entry, so each opens its own entry; read together, their titles are "Lore: could apply: a, b".
-export function couldApply(analysis: { input: LoreInput; model: DocumentModel }, root: string, path: string): CodeLens[] {
+// Without `openable` (a client that cannot show a document), a lens command has an empty id, which VS Code shows as plain text.
+export function couldApply(
+  analysis: { input: LoreInput; model: DocumentModel },
+  root: string,
+  path: string,
+  openable = true,
+): CodeLens[] {
   const found = coveringEntries(analysis.input, analysis.model, path).flatMap((entry) => {
     const place = locate(analysis, root, entry);
     return place === undefined ? [] : [{ id: entry.id, place }];
   });
-  return found.map(({ id, place }, n) => ({
-    range: TOP,
-    command: { title: n === 0 ? TITLE + id : id, command: OPEN_ENTRY, arguments: [place.uri, place.line] },
-  }));
+  return found.map(({ id, place }, n) => {
+    const title = n === 0 ? TITLE + id : id;
+    return { range: TOP, command: openable ? { title, command: OPEN_ENTRY, arguments: [place.uri, place.line] } : { title, command: "" } };
+  });
 }
 
 function locate({ input, model }: { input: LoreInput; model: DocumentModel }, root: string, entry: Entry): Located | undefined {

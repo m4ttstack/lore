@@ -33,9 +33,12 @@ const documents = new TextDocuments(TextDocument);
 let workspaceFolders: string[] = [];
 let configurationSupport = false;
 let lensRefreshSupport = false;
+let showDocumentSupport = false;
 let pushedSettings: unknown;
 let states = new Map<string, DocumentState>();
 const warnedFolders = new Set<string>();
+// A source document's root, found once while it stays open.
+const sourceRoots = new Map<string, Promise<string>>();
 const schedule = debounced(refresh, DEBOUNCE_MS, logFailure);
 
 connection.onInitialize(async (params) => {
@@ -43,6 +46,7 @@ connection.onInitialize(async (params) => {
   workspaceFolders = await Promise.all(folders.flatMap((uri) => pathOf(uri) ?? []).map(canonicalPath));
   configurationSupport = params.capabilities.workspace?.configuration === true;
   lensRefreshSupport = params.capabilities.workspace?.codeLens?.refreshSupport === true;
+  showDocumentSupport = params.capabilities.window?.showDocument?.support === true;
   return {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -67,6 +71,7 @@ documents.onDidChangeContent(({ document }) => {
 documents.onDidSave(schedule);
 documents.onDidClose(({ document }) => {
   connection.sendDiagnostics({ uri: document.uri, diagnostics: [] });
+  sourceRoots.delete(document.uri);
   schedule();
 });
 
@@ -91,12 +96,12 @@ connection.onHover(async ({ textDocument, position }) => {
 connection.onCodeLens(async ({ textDocument }) => {
   await schedule.settled();
   const state = states.get(textDocument.uri);
-  return state?.kind === "source" ? couldApply(state.analysis, state.root, state.path) : [];
+  return state?.kind === "source" ? couldApply(state.analysis, state.root, state.path, showDocumentSupport) : [];
 });
 
 connection.onExecuteCommand(async ({ command, arguments: args }) => {
   const [uri, line] = args ?? [];
-  if (command !== OPEN_ENTRY || typeof uri !== "string" || typeof line !== "number") return;
+  if (command !== OPEN_ENTRY || typeof uri !== "string" || !isLoreUri(uri) || !Number.isInteger(line) || line < 0) return;
   const at = { line, character: 0 };
   await connection.window.showDocument({ uri, selection: { start: at, end: at }, takeFocus: true });
 });
@@ -119,15 +124,26 @@ async function refresh(): Promise<void> {
     if (found === undefined) repositories.set(dir, (found = repositoryRoot(dir)));
     return found;
   };
-  for (const document of documents.all()) {
-    const raw = pathOf(document.uri);
-    if (raw === null) continue;
+  const found = await Promise.all(documents.all().map(async ({ uri }) => {
+    const raw = pathOf(uri);
+    if (raw === null) return null;
     const path = await canonicalPath(raw);
-    open.set(path, document.getText());
-    const root = await rootOf(path, repositoryOf);
-    const group = byRoot.get(root) ?? { lore: [], source: [] };
-    byRoot.set(root, group);
-    group[isLorePath(path) ? "lore" : "source"].push({ uri: document.uri, path });
+    const lore = isLorePath(path);
+    let root = lore ? undefined : sourceRoots.get(uri);
+    if (root === undefined) {
+      root = rootOf(path, repositoryOf);
+      if (!lore && documents.get(uri) !== undefined) sourceRoots.set(uri, root);
+    }
+    return { uri, path, lore, root: await root };
+  }));
+  for (const file of found) {
+    if (file === null) continue;
+    const document = documents.get(file.uri);
+    if (document === undefined) continue;
+    open.set(file.path, document.getText());
+    const group = byRoot.get(file.root) ?? { lore: [], source: [] };
+    byRoot.set(file.root, group);
+    group[file.lore ? "lore" : "source"].push({ uri: file.uri, path: file.path });
   }
 
   const inputs = new Map<string, Promise<LoreInput>>();

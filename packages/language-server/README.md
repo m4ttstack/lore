@@ -9,7 +9,7 @@ A language server for Lore. It reports the parser's errors and warnings for ever
 
 ## Which rules could apply
 
-In any other file of a governed repository, a code lens on the first line lists the rules and context whose scope covers the file: `Lore: could apply: <id>, <id>`. Each id is its own lens, so editors show them side by side, and clicking one runs the server's `lore.openEntry` command, which asks the editor to open the entry's file at its opening tag. Disabled entries, and entries a `disable` list switches off for that path, are left out. `<when>` conditions depend on a change and are not evaluated, so the lens says "could apply". A file no entry covers gets no lens.
+In any other file of a governed repository, a code lens on the first line lists the rules and context whose scope covers the file: `Lore: could apply: <id>, <id>`. Each id is its own lens, so VS Code shows them side by side with ` | ` between them (`Lore: could apply: a | b`), and clicking one runs the server's `lore.openEntry` command, which asks the editor to open the entry's file at its opening tag. A client that cannot open documents for the server (no `window.showDocument` support) gets the same lenses as plain text. Disabled entries, and entries a `disable` list switches off for that path, are left out. `<when>` conditions depend on a change and are not evaluated, so the lens says "could apply". A file no entry covers gets no lens.
 
 The client must send these other files to the server (a `{ scheme: "file" }` document selector); only their paths matter, so editing one does not trigger a refresh.
 

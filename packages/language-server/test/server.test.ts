@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -45,9 +45,11 @@ function uri(path: string): string {
   return pathToFileURL(path).href;
 }
 
-interface StartOptions { env?: Record<string, string>; folders?: string[]; externalFolders?: string[]; logs?: string[] }
+interface StartOptions {
+  env?: Record<string, string>; folders?: string[]; externalFolders?: string[]; logs?: string[]; showDocument?: boolean;
+}
 
-async function start(workspace: string, { env = {}, folders = [], externalFolders = [], logs = [] }: StartOptions = {}): Promise<Client> {
+async function start(workspace: string, { env = {}, folders = [], externalFolders = [], logs = [], showDocument = true }: StartOptions = {}): Promise<Client> {
   const child = spawn(NODE, [BIN, "--stdio"], { env: { ...process.env, ...env }, stdio: ["pipe", "pipe", "inherit"] });
   const connection = createMessageConnection(new StreamMessageReader(child.stdout!), new StreamMessageWriter(child.stdin!));
   const latest = new Map<string, PublishedDiagnostic[]>();
@@ -67,7 +69,7 @@ async function start(workspace: string, { env = {}, folders = [], externalFolder
     processId: process.pid,
     rootUri: uri(workspace),
     workspaceFolders: [workspace, ...folders].map((path) => ({ uri: uri(path), name: path })),
-    capabilities: { workspace: { configuration: true } },
+    capabilities: { workspace: { configuration: true }, window: { showDocument: { support: showDocument } } },
   });
   connection.sendNotification("initialized", {});
   const versions = new Map<string, number>();
@@ -277,6 +279,58 @@ describe("completion, hover and the could-apply lens over stdio", () => {
       selection: { start: { line: 2, character: 0 }, end: { line: 2, character: 0 } },
       takeFocus: true,
     }]);
+  });
+
+  test("lore.openEntry ignores arguments that do not name a Lore file and a line", async () => {
+    const root = folder();
+    const lore = join(root, ".lore/checkout.lore");
+    const client = await start(root);
+    const shown: unknown[] = [];
+    client.connection.onRequest("window/showDocument", (params: unknown) => {
+      shown.push(params);
+      return { success: true };
+    });
+    for (const args of [[uri(join(root, "src/app.ts")), 2], [uri(lore), -1], [uri(lore), 1.5], ["untitled:Untitled-1", 0], [uri(lore)]]) {
+      await client.connection.sendRequest("workspace/executeCommand", { command: "lore.openEntry", arguments: args });
+    }
+    expect(shown).toEqual([]);
+  });
+
+  test("without showDocument support the lens is plain text", async () => {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    write(root, ".lore/checkout.lore", RULE);
+    const source = join(root, "src/app.ts");
+    const client = await start(root, { showDocument: false });
+    client.open(source, "export {};\n");
+    expect(await client.connection.sendRequest("textDocument/codeLens", { textDocument: { uri: uri(source) } })).toEqual([{
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+      command: { title: "Lore: could apply: price-from-quote", command: "" },
+    }]);
+  });
+
+  test("open source files in one folder find their repository once across refreshes", async () => {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    write(root, ".lore/checkout.lore", RULE);
+    const bin = join(root, "..", `${root.split("/").at(-1)}-bin`);
+    made.push(bin);
+    const log = join(bin, "git.log");
+    mkdirSync(bin);
+    write(bin, "git", `#!/bin/sh\necho "$(pwd -P) $*" >> "${log}"\nexec "${Bun.which("git")}" "$@"\n`);
+    chmodSync(join(bin, "git"), 0o755);
+    const sources = Array.from({ length: 5 }, (_, n) => join(root, `src/file-${n}.ts`));
+    for (const source of sources) write(root, source.slice(root.length + 1), "export {};\n");
+    const client = await start(root, { env: { PATH: `${bin}:${process.env.PATH}` } });
+    for (const source of sources) client.open(source, "export {};\n");
+    const lens = () => client.connection.sendRequest("textDocument/codeLens", { textDocument: { uri: uri(sources[0]!) } }) as Promise<unknown[]>;
+    expect(await lens()).toHaveLength(1);
+    client.connection.sendNotification("textDocument/didSave", { textDocument: { uri: uri(sources[1]!) } });
+    expect(await lens()).toHaveLength(1);
+    expect(existsSync(log)).toBe(true);
+    const lookups = readFileSync(log, "utf8").split("\n")
+      .filter((line) => line.startsWith(`${join(root, "src")} `) && line.includes(" rev-parse "));
+    expect(lookups).toHaveLength(1);
   });
 
   test("completion offers the file's categories and hover describes a diagnostic", async () => {

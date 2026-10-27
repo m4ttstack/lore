@@ -53,9 +53,9 @@ describe("debounced", () => {
       throw new Error("reporter down");
     });
     schedule();
-    await wait(30);
+    await schedule.settled();
     schedule();
-    await wait(30);
+    await schedule.settled();
     expect(runs).toBe(2);
   });
 
