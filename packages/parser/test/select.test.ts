@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { extractExamples } from "../../../tools/check/extract";
-import { coveringEntries, parse, select } from "../src/index";
+import { coveringEntries, missingSrcTargets, parse, select } from "../src/index";
 import { RegexLimitError } from "../src/regex";
 import type { Change, Diagnostic, LoreInput, SelectOptions } from "../src/types";
 import { astGrepBinary, stubAstGrep, toChange, toInput } from "./harness";
@@ -164,6 +164,31 @@ describe("select: counted files and disable", () => {
     const plain = repo({ "legacy/.lore/a.lore": rule("legacy-removals-logged") + rule("legacy-usd", "<when>\naddedContains: [\"'USD'\"]\n</when>\n") });
     const result = await select(plain, change("D legacy/Price.tsx"), ALL);
     expect(result.eligible).toEqual(["legacy-removals-logged"]);
+  });
+});
+
+describe("missingSrcTargets", () => {
+  test("reports a src the governed repository does not hold, with no change", () => {
+    const input = repo({
+      ".lore/a.lore": '<context id="architecture" src="docs/architecure.md">\n</context>\n',
+      "docs/architecture.md": "# Architecture\n",
+    });
+    expect(brief(missingSrcTargets(input, parse(input)))).toEqual([
+      { name: "missing-src-target", file: ".lore/a.lore", entry: "architecture", line: 1 },
+    ]);
+    const fixed = repo({
+      ".lore/a.lore": '<context id="architecture" src="docs/architecture.md">\n</context>\n',
+      "docs/architecture.md": "# Architecture\n",
+    });
+    expect(missingSrcTargets(fixed, parse(fixed))).toEqual([]);
+  });
+
+  test("a model not built by parse is parsed again", () => {
+    const input = repo({ ".lore/a.lore": '<context id="architecture" src="docs/gone.md">\n</context>\n' });
+    const copy = structuredClone(parse(input));
+    expect(brief(missingSrcTargets(input, copy))).toEqual([
+      { name: "missing-src-target", file: ".lore/a.lore", entry: "architecture", line: 1 },
+    ]);
   });
 });
 

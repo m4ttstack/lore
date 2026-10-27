@@ -2,6 +2,8 @@
 
 A language server for Lore. It reports the parser's errors and warnings for every open `.lore` and `.loreconfig` file, named by registry name with the registry description, on the span the parser gives.
 
+`missing-src-target` needs the governed repository's files, so it shows only when git lists that repository: not without git, and not for a rules repository checked on its own.
+
 ## Authoring help
 
 - Completion: tags at column 0 and inside entries, attribute names per element, the categories in effect for the file (the fixed ones plus those a `.loreconfig` adds), `blocking` and `advisory`, `regex` and `ast-grep`, `<when>` keys, and known ids inside a `.loreconfig` `disable` list.
@@ -32,7 +34,9 @@ node packages/language-server/bin/lore-language-server.js --stdio
 
 The server counts the files git tracks plus untracked files git does not ignore, and reads open buffers over the files on disk. A new or unsaved `.lore` or `.loreconfig` file takes effect at once. Review-time tools collect tracked files only.
 
-Diagnostics, and the state completion, hover and the lens read, re-run 150 ms after the last edit to a Lore file or after a file opens or closes.
+Diagnostics, and the state completion, hover and the lens read, re-run 150 ms after the last edit to a Lore file, after a file opens or closes, or after a `.lore` or `.loreconfig` file changes on disk. For the last, the server registers watchers for `**/*.lore` and `**/.loreconfig` when the client supports dynamic registration, so a `git checkout` or `git pull` updates diagnostics and lenses.
+
+A refresh that fails for a repository is logged with its stack, and the first failure for that repository also shows a warning.
 
 ## Settings
 

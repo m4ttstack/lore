@@ -40,7 +40,7 @@ export async function select(input: LoreInput, change: Change, options: SelectOp
     astGrep: capabilities.has("ast-grep") ? binary : null,
     regexes,
   });
-  const warnings = [...model.warnings, ...missingSrcTargets(model, placeOf, collected, input, changed), ...checks.warnings];
+  const warnings = [...model.warnings, ...srcTargetsMissing(model, placeOf, collected, input, changed), ...checks.warnings];
   return {
     eligible: selected.map(({ entry }) => entry.id).sort(compareCodePoints),
     hits: checks.hits.sort(compareHits),
@@ -187,8 +187,14 @@ async function runAtOnce(runs: readonly (() => Promise<void>)[], limit: number):
   await Promise.all(Array.from({ length: Math.min(limit, runs.length) }, worker));
 }
 
+// The missing-src-target warnings with no change: input.repo must list the governed repository's files.
+export function missingSrcTargets(input: LoreInput, model: DocumentModel): Diagnostic[] {
+  const parsed = parsedContextOf(model) ?? parseWithContext(input);
+  return srcTargetsMissing(parsed.model, parsed.placeOf, parsed.collected, input, []);
+}
+
 // A target counts when the governed repo, as the change leaves it, or the context's own repository tracks it.
-function missingSrcTargets(
+function srcTargetsMissing(
   model: DocumentModel,
   placeOf: WeakMap<Entry, EntryPlace>,
   collected: Collected,

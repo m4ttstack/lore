@@ -1,15 +1,15 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, sep } from "node:path";
 import {
-  CodeLensRefreshRequest, createConnection, ProposedFeatures, TextDocuments, TextDocumentSyncKind,
-  type Diagnostic as LspDiagnostic,
+  CodeLensRefreshRequest, createConnection, DidChangeWatchedFilesNotification, MessageType, ProposedFeatures, ShowMessageNotification,
+  TextDocuments, TextDocumentSyncKind, type Diagnostic as LspDiagnostic,
 } from "vscode-languageserver/node";
 import { FIXED_CATEGORIES, type LoreInput } from "@lore/parser";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
 import { complete, factsFor, type CompletionFacts } from "./completion";
 import { collectedNames, diagnose, structureDiagnostics, type Analysis } from "./diagnostics";
-import { buildInput, canonicalPath, isLorePath, pathWithin, repositoryRoot } from "./files";
+import { buildInput, canonicalPath, isLorePath, listsGovernedFiles, pathWithin, repositoryRoot } from "./files";
 import { hover } from "./hover";
 import { couldApply, OPEN_ENTRY } from "./lens";
 import { externalName, governs, markOver, marksOf, repoKey, rulesInput, type Mark } from "./marks";
@@ -20,6 +20,7 @@ const LORE_FOLDER = ".lore";
 const LORE_EXTENSION = ".lore";
 const CONFIG_NAME = ".loreconfig";
 const FALLBACK_FACTS: CompletionFacts = { categories: [...FIXED_CATEGORIES], ids: [] };
+const WATCHED = [{ globPattern: "**/*.lore" }, { globPattern: "**/.loreconfig" }];
 
 interface OpenFile { uri: string; path: string }
 
@@ -34,9 +35,11 @@ let workspaceFolders: string[] = [];
 let configurationSupport = false;
 let lensRefreshSupport = false;
 let showDocumentSupport = false;
+let watchRegistrationSupport = false;
 let pushedSettings: unknown;
 let states = new Map<string, DocumentState>();
 const warnedFolders = new Set<string>();
+const warnedRoots = new Set<string>();
 // A source document's root, found once while it stays open.
 const sourceRoots = new Map<string, Promise<string>>();
 const schedule = debounced(refresh, DEBOUNCE_MS, logFailure);
@@ -47,6 +50,7 @@ connection.onInitialize(async (params) => {
   configurationSupport = params.capabilities.workspace?.configuration === true;
   lensRefreshSupport = params.capabilities.workspace?.codeLens?.refreshSupport === true;
   showDocumentSupport = params.capabilities.window?.showDocument?.support === true;
+  watchRegistrationSupport = params.capabilities.workspace?.didChangeWatchedFiles?.dynamicRegistration === true;
   return {
     capabilities: {
       textDocumentSync: TextDocumentSyncKind.Incremental,
@@ -57,6 +61,13 @@ connection.onInitialize(async (params) => {
     },
   };
 });
+
+connection.onInitialized(() => {
+  if (watchRegistrationSupport) connection.client.register(DidChangeWatchedFilesNotification.type, { watchers: WATCHED }).catch(logFailure);
+});
+
+// A checkout or pull changes Lore files on disk without an editor event.
+connection.onDidChangeWatchedFiles(schedule);
 
 connection.onDidChangeConfiguration((change) => {
   pushedSettings = change.settings;
@@ -159,7 +170,7 @@ async function refresh(): Promise<void> {
   const analyses = new Map<string, Analysis>();
   const analysisOf = (key: string, input: LoreInput): Analysis => {
     let analysis = analyses.get(key);
-    if (analysis === undefined) analyses.set(key, (analysis = diagnose(input)));
+    if (analysis === undefined) analyses.set(key, (analysis = diagnose(input, { governedFiles: listsGovernedFiles(input) })));
     return analysis;
   };
   const governed = await governedRoots();
@@ -207,6 +218,7 @@ async function refresh(): Promise<void> {
       }
     } catch (error) {
       logFailure(error);
+      warnRefreshFailed(root);
     }
   }
   states = next;
@@ -271,6 +283,13 @@ function warnSkipped(folder: string): void {
   if (warnedFolders.has(folder)) return;
   warnedFolders.add(folder);
   connection.console.warn(`lore: lore.externalFolders entry ${folder} is missing or not inside a git repository; it is skipped`);
+}
+
+function warnRefreshFailed(root: string): void {
+  if (warnedRoots.has(root)) return;
+  warnedRoots.add(root);
+  const message = `Lore could not refresh diagnostics for ${root}; the Lore output has the details.`;
+  void connection.sendNotification(ShowMessageNotification.type, { type: MessageType.Warning, message });
 }
 
 function logFailure(error: unknown): void {

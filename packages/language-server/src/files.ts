@@ -4,6 +4,13 @@ import { access, readFile, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { GivenFolder, InputFile, LoreInput } from "@lore/parser";
 
+// Inputs whose repo is the governed repository's own listing, so a src target missing from it is really missing.
+const listedInputs = new WeakSet<LoreInput>();
+
+export function listsGovernedFiles(input: LoreInput): boolean {
+  return listedInputs.has(input);
+}
+
 // Keys are canonical absolute paths (see canonicalPath); values are the buffer text.
 export type OpenDocuments = ReadonlyMap<string, string>;
 
@@ -70,7 +77,9 @@ export async function buildInput(
   const listed = await listFiles(root);
   const repo = listed === null ? openUnder(root, openDocuments) : await readFiles(root, listed, openDocuments);
   const given = await givenFolders(root, externalFolders, openDocuments, onSkipped);
-  return { repo, given, remotes: listed === null ? [] : await remotes(root) };
+  const input = { repo, given, remotes: listed === null ? [] : await remotes(root) };
+  if (listed !== null) listedInputs.add(input);
+  return input;
 }
 
 async function givenFolders(

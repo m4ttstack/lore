@@ -1,4 +1,4 @@
-import { parseFile, parseWithContext, type Collected, type Diagnostic, type DocumentModel, type LoreInput } from "@lore/parser";
+import { missingSrcTargets, parseFile, parseWithContext, type Collected, type Diagnostic, type DocumentModel, type LoreInput } from "@lore/parser";
 import { DiagnosticSeverity, type Diagnostic as LspDiagnostic } from "vscode-languageserver/node";
 import registry from "../../../spec/errors.json";
 
@@ -17,7 +17,8 @@ export interface Analysis {
   byFile: ReadonlyMap<string, LspDiagnostic[]>;
 }
 
-export function diagnose(input: LoreInput): Analysis {
+// governedFiles: input.repo lists the governed repository's files, so missing src targets are reported.
+export function diagnose(input: LoreInput, { governedFiles = false }: { governedFiles?: boolean } = {}): Analysis {
   const { model, collected } = parseWithContext(input);
   const byFile = new Map<string, LspDiagnostic[]>();
   const add = (diagnostic: Diagnostic, severity: DiagnosticSeverity) => {
@@ -27,6 +28,7 @@ export function diagnose(input: LoreInput): Analysis {
   };
   for (const error of model.errors) add(error, DiagnosticSeverity.Error);
   for (const warning of model.warnings) add(warning, DiagnosticSeverity.Warning);
+  if (governedFiles) for (const warning of missingSrcTargets(input, model)) add(warning, DiagnosticSeverity.Warning);
   return { input, model, collected, byFile };
 }
 

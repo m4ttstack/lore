@@ -47,9 +47,14 @@ function uri(path: string): string {
 
 interface StartOptions {
   env?: Record<string, string>; folders?: string[]; externalFolders?: string[]; logs?: string[]; showDocument?: boolean;
+  messages?: { type: number; message: string }[];
+  registrations?: { id: string; method: string; registerOptions?: unknown }[];
+  configuration?: () => unknown;
 }
 
-async function start(workspace: string, { env = {}, folders = [], externalFolders = [], logs = [], showDocument = true }: StartOptions = {}): Promise<Client> {
+async function start(workspace: string, options: StartOptions = {}): Promise<Client> {
+  const { env = {}, folders = [], externalFolders = [], logs = [], showDocument = true, messages = [], registrations } = options;
+  const configuration = options.configuration ?? (() => ({ externalFolders }));
   const child = spawn(NODE, [BIN, "--stdio"], { env: { ...process.env, ...env }, stdio: ["pipe", "pipe", "inherit"] });
   const connection = createMessageConnection(new StreamMessageReader(child.stdout!), new StreamMessageWriter(child.stdin!));
   const latest = new Map<string, PublishedDiagnostic[]>();
@@ -62,14 +67,22 @@ async function start(workspace: string, { env = {}, folders = [], externalFolder
     }
   });
   connection.onNotification("window/logMessage", (params: { message: string }) => logs.push(params.message));
+  connection.onNotification("window/showMessage", (params: { type: number; message: string }) => messages.push(params));
   connection.onRequest("workspace/configuration", (params: { items: { section?: string }[] }) =>
-    params.items.map(() => ({ externalFolders })));
+    params.items.map(() => configuration()));
+  connection.onRequest("client/registerCapability", (params: { registrations: { id: string; method: string; registerOptions?: unknown }[] }) => {
+    registrations?.push(...params.registrations);
+    return null;
+  });
   connection.listen();
   await connection.sendRequest("initialize", {
     processId: process.pid,
     rootUri: uri(workspace),
     workspaceFolders: [workspace, ...folders].map((path) => ({ uri: uri(path), name: path })),
-    capabilities: { workspace: { configuration: true }, window: { showDocument: { support: showDocument } } },
+    capabilities: {
+      workspace: { configuration: true, didChangeWatchedFiles: { dynamicRegistration: registrations !== undefined } },
+      window: { showDocument: { support: showDocument } },
+    },
   });
   connection.sendNotification("initialized", {});
   const versions = new Map<string, number>();
@@ -93,6 +106,10 @@ async function start(workspace: string, { env = {}, folders = [], externalFolder
   };
   clients.push(client);
   return client;
+}
+
+async function until(condition: () => boolean): Promise<void> {
+  while (!condition()) await new Promise((done) => setTimeout(done, 20));
 }
 
 function names(diagnostics: PublishedDiagnostic[]): string[] {
@@ -190,6 +207,34 @@ describe("language server over stdio", () => {
     expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["top-level-text"]);
   });
 
+  test("a refresh that fails is logged, warned about once for its root, and the connection survives", async () => {
+    const root = folder();
+    const lore = join(root, ".lore/checkout.lore");
+    const logs: string[] = [];
+    const messages: { type: number; message: string }[] = [];
+    let failing = true;
+    const client = await start(root, {
+      logs,
+      messages,
+      configuration: () => {
+        if (failing) throw new Error("settings unavailable");
+        return { externalFolders: [] };
+      },
+    });
+    const failures = () => logs.filter((log) => log.includes("lore: refresh failed")).length;
+    client.open(lore, "stray text\n");
+    await until(() => failures() >= 1);
+    client.change(lore, "more stray text\n");
+    await until(() => failures() >= 2);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toMatchObject({ type: 2 });
+    expect(messages[0]!.message).toContain(root);
+    failing = false;
+    client.change(lore, "stray text\n");
+    expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["top-level-text"]);
+    expect(messages).toHaveLength(1);
+  });
+
   test("an untracked file on disk takes part", async () => {
     const root = folder();
     execFileSync("git", ["init", "-q"], { cwd: root });
@@ -198,6 +243,63 @@ describe("language server over stdio", () => {
     const lore = join(root, ".lore/checkout.lore");
     const client = await start(root);
     client.open(lore, rule);
+    expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["duplicate-id"]);
+  });
+});
+
+describe("missing-src-target", () => {
+  const CONTEXT = "<context id=\"architecture\" src=\"docs/architecure.md\">\nRead first.\n</context>\n";
+
+  test("a src the git repository does not hold is reported", async () => {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    write(root, "docs/architecture.md", "# Architecture\n");
+    const lore = join(root, ".lore/checkout.lore");
+    const client = await start(root);
+    client.open(lore, CONTEXT);
+    const [warning] = await client.published(lore, (d) => d.length > 0);
+    expect(warning).toMatchObject({ code: "missing-src-target", severity: 2, range: { start: { line: 0 } } });
+    client.change(lore, CONTEXT.replace("architecure", "architecture"));
+    expect(await client.published(lore, (d) => d.length === 0)).toEqual([]);
+  });
+
+  test("without git the repository's files are unknown, so nothing is reported", async () => {
+    const root = folder();
+    const lore = join(root, ".lore/checkout.lore");
+    const client = await start(root);
+    client.open(lore, CONTEXT);
+    expect(await client.published(lore)).toEqual([]);
+  });
+
+  test("a rules repository with no governed repository open reports nothing", async () => {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    write(root, "shop/.loreconfig", "lore: 1\nrepo: github.com/acme/shop\n");
+    const lore = join(root, "shop/.lore/checkout.lore");
+    const client = await start(root);
+    client.open(lore, CONTEXT);
+    expect(await client.published(lore)).toEqual([]);
+  });
+});
+
+describe("watched files", () => {
+  test("registers watchers for Lore files and refreshes when one changes on disk", async () => {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    const rule = "<rule id=\"same\" category=\"functional_correctness\">\nText.\n</rule>\n";
+    const lore = join(root, ".lore/checkout.lore");
+    const registrations: { id: string; method: string; registerOptions?: unknown }[] = [];
+    const client = await start(root, { registrations });
+    client.open(lore, rule);
+    expect(await client.published(lore)).toEqual([]);
+    await until(() => registrations.length > 0);
+    expect(registrations).toEqual([{
+      id: expect.any(String),
+      method: "workspace/didChangeWatchedFiles",
+      registerOptions: { watchers: [{ globPattern: "**/*.lore" }, { globPattern: "**/.loreconfig" }] },
+    }]);
+    write(root, ".lore/other.lore", rule);
+    client.connection.sendNotification("workspace/didChangeWatchedFiles", { changes: [{ uri: uri(join(root, ".lore/other.lore")), type: 1 }] });
     expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["duplicate-id"]);
   });
 });
