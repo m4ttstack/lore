@@ -1,18 +1,28 @@
 const OUTSIDE = "regex-outside-dialect";
 const NOT_ONE_LINE = "regex-not-one-line";
 const MAX_BOUND = 1000;
+export const MAX_GROUP_NESTING = 1000;
 
 const CONTROL_ESCAPES: Readonly<Record<string, number>> = { t: 0x09, n: 0x0a, v: 0x0b, f: 0x0c, r: 0x0d };
 const ASCII_SPACE_MEMBERS = "\\x09-\\x0D\\x20";
 const NOT_ASCII_SPACE_MEMBERS = "\\x00-\\x08\\x0E-\\x1F\\x21-\\u{10FFFF}";
-const CLASS_IN_SET: Readonly<Record<string, string>> = {
+type ClassLetter = "d" | "D" | "w" | "W" | "s" | "S";
+const CLASS_IN_SET: Readonly<Record<ClassLetter, string>> = {
   d: "\\d", D: "\\D", w: "\\w", W: "\\W", s: ASCII_SPACE_MEMBERS, S: NOT_ASCII_SPACE_MEMBERS,
 };
-const CLASS_OUTSIDE_SET: Readonly<Record<string, string>> = {
+const CLASS_OUTSIDE_SET: Readonly<Record<ClassLetter, string>> = {
   ...CLASS_IN_SET, s: `[${ASCII_SPACE_MEMBERS}]`, S: `[^${ASCII_SPACE_MEMBERS}]`,
 };
 
-type Scan = { error: string } | { source: string };
+type Scan = { error: string } | { source: string; depth: number };
+
+export class RegexLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RegexLimitError";
+  }
+}
+
 type SetMember = { kind: "char"; cp: number; dash: boolean } | { kind: "class"; source: string };
 
 export function validateRegex(pattern: string): string | null {
@@ -28,7 +38,20 @@ export function validateDialect(pattern: string): string | null {
 export function toRegExp(pattern: string): RegExp {
   const scan = translate(pattern);
   if ("error" in scan) throw new Error(`${scan.error}: ${pattern}`);
-  return new RegExp(scan.source, "us");
+  if (scan.depth > MAX_GROUP_NESTING) {
+    throw new RegexLimitError(`groups nested ${scan.depth} deep, past the limit of ${MAX_GROUP_NESTING}: ${pattern}`);
+  }
+  try {
+    const regex = new RegExp(scan.source, "us");
+    // V8 compiles a regular expression on its first match, not when it is constructed.
+    regex.test("");
+    return regex;
+  } catch (error) {
+    if (error instanceof SyntaxError || error instanceof RangeError) {
+      throw new RegexLimitError(`the regular expression engine cannot compile this pattern (${error.message}): ${pattern}`);
+    }
+    throw error;
+  }
 }
 
 function translate(pattern: string): Scan {
@@ -41,6 +64,7 @@ function translate(pattern: string): Scan {
   let repeatable: "no" | "atom" | "group" = "no";
   let groupChain = 1;
   let quantified = false;
+  let depth = 0;
 
   for (let i = 0; i < chars.length; i++) {
     const c = charAt(chars, i);
@@ -72,7 +96,7 @@ function translate(pattern: string): Scan {
       case "\\": {
         const escape = readEscape(chars, i + 1);
         if (escape === null) return outside;
-        if (escape.kind === "class") out += CLASS_OUTSIDE_SET[escape.letter] ?? "";
+        if (escape.kind === "class") out += CLASS_OUTSIDE_SET[escape.letter];
         else if (escape.kind === "assertion") {
           out += `\\${escape.letter}`;
           repeatable = "no";
@@ -95,6 +119,7 @@ function translate(pattern: string): Scan {
           i += 2;
         }
         parents.push(chain);
+        depth = Math.max(depth, parents.length);
         chain = 1;
         out += "(?:";
         repeatable = "no";
@@ -122,7 +147,7 @@ function translate(pattern: string): Scan {
         out += emitChar(c.codePointAt(0) as number);
     }
   }
-  return parents.length === 0 ? { source: out } : outside;
+  return parents.length === 0 ? { source: out, depth } : outside;
 }
 
 function readBound(chars: string[], open: number): { bound: number; end: number } | null {
@@ -155,8 +180,8 @@ function readNumber(chars: string[], start: number): { value: number; end: numbe
 
 type Escape =
   | { kind: "char"; cp: number; end: number }
-  | { kind: "class"; letter: string; end: number }
-  | { kind: "assertion"; letter: string; end: number };
+  | { kind: "class"; letter: ClassLetter; end: number }
+  | { kind: "assertion"; letter: "b" | "B"; end: number };
 
 function readEscape(chars: string[], at: number): Escape | null {
   const c = charAt(chars, at);
@@ -167,7 +192,7 @@ function readEscape(chars: string[], at: number): Escape | null {
     const hex = (chars[at + 1] ?? "") + (chars[at + 2] ?? "");
     return /^[0-9a-fA-F]{2}$/.test(hex) ? { kind: "char", cp: parseInt(hex, 16), end: at + 3 } : null;
   }
-  if (Object.hasOwn(CLASS_IN_SET, c)) return { kind: "class", letter: c, end: at + 1 };
+  if (isClassLetter(c)) return { kind: "class", letter: c, end: at + 1 };
   if (c === "b" || c === "B") return { kind: "assertion", letter: c, end: at + 1 };
   return null;
 }
@@ -186,7 +211,7 @@ function readSet(chars: string[], open: number): { source: string; end: number }
       const escape = readEscape(chars, j + 1);
       if (escape === null || escape.kind === "assertion") return outside;
       members.push(escape.kind === "class"
-        ? { kind: "class", source: CLASS_IN_SET[escape.letter] ?? "" }
+        ? { kind: "class", source: CLASS_IN_SET[escape.letter] }
         : { kind: "char", cp: escape.cp, dash: false });
       j = escape.end;
       continue;
@@ -220,6 +245,10 @@ function readSet(chars: string[], open: number): { source: string; end: number }
 function emitChar(cp: number): string {
   if (cp < 0x80 && !/[A-Za-z0-9]/.test(String.fromCharCode(cp))) return `\\x${cp.toString(16).padStart(2, "0")}`;
   return String.fromCodePoint(cp);
+}
+
+function isClassLetter(c: string): c is ClassLetter {
+  return c.length === 1 && "dDwWsS".includes(c);
 }
 
 function isPunctuation(c: string): boolean {

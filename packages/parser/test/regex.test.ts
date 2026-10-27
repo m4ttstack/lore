@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "../src/model";
-import { toRegExp, validateDialect, validateRegex } from "../src/regex";
+import { RegexLimitError, toRegExp, validateDialect, validateRegex } from "../src/regex";
 
 const OUTSIDE = "regex-outside-dialect";
 
@@ -127,11 +127,19 @@ describe("validateRegex", () => {
     expect(validateRegex("[a-z]".repeat(depth))).toBeNull();
   });
 
-  test("validation is linear in the pattern's length", () => {
-    const pattern = "(a|b{2}|[c-e]?)".repeat(100_000);
-    const start = performance.now();
-    expect(validateRegex(pattern)).toBeNull();
-    expect(performance.now() - start).toBeLessThan(1000);
+  test("validation time grows linearly with the pattern's length", () => {
+    const time = (n: number) => {
+      const pattern = "((a|b{2}|[c-e]?)".repeat(n) + ")".repeat(n);
+      let best = Infinity;
+      for (let run = 0; run < 3; run++) {
+        const start = performance.now();
+        expect(validateRegex(pattern)).toBeNull();
+        best = Math.min(best, performance.now() - start);
+      }
+      return Math.max(best, 5);
+    };
+    time(10_000);
+    expect(time(80_000) / time(20_000)).toBeLessThan(10);
   });
 });
 
@@ -163,7 +171,7 @@ describe("toRegExp", () => {
   });
 
   test("\\s and \\S are ASCII sets, inside and outside a set", () => {
-    expect(matches("Total\\sUSD", "Total USD")).toBe(false);
+    expect(matches("Total\\sUSD", "Total\u00a0USD")).toBe(false);
     expect(matches("Total\\sUSD", "Total USD")).toBe(true);
     for (const space of [" ", "\t", "\n", "\v", "\f", "\r"]) {
       expect(matches("^\\s$", space)).toBe(true);
@@ -173,7 +181,7 @@ describe("toRegExp", () => {
       expect(matches("^[^\\s]$", space)).toBe(false);
       expect(matches("^[^\\S]$", space)).toBe(true);
     }
-    for (const other of [" ", " ", "\u0085", "﻿", "a", "\0", "😀"]) {
+    for (const other of ["\u00a0", "\u2003", "\u0085", "\ufeff", "a", "\0", "😀"]) {
       expect(matches("^\\s$", other)).toBe(false);
       expect(matches("^\\S$", other)).toBe(true);
       expect(matches("^[\\s]$", other)).toBe(false);
@@ -219,6 +227,19 @@ describe("toRegExp", () => {
     expect(matches("^(ab){2,3}$", "ab")).toBe(false);
     expect(matches("^a{0}b$", "b")).toBe(true);
     expect(matches("^a+?$", "aaa")).toBe(true);
+  });
+
+  test("groups nested past 1000 deep throw RegexLimitError before compiling", () => {
+    const nested = (depth: number) => "(a|".repeat(depth) + "b" + ")".repeat(depth);
+    expect(validateRegex(nested(1001))).toBeNull();
+    expect(() => toRegExp(nested(1001))).toThrow(RegexLimitError);
+    expect(() => toRegExp(nested(1001))).toThrow("1000");
+    expect(toRegExp(nested(1000)).test("zb")).toBe(true);
+    expect(toRegExp("(?:a|b)".repeat(5000)).test("ab".repeat(5000))).toBe(true);
+  });
+
+  test("an engine failure to compile is rethrown as RegexLimitError", () => {
+    expect(() => toRegExp("(a|b)".repeat(200_000))).toThrow(RegexLimitError);
   });
 
   test("throws on a pattern outside the dialect", () => {
