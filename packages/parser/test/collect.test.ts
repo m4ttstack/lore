@@ -210,7 +210,7 @@ describe("disabledFor", () => {
 describe("parseWithContext", () => {
   test("keeps each entry's base, external ones included", () => {
     const { model, placeOf } = parseWithContext(toInput(example(89)));
-    expect(model.entries.map((e) => placeOf.get(e))).toEqual([
+    expect(model.entries.map((e) => ({ base: placeOf.get(e)!.base, tree: placeOf.get(e)!.tree }))).toEqual([
       { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 },
     ]);
   });

@@ -20,7 +20,10 @@ export interface FileContext {
 
 export type EntryResult =
   | { id: string | null; error: Diagnostic }
-  | { id: string; entry: Entry; ownScope: WrittenScope | null; diagnostic(name: string, line?: number): Diagnostic };
+  | {
+    id: string; entry: Entry; ownScope: WrittenScope | null; checkLines: number[];
+    diagnostic(name: string, line?: number): Diagnostic;
+  };
 
 export interface WrittenScope { files: readonly string[]; line: number }
 
@@ -50,10 +53,14 @@ export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): E
 
   const values = new Map<string, unknown>();
   const checks: Check[] = [];
+  const checkLines: number[] = [];
   for (const [n, child] of node.children.entries()) {
     const read = readChild(child, contents.children[n]!, isRule ? RULE_CHILDREN : SINGLE_CHILDREN, values);
     if ("problem" in read) return fail(read.problem.name, read.problem.line);
-    if (read.check !== null) checks.push(read.check);
+    if (read.check !== null) {
+      checks.push(read.check);
+      checkLines.push(child.openLine);
+    }
   }
 
   const value = (name: string) => list.attributes.find((a) => a.name === name)?.value ?? undefined;
@@ -75,6 +82,7 @@ export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): E
   return {
     id: readableId, entry,
     ownScope: scope === undefined ? null : { files: scope.files ?? DEFAULT_FILES, line: scopeLine! },
+    checkLines,
     diagnostic: (name, line = node.openLine) => lineDiagnostic(name, lore, readableId, line),
   };
 }

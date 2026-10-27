@@ -175,16 +175,20 @@ function matchName(segment: Extract<Segment, { kind: "name" }>, name: string): b
   const { states } = segment;
   const seen = new Int32Array(states.length).fill(-1);
   let generation = 0;
-  const enter = (id: number, into: number[]): void => {
-    if (seen[id] === generation) return;
-    seen[id] = generation;
-    const state = states[id]!;
-    if (state.kind === "split") {
-      for (const next of state.next) enter(next, into);
-      return;
+  // An explicit stack, since thousands of chained alternatives would overflow Node's call stack.
+  const enter = (from: number, into: number[]): void => {
+    const pending = [from];
+    while (pending.length > 0) {
+      const id = pending.pop()!;
+      if (seen[id] === generation) continue;
+      seen[id] = generation;
+      const state = states[id]!;
+      if (state.kind === "split") for (const next of state.next) pending.push(next);
+      else {
+        into.push(id);
+        if (state.kind === "star") pending.push(state.next);
+      }
     }
-    into.push(id);
-    if (state.kind === "star") enter(state.next, into);
   };
   let current: number[] = [];
   enter(segment.start, current);

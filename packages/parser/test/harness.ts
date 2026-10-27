@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { Example } from "../../../tools/check/extract";
 import type { Change, ChangedFile, InputFile, LoreInput } from "../src/types";
 
@@ -39,4 +41,13 @@ export function toChange(diff: string): Change {
     files.push({ kind: plain[1] as "A" | "M" | "D", path: plain[2]!, added: [] });
   }
   return { files };
+}
+
+// Workspace hoisting can put the binary in the package's node_modules or in the root's.
+export function astGrepBinary(): string {
+  for (const dir of ["../node_modules/.bin", "../../../node_modules/.bin"]) {
+    const path = fileURLToPath(new URL(`${dir}/ast-grep`, import.meta.url));
+    if (existsSync(path)) return path;
+  }
+  throw new Error("the @ast-grep/cli devDependency is not installed; run bun install");
 }

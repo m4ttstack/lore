@@ -8,7 +8,14 @@ import { compareCodePoints } from "./text";
 import type { Diagnostic, DocumentModel, Entry, LoreInput } from "./types";
 import { readBlock, type BlockProblem } from "./yaml";
 
-export interface EntryPlace { base: string; tree: Tree }
+export interface EntryPlace {
+  base: string;
+  tree: Tree;
+  // True when the entry got empty-scope: it stays in the model and is never eligible.
+  emptyScope: boolean;
+  checkLines: readonly number[];
+  diagnostic(name: string, line?: number): Diagnostic;
+}
 
 export interface ParsedInput {
   model: DocumentModel;
@@ -16,10 +23,18 @@ export interface ParsedInput {
   placeOf: WeakMap<Entry, EntryPlace>;
 }
 
-interface ReadEntry { result: EntryResult; fileFiles: readonly string[]; place: EntryPlace }
+interface ReadEntry { result: EntryResult; fileFiles: readonly string[]; place: FilePlace }
+type FilePlace = Pick<EntryPlace, "base" | "tree">;
+
+const parsedModels = new WeakMap<DocumentModel, ParsedInput>();
 
 export function parse(input: LoreInput): DocumentModel {
   return parseWithContext(input).model;
+}
+
+// The context parse or parseWithContext built a model with, while that model object lives.
+export function parsedContextOf(model: DocumentModel): ParsedInput | undefined {
+  return parsedModels.get(model);
 }
 
 export function parseWithContext(input: LoreInput): ParsedInput {
@@ -53,17 +68,18 @@ export function parseWithContext(input: LoreInput): ParsedInput {
     else if (uses.get(result.id)! > 1) errors.push(result.diagnostic("duplicate-id"));
     else {
       entries.push(result.entry);
-      placeOf.set(result.entry, place);
       if (result.entry.kind === "rule" && result.entry.category === null) warnings.push(result.diagnostic("missing-category"));
       const own = result.ownScope;
-      if (own !== null && own.files.every((glob) => fileFiles.every((outer) => disjoint(glob, outer)))) {
-        warnings.push(result.diagnostic("empty-scope", own.line));
-      }
+      const emptyScope = own !== null && own.files.every((glob) => fileFiles.every((outer) => disjoint(glob, outer)));
+      if (emptyScope) warnings.push(result.diagnostic("empty-scope", own.line));
+      placeOf.set(result.entry, { ...place, emptyScope, checkLines: result.checkLines, diagnostic: result.diagnostic });
     }
   }
   warnings.push(...unknownDisabledIds(collected, read));
   const model = { entries, errors: errors.sort(compareDiagnostics), warnings: warnings.sort(compareDiagnostics) };
-  return { model, collected, placeOf };
+  const parsed = { model, collected, placeOf };
+  parsedModels.set(model, parsed);
+  return parsed;
 }
 
 // A governed list can switch off every entry whose id counts; a given folder's list only those of its trees.
@@ -113,7 +129,7 @@ function readFileBlock(node: BlockNode, categories: ReadonlySet<string>): { prob
   return { value: read.value };
 }
 
-function compareDiagnostics(a: Diagnostic, b: Diagnostic): number {
+export function compareDiagnostics(a: Diagnostic, b: Diagnostic): number {
   return (
     compareCodePoints(a.file, b.file) ||
     a.line - b.line ||

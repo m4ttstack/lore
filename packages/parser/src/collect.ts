@@ -34,6 +34,8 @@ export interface Collected {
   configs: ConfigFile[];
   diagnostics: Diagnostic[];
   trees: TreeInfo[];
+  // Indexed by Repository number: the tracked files of each repository of the given folders.
+  repositoryFiles: InputFile[][];
   configsByRepository: ReadonlyMap<Repository, ReadonlyMap<string, ConfigFile>>;
 }
 
@@ -49,9 +51,12 @@ const ROOT = "";
 const NO_CONFIGS: Configs = new Map();
 
 export function collect(input: LoreInput): Collected {
-  const collected: Collected = { files: [], configs: [], diagnostics: [], trees: [], configsByRepository: new Map() };
+  const given = repositories(input.given);
+  const collected: Collected = {
+    files: [], configs: [], diagnostics: [], trees: [], repositoryFiles: given.map(({ files }) => files), configsByRepository: new Map(),
+  };
   collectSource({ repository: "repo", prefix: "", files: input.repo, folders: null }, input.remotes, collected);
-  repositories(input.given).forEach(({ files, folders }, repository) => {
+  given.forEach(({ files, folders }, repository) => {
     collectSource({ repository, prefix: EXTERNAL, files, folders }, input.remotes, collected);
   });
   collected.files.sort((a, b) => compareCodePoints(a.file, b.file));
