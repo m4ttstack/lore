@@ -2,8 +2,12 @@
 
 A Zed extension for `.lore` files: highlighting from the tree-sitter grammar
 in `packages/tree-sitter-lore` (YAML inside `<defaults>`, `<scope>`, `<when>`
-and `<meta>`, Markdown in prose), and diagnostics, completion, hover and the
-could-apply lens from the Lore language server.
+and `<meta>`, Markdown in prose), and diagnostics, completion and hover from
+the Lore language server.
+
+The server attaches only to Lore and YAML buffers in Zed, so source files do
+not get the could-apply lens that VS Code shows, and whether Zed displays the
+server's code lenses at all is untested.
 
 It is not published. Install it from this repository as a dev extension.
 
@@ -68,6 +72,26 @@ and click Rebuild on the Lore entry in Zed's Extensions page.
 - The status bar's language server menu lists `lore-language-server` as
   running. If it is missing, run `zed: open log` and look for the
   `lore-language-server is not on PATH` message.
+
+## Settings
+
+The server reads the `lore` section of Zed's settings for it. To use Lore
+kept in another repository (external folders), list the folders, each
+absolute or relative to the repository root:
+
+```json
+{
+  "lsp": {
+    "lore-language-server": {
+      "settings": {
+        "lore": {
+          "externalFolders": ["/path/to/shared-rules"]
+        }
+      }
+    }
+  }
+}
+```
 
 ## `.loreconfig` files
 

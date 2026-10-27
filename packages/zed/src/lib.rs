@@ -41,6 +41,16 @@ impl zed::Extension for LoreExtension {
             env: worktree.shell_env(),
         })
     }
+
+    fn language_server_workspace_configuration(
+        &mut self,
+        language_server_id: &LanguageServerId,
+        worktree: &zed::Worktree,
+    ) -> Result<Option<zed::serde_json::Value>> {
+        Ok(LspSettings::for_worktree(language_server_id.as_ref(), worktree)
+            .ok()
+            .and_then(|settings| settings.settings))
+    }
 }
 
 zed::register_extension!(LoreExtension);
