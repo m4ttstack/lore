@@ -178,7 +178,9 @@ of the order of their members. In both kinds:
 
 - **Paths.** Every `file` field is a path exactly as written in the
   example: after `=== ` for an input file, keeping the `external:`,
-  `loose:` or `rules:` prefix, or in the diff for a changed file.
+  `loose:` or `rules:` prefix, or in the diff for a changed file. The one
+  exception is a diagnostic about a loose folder as a whole, which has
+  `file` `loose:.` and `line` 1 (see [External folders](#external-folders)).
 - **Scopes.** Globs in an entry's `scopes` are resolved to paths from the
   governed repo's root: a glob `g` in a file whose base is `b` appears as
   `b/g`, and a glob in a file whose base is the repo root appears as `g`.
@@ -5105,10 +5107,10 @@ team-repo/lore/
   a downloaded copy of a team repository, counting every file under it
   except those inside a directory whose name starts with `.` other than
   `.lore`. When it does, it MUST report `untracked-given-folder` once
-  for that folder. A tool MAY instead refuse such a folder and collect
-  nothing from it. Without version control, the team, not the tool,
-  decides what is in the folder, so a stray copy of a Lore folder in it
-  can add rules.
+  for that folder, with `file` `loose:.`, `entry` `null` and `line` 1.
+  A tool MAY instead refuse such a folder and collect nothing from it.
+  The team, not version control, decides what is in such a folder, so a
+  stray copy of a Lore folder in it can add rules.
 - Below a marked directory, directories mirror the governed repo: the
   directory `<marked>/<path>` stands for `<path>` in the governed repo.
   The base of a Lore file below a marked directory is found as
