@@ -1,7 +1,11 @@
-<rule id="price-from-quote" severity="blocking">
-A displayed price must come from the quote that produced it.
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
 </rule>
 
-<context id="checkout-architecture" src="ARCHITECTURE.md">
-Read before judging any change to how a price is computed.
-</context>
+<rule id="currency-source-recorded" category="data_lineage">
+Every stored amount records the currency setting it was formatted with.
+</rule>
+
+<rule id="tax-source-recorded" category="Data_Provenance">
+Every stored tax amount records the tax table it came from.
+</rule>

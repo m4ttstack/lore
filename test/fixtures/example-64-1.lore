@@ -1,13 +1,23 @@
-<rule id="no-price-literals" category="functional_correctness">
+<rule id="currency-from-settings" category="functional_correctness">
 <when>
-addedMatches: ['\d+\.\d{2}']
+addedContains: ["'USD'", "'EUR'"]
 </when>
-A price is never written as a number literal in checkout code.
+Display text never hard-codes a currency code.
 </rule>
 
-<rule id="shipping-from-quote" category="functional_correctness">
+<rule id="prices-not-parsed" category="functional_correctness">
 <when>
-addedMatches: ['^const shipping']
+addedContains: ["parseFloat("]
 </when>
-Shipping costs come from the quote.
+A price is never parsed from text with `parseFloat`.
+</rule>
+
+<rule id="helpers-not-parsing-prices" category="functional_correctness">
+<scope>
+files: ["**/*.ts"]
+</scope>
+<when>
+addedContains: ["parseFloat("]
+</when>
+Checkout helpers never parse a price from text.
 </rule>

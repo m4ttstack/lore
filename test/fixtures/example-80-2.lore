@@ -1,0 +1,6 @@
+<rule id="pricing-currency-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</when>
+Pricing code never hard-codes a currency code.
+</rule>

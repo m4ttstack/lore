@@ -1,28 +1,35 @@
-<rule id="checkout-props-typed" category="code_style">
+<rule id="price-from-quote" category="functional_correctness">
 <scope>
-files: ["apps/web/src/**/checkout/*.tsx"]
+files: "src/**"
 </scope>
-Every checkout component declares its props type.
+A displayed price must come from the quote that produced it.
 </rule>
 
-<rule id="checkout-helpers-pure" category="code_style">
+<rule id="currency-from-settings" category="functional_correctness">
 <scope>
-files: ["apps/web/src/checkout/[!A-Z]*.tsx"]
+files: []
 </scope>
-Checkout files named in lowercase hold helpers, never components.
+Display text never hard-codes a currency code.
 </rule>
 
-<rule id="cart-components-named" category="code_style">
+<rule id="dates-from-locale" category="functional_correctness">
 <scope>
-files: ["apps/web/src/{cart,checkout}/*.tsx"]
+files: ["/apps/web/src/**"]
 </scope>
-A cart or checkout component is named after its file.
+Displayed dates are formatted with the shop's locale.
 </rule>
 
-<rule id="production-env-no-secrets" category="security">
+<rule id="quote-expiry-shown" category="functional_correctness">
 <scope>
-files: ["apps/web/*.production"]
+files: ["src/**"]
+ignores: ["src/../tests/**"]
 </scope>
-A production environment file holds no secrets; they come from the
-secret store.
+A page that shows a quoted price also shows when the quote expires.
+</rule>
+
+<rule id="totals-from-quote" category="functional_correctness">
+<scope>
+files: ["src/**"]
+</scope>
+Cart totals come from the quote, never from summing line items.
 </rule>

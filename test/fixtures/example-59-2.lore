@@ -1,10 +1,7 @@
 <scope>
-files: ["checkout/**"]
+files: ["**/*.test.{ts,tsx}"]
 </scope>
 
-<rule id="cart-total-from-quote" category="functional_correctness">
-<scope>
-files: ["cart/**"]
-</scope>
-Cart totals come from the quote, never from summing line items.
+<rule id="cart-tests-use-fixtures" category="test_coverage">
+Cart tests build their carts from the shared quote fixtures.
 </rule>

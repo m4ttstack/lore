@@ -1,0 +1,3 @@
+<rule id="legacy-removals-logged" category="documentation">
+Removing a legacy page adds a line to the migration log.
+</rule>

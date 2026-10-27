@@ -1,45 +1,36 @@
-<rule id="currency-before-amount" category="functional_correctness">
+<rule id="currency-from-settings" category="functional_correctness">
 <when>
-addedMatches: ['USD(?=\d)']
-</when>
-A currency code is never written in front of an amount.
-</rule>
-
-<rule id="no-repeated-digits" category="functional_correctness">
-<check>
-(\d)\1
-</check>
-A price is never written with a placeholder of repeated digits.
-</rule>
-
-<rule id="currency-codes-from-settings" category="functional_correctness">
-<when>
-addedMatches: ['(?<code>USD|EUR)']
+addedContains: "'USD'"
+removedContains: ["'USD'"]
 </when>
 Display text never hard-codes a currency code.
 </rule>
 
-<rule id="currency-codes-any-case" category="functional_correctness">
+<rule id="price-from-quote" category="functional_correctness">
 <when>
-addedMatches: ['(?i)usd']
 </when>
-Display text never hard-codes a currency code, in any case.
+A displayed price must come from the quote that produced it.
 </rule>
 
-<rule id="no-inline-styles" category="code_style">
+<rule id="regen-types-after-graphql" category="functional_correctness">
 <when>
-addedMatches: ['style={']
+unchanged: "/apps/web/src/__generated__/**"
 </when>
-Components never set inline styles.
+A `.graphql` change ships with regenerated types.
 </rule>
 
-<rule id="no-inline-style-objects" category="code_style">
+<rule id="checkout-follows-api-schema" category="backwards_compatibility">
 <when>
-addedMatches: ['style=\{']
+changed: ["apps/web/../api/schema.graphql"]
 </when>
-<check>
-style=\{\{
-</check>
-Components never set inline styles; they use the design system's
-classes.
+A checkout change made alongside an API schema change still works with
+the schema that is deployed now.
+</rule>
+
+<rule id="checkout-follows-api" category="backwards_compatibility">
+<when>
+changed: ["/apps/api/**"]
+addedContains: ["fetch("]
+</when>
+New checkout requests work with the API that is deployed now.
 </rule>

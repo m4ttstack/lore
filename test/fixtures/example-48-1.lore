@@ -1,27 +1,9 @@
-<rule id="currency-from-settings" category="functional_correctness">
-<when>
-addedContains: ["'USD'"]
-</when>
-<when>
-changed: ["apps/web/src/checkout/**"]
-</when>
-Display text never hard-codes a currency code.
-</rule>
-
-<context id="checkout-architecture" src="ARCHITECTURE.md">
+<rule id="currency-codes-from-settings" category="functional_correctness">
 <check>
-quote
+'USD'
 </check>
-Read before judging any change to how a price is computed.
-</context>
-
-<rule id="price-from-quote" category="functional_correctness">
-<example>
-const price = quote.total
-</example>
-A displayed price must come from the quote that produced it.
-</rule>
-
-<rule id="dates-from-locale" category="functional_correctness">
-Displayed dates are formatted with the shop's locale.
+<check lang="regex">
+'EUR'
+</check>
+Display text never hard-codes a currency code.
 </rule>

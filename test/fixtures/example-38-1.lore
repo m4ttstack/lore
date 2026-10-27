@@ -1,8 +1,16 @@
 <defaults>
 category: functional_correctness
-severity: critical
+severity: blocking
 </defaults>
 
 <rule id="price-from-quote">
 A displayed price must come from the quote that produced it.
 </rule>
+
+<rule id="price-test-per-currency" category="test_coverage" severity="advisory">
+A change to price formatting adds a test for each supported currency.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+Read before judging any change to how a price is computed.
+</context>

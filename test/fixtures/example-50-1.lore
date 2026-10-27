@@ -1,14 +1,8 @@
-<context id="checkout-architecture" src="ARCHITECTURE.md">
-Read before judging any change to how a price is computed.
-</context>
+<rule id="checkout-prices-from-quote" category="functional_correctness">
+Every price the checkout page shows comes from the quote:
+- each line item's price;
+- the order total.
 
-<context id="pricing-glossary" src="./glossary.md">
-</context>
-
-<context id="quote-lifecycle">
-<scope>
-files: ["quotes/**"]
-</scope>
-A quote is created when the cart is priced and expires after 30 minutes.
-Any price shown after that comes from a new quote.
-</context>
+A helper that recomputes a price from its inputs drops quote-level
+discounts.
+</rule>

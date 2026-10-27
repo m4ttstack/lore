@@ -1,15 +1,14 @@
-<context id="shop-readme" src="./../README.md">
-Read for how the shop is built and deployed.
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+Read before judging any change to how a price is computed.
 </context>
 
-<context id="org-handbook" src="./../../handbook/review.md">
-Read for the organization's review conventions.
+<context id="pricing-glossary" src="./glossary.md">
 </context>
 
-<context id="shop-readme-roundabout" src="docs/../README.md">
-Read for how the shop is built and deployed.
-</context>
-
-<context id="shop-root" src="./..">
-Read the repository's top-level files.
+<context id="quote-lifecycle">
+<scope>
+files: ["quotes/**"]
+</scope>
+A quote is created when the cart is priced and expires after 30 minutes.
+Any price shown after that comes from a new quote.
 </context>

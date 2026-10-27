@@ -1,27 +1,19 @@
-<rule id="currency-from-settings" category="functional_correctness">
+<scope>
+files: ["**/*.graphql"]
+</scope>
+
+<rule id="regen-types-after-graphql" category="functional_correctness">
 <when>
-addedContains: []
+unchanged: ["/apps/web/src/__generated__/**"]
 </when>
-Display text never hard-codes a currency code.
+A `.graphql` change ships with regenerated types in
+`apps/web/src/__generated__/`.
 </rule>
 
-<rule id="price-from-quote" category="functional_correctness">
+<rule id="regen-checkout-types-after-graphql" category="functional_correctness">
 <when>
-unchanged: []
+unchanged: ["__generated__/**"]
 </when>
-A displayed price must come from the quote that produced it.
-</rule>
-
-<rule id="price-imports-updated" category="functional_correctness">
-<when>
-changed: ["/apps/web/src/checkout/Price.tsx"]
-</when>
-When `Price.tsx` moves or changes, every import of it is updated.
-</rule>
-
-<rule id="price-shown-with-component" category="code_style">
-<when>
-unchanged: ["/apps/web/src/checkout/Price.tsx"]
-</when>
-A price is shown with the `Price` component, never formatted by hand.
+A `.graphql` change ships with regenerated types in the checkout's own
+`__generated__/` folder.
 </rule>

@@ -1,31 +1,14 @@
-<rule id="currency-children-first" category="functional_correctness">
+<rule id="price-from-quote" category="functional_correctness">
 <meta>
-owner: checkout
+checkout team
 </meta>
-<scope>
-files: ["apps/web/**/*.tsx"]
-</scope>
-<when>
-addedContains: ["'USD'"]
-</when>
-<check>
-'USD'
-</check>
-Display text never hard-codes a currency code.
+A displayed price must come from the quote that produced it.
 </rule>
 
-<rule id="currency-children-reversed" category="functional_correctness">
-<check>
-'USD'
-</check>
-<when>
-addedContains: ["'USD'"]
-</when>
-<scope>
-files: ["apps/web/**/*.tsx"]
-</scope>
+<rule id="currency-from-settings" category="functional_correctness">
 <meta>
-owner: checkout
+- checkout
+- pricing
 </meta>
 Display text never hard-codes a currency code.
 </rule>

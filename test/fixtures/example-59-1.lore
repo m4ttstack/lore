@@ -1,17 +1,8 @@
 <scope>
-files: ["**/*.ts"]
+files: ["**/*.{ts,tsx}"]
+ignores: ["**/*.test.{ts,tsx}"]
 </scope>
 
-<rule id="docs-link-changelog" category="documentation">
-<scope>
-files: ["**/*.md"]
-</scope>
-A documentation change links the changelog entry it describes.
-</rule>
-
-<rule id="money-type-for-prices" category="functional_correctness">
-<scope>
-files: ["**/*.md", "**/price*.ts"]
-</scope>
-Prices are typed as `Money`, never as `number`.
+<rule id="cart-total-from-quote" category="functional_correctness">
+Cart totals come from the quote, never from summing line items.
 </rule>

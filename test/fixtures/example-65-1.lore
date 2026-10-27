@@ -1,16 +1,13 @@
-<rule id="money-in-minor-units" category="functional_correctness">
+<rule id="no-price-literals" category="functional_correctness">
 <when>
-addedContains: ["parseFloat(", "toFixed("]
+addedMatches: ['\d+\.\d{2}']
 </when>
-<check>
-toFixed\(
-</check>
-Amounts are integers in minor units (cents).
+A price is never written as a number literal in checkout code.
 </rule>
 
-<context id="rounding-guide" src="docs/rounding.md">
+<rule id="shipping-from-quote" category="functional_correctness">
 <when>
-addedContains: ["toFixed("]
+addedMatches: ['^const shipping']
 </when>
-Read before changing how amounts are rounded.
-</context>
+Shipping costs come from the quote.
+</rule>

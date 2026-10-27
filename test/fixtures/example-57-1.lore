@@ -1,7 +1,14 @@
 <scope>
-files: ["*.json"]
+files: ["**/*.tsx"]
 </scope>
 
-<rule id="manifest-versions-pinned" category="functional_correctness">
-Dependencies in a top-level manifest are pinned to exact versions.
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="cart-total-from-quote" category="functional_correctness">
+<scope>
+files: ["cart/**"]
+</scope>
+Cart totals come from the quote, never from summing line items.
 </rule>

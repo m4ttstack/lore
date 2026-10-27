@@ -2,6 +2,6 @@
 A displayed price must come from the quote that produced it.
 </rule>
 
-<rule id="quote-expiry-shown" category="functional_correctness">
-A checkout page that shows a quoted price also shows when the quote expires.
+<rule id="currency-from-settings" category="functional_correctness" disabled="false">
+Display text never hard-codes a currency code.
 </rule>

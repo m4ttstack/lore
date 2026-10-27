@@ -1,33 +1,6 @@
-<rule id="currency-from-settings" category="functional_correctness">
-<check>
-'USD'
-|'EUR'
-</check>
-Display text never hard-codes a currency code.
-</rule>
-
-<rule id="price-from-quote" category="functional_correctness">
-<check lang>
-quote\.total
-</check>
-A displayed price must come from the quote that produced it.
-</rule>
-
-<rule id="dates-from-locale" category="functional_correctness">
-<check lang="">
-toLocaleDateString\(\)
-</check>
-Displayed dates are formatted with the shop's locale.
-</rule>
-
-<rule id="totals-from-quote" category="functional_correctness">
-<check lang="structural">
-items.reduce(...)
-</check>
-<check lang="ast-grep">
-$ITEMS.reduce(
-  $$$
-)
-</check>
-Cart totals come from the quote, never from summing line items.
+<rule id="tax-rate-from-settings" category="functional_correctness">
+<when>
+addedMatches: ['^(|export )const(?:) TAX_RATE()']
+</when>
+The tax rate comes from the shop's settings, never from a constant.
 </rule>

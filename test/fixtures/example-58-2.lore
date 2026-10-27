@@ -1,7 +1,7 @@
 <scope>
-files: ["**/*.test.{ts,tsx}"]
+files: ["*.json"]
 </scope>
 
-<rule id="cart-tests-use-fixtures" category="test_coverage">
-Cart tests build their carts from the shared quote fixtures.
+<rule id="checkout-messages-sorted" category="code_style">
+Checkout message files keep their keys in alphabetical order.
 </rule>

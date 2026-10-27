@@ -1,19 +1,8 @@
-<rule category="functional_correctness">
+<defaults>
+category: functional_correctness
+severity: critical
+</defaults>
+
+<rule id="price-from-quote">
 A displayed price must come from the quote that produced it.
-</rule>
-
-<rule id="currencyFromSettings" category="functional_correctness">
-Display text never hard-codes a currency code.
-</rule>
-
-<rule id="dates-from-locale" category="functional_correctness" category="accessibility">
-Displayed dates are formatted with the shop's locale.
-</rule>
-
-<rule owner="pricing">
-Quoted prices are rounded once, when the quote is made.
-</rule>
-
-<rule id="quote-expiry-shown" category="functional_correctness">
-A checkout page that shows a quoted price also shows when the quote expires.
 </rule>

@@ -29,7 +29,7 @@ function rule(id: string, children = "", attributes = ""): string {
 const change = (...lines: string[]): Change => toChange(lines.join("\n"));
 
 describe("select: ast-grep availability", () => {
-  const totals = example(77);
+  const totals = example(78);
   const skipped = {
     eligible: ["totals-from-quote"],
     hits: [],
@@ -64,7 +64,7 @@ describe("select: ast-grep availability", () => {
     expect({ ...result, warnings: brief(result.warnings) }).toEqual(skipped);
   });
 
-  test("with the binary, example 77 finds its hit", async () => {
+  test("with the binary, example 78 finds its hit", async () => {
     const result = await select(toInput(totals), toChange(totals.diff!), ALL);
     expect(result.hits).toEqual([
       { rule: "totals-from-quote", file: "apps/web/src/checkout/CartTotal.tsx", line: 4, text: "    (sum, item) => sum + item.price," },

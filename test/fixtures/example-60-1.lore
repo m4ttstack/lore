@@ -1,35 +1,17 @@
-<rule id="price-from-quote" category="functional_correctness">
 <scope>
-files: "src/**"
+files: ["**/*.ts"]
 </scope>
-A displayed price must come from the quote that produced it.
+
+<rule id="docs-link-changelog" category="documentation">
+<scope>
+files: ["**/*.md"]
+</scope>
+A documentation change links the changelog entry it describes.
 </rule>
 
-<rule id="currency-from-settings" category="functional_correctness">
+<rule id="money-type-for-prices" category="functional_correctness">
 <scope>
-files: []
+files: ["**/*.md", "**/price*.ts"]
 </scope>
-Display text never hard-codes a currency code.
-</rule>
-
-<rule id="dates-from-locale" category="functional_correctness">
-<scope>
-files: ["/apps/web/src/**"]
-</scope>
-Displayed dates are formatted with the shop's locale.
-</rule>
-
-<rule id="quote-expiry-shown" category="functional_correctness">
-<scope>
-files: ["src/**"]
-ignores: ["src/../tests/**"]
-</scope>
-A page that shows a quoted price also shows when the quote expires.
-</rule>
-
-<rule id="totals-from-quote" category="functional_correctness">
-<scope>
-files: ["src/**"]
-</scope>
-Cart totals come from the quote, never from summing line items.
+Prices are typed as `Money`, never as `number`.
 </rule>

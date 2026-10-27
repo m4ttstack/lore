@@ -1,11 +1,14 @@
-<rule id="price-source-recorded" category="data_provenance">
-Every stored price records the quote it came from.
-</rule>
+<context id="checkout-architecture" src="docs/checkout-architecture.md">
+Read before judging any change to how a price is computed.
+</context>
 
-<rule id="currency-source-recorded" category="data_lineage">
-Every stored amount records the currency setting it was formatted with.
-</rule>
+<context id="payments-architecture" src="docs/payments-architecture.md">
+Read before judging any change to how a payment is taken.
+</context>
 
-<rule id="tax-source-recorded" category="Data_Provenance">
-Every stored tax amount records the tax table it came from.
-</rule>
+<context id="refunds-architecture" src="docs/refunds-architecture.md">
+<scope>
+files: ["apps/web/src/refunds/**"]
+</scope>
+Read before judging any change to how a refund is issued.
+</context>

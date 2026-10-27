@@ -1,7 +1,7 @@
-<defaults>
-category: functional_correctness
-</defaults>
-
-<rule id="price-from-quote">
+<rule id="price-from-quote" severity="blocking">
 A displayed price must come from the quote that produced it.
 </rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+Read before judging any change to how a price is computed.
+</context>

@@ -1332,6 +1332,10 @@ rules:
 - Anything else that is not one well-formed YAML 1.2 document, such as a
   bad escape, an alias to an anchor that is never defined, or a second
   document, is `invalid-yaml`.
+- Mappings and sequences, block or flow, MAY nest up to 100 deep,
+  counting the block's own value as depth 1, and a tool MUST read them.
+  A block that nests deeper is `invalid-yaml`, at the line where the
+  first mapping or sequence past the limit starts.
 
 A tool checks a block in this order, and reports the first problem it
 finds: `inconsistent-indentation`; then `invalid-yaml`; then
@@ -1759,6 +1763,45 @@ Display text never hard-codes a currency code.
   ],
   "errors": [
     { "name": "yaml-feature-not-allowed", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 14 }
+  ],
+  "warnings": []
+}
+``````
+
+The mapping is depth 1 and each `[` one more, so the first rule nests
+100 deep and the second 101:
+
+``````example parse
+=== .lore/teams.lore
+<rule id="team-tree-at-limit" category="documentation">
+<meta>
+teams: [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+</meta>
+Metadata nested 100 deep is read.
+</rule>
+
+<rule id="team-tree-past-limit" category="documentation">
+<meta>
+teams: [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+</meta>
+Metadata nested 101 deep is not.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "team-tree-at-limit", "file": ".lore/teams.lore",
+      "category": "documentation", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [],
+      "meta": { "teams": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]] },
+      "summary": "Metadata nested 100 deep is read.",
+      "prose": "Metadata nested 100 deep is read.",
+      "src": null
+    }
+  ],
+  "errors": [
+    { "name": "invalid-yaml", "file": ".lore/teams.lore", "entry": "team-tree-past-limit", "line": 10 }
   ],
   "warnings": []
 }
@@ -5001,6 +5044,12 @@ team-repo/lore/
   Lore files at or below it (see [Collecting files](#collecting-files)).
   No other Lore file of a given folder's repository is collected,
   including one below a directory marked for another repository.
+- A `.loreconfig` with a `repo` key that is above a given folder, and
+  in no given folder, still marks its directory for `nested-repo` (see
+  [Where repo may appear](#where-repo-may-appear)). That directory is
+  never an external folder, even when its `repo` names the governed
+  repo. To use the Lore below a marked directory, give a folder that
+  holds the marked directory, not one inside it.
 - A file that more than one given folder reaches, such as when one given
   folder holds another, is collected and read once.
 - Below a marked directory, directories mirror the governed repo: the

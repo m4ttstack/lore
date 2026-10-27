@@ -1,10 +1,19 @@
-<scope>
-files: ["**/*.{tsx,graphql}"]
-</scope>
-
 <rule id="totals-from-quote" category="functional_correctness">
-<check lang="ast-grep">
-$LIST.reduce($$$)
+<check lang="structural">
+items.reduce(...)
+</check>
+<check>
+\.reduce\(
 </check>
 Cart totals come from the quote, never from summing line items.
+</rule>
+
+<rule id="refund-totals-from-quote" category="functional_correctness">
+<scope>
+files: ["apps/web/src/refunds/**"]
+</scope>
+<check lang="structural">
+refund.items.reduce(...)
+</check>
+Refund totals come from the quote, never from summing refunded items.
 </rule>

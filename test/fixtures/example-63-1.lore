@@ -1,23 +1,35 @@
+<rule id="price-from-quote" category="functional_correctness">
+<scope>
+files: ["src/[a"]
+</scope>
+A displayed price must come from the quote that produced it.
+</rule>
+
 <rule id="currency-from-settings" category="functional_correctness">
-<when>
-addedContains: ["'USD'", "'EUR'"]
-</when>
+<scope>
+files: ["src/**/*.{ts,tsx"]
+</scope>
 Display text never hard-codes a currency code.
 </rule>
 
-<rule id="prices-not-parsed" category="functional_correctness">
-<when>
-addedContains: ["parseFloat("]
-</when>
-A price is never parsed from text with `parseFloat`.
+<rule id="dates-from-locale" category="functional_correctness">
+<scope>
+files: ["src/**.tsx"]
+</scope>
+Displayed dates are formatted with the shop's locale.
 </rule>
 
-<rule id="helpers-not-parsing-prices" category="functional_correctness">
+<rule id="tests-use-fixtures" category="test_coverage">
 <scope>
-files: ["**/*.ts"]
+files: ["src/**"]
+ignores: ["!**/*.test.tsx"]
 </scope>
-<when>
-addedContains: ["parseFloat("]
-</when>
-Checkout helpers never parse a price from text.
+Tests build their data from the shared fixtures.
+</rule>
+
+<rule id="product-page-prices" category="functional_correctness">
+<scope>
+files: ["pages/[[]id].tsx", "pages/[{]slug}.tsx"]
+</scope>
+The product page shows the price from the product's current quote.
 </rule>
