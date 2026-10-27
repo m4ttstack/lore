@@ -16,6 +16,32 @@ function example(number: number) {
   return found;
 }
 
+test("an ast-grep check over a file with no content reports check-needs-file once and skips", async () => {
+  const lore = `<rule id="no-any" category="code_style">\n<check lang="ast-grep">\n$A as any\n</check>\nNo casts to any.\n</rule>\n`;
+  const input = { repo: [{ path: ".lore/a.lore", content: lore }], given: [], remotes: ["https://github.com/acme/shop"] };
+  const change = { files: [
+    { kind: "M" as const, path: "a.ts", added: [{ line: 1, text: "x as any" }] },
+    { kind: "M" as const, path: "b.ts", added: [{ line: 1, text: "y as any" }] },
+  ] };
+  const result = await select(input, change, { capabilities: ["ast-grep"], astGrepBinary: astGrepBinary(), fileContent: () => null });
+  expect(result.hits).toEqual([]);
+  expect(result.warnings.map((w) => [w.name, w.file, w.line])).toEqual([["check-needs-file", ".lore/a.lore", 2]]);
+});
+
+test("an ast-grep run that fails reports ast-grep-failed for the changed file", async () => {
+  const lore = `<rule id="no-any" category="code_style">\n<check lang="ast-grep">\n$A as any\n</check>\nNo casts to any.\n</rule>\n`;
+  const input = { repo: [{ path: ".lore/a.lore", content: lore }], given: [], remotes: ["https://github.com/acme/shop"] };
+  const change = { files: [{ kind: "M" as const, path: "a.ts", added: [{ line: 1, text: "x as any" }] }] };
+  const stub = stubAstGrep("ast-grep 0.51.0");
+  try {
+    const result = await select(input, change, { capabilities: ["ast-grep"], astGrepBinary: stub.binary, fileContent: () => "x as any" });
+    expect(result.hits).toEqual([]);
+    expect(brief(result.warnings)).toEqual([{ name: "ast-grep-failed", file: "a.ts", entry: "no-any", line: 1 }]);
+  } finally {
+    stub.remove();
+  }
+});
+
 const brief = (diagnostics: Diagnostic[]) => diagnostics.map(({ name, file, entry, line }) => ({ name, file, entry, line }));
 
 function repo(files: Record<string, string>): LoreInput {

@@ -4,6 +4,14 @@ import { RegexLimitError, toRegExp, validateDialect, validateRegex } from "../sr
 
 const OUTSIDE = "regex-outside-dialect";
 
+test("a RegexLimitError message shows at most 100 characters of the pattern", () => {
+  const pattern = "(".repeat(5000) + "a" + ")".repeat(5000);
+  let message = "";
+  try { toRegExp(pattern); } catch (error) { message = (error as Error).message; }
+  expect(message).toContain("...");
+  expect(message.length).toBeLessThan(300);
+});
+
 function matches(pattern: string, text: string): boolean {
   return toRegExp(pattern).test(text);
 }

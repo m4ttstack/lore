@@ -6,6 +6,11 @@ import { astGrepAvailable, astGrepLanguage, astGrepSpans } from "../src/astgrep"
 import { astGrepBinary, stubAstGrep } from "./harness";
 
 const binary = astGrepBinary();
+
+test("a binary that fails yields null, not an empty match list", async () => {
+  const stub = stubAstGrep("ast-grep 0.51.0");
+  try { expect(await astGrepSpans(stub.binary, "$A", "typescript", "x")).toBeNull(); } finally { stub.remove(); }
+});
 const CART = [
   "export function CartTotal({ items, fees }) {",
   "  const feeTotal = fees.reduce((sum, fee) => sum + fee, 0)",
@@ -67,10 +72,10 @@ describe("astGrepSpans", () => {
     ]);
   });
 
-  test("no match, an unreadable pattern or an unknown language finds nothing", async () => {
+  test("no match or a pattern ast-grep reads as an error node finds nothing, an unknown language fails", async () => {
     expect(await astGrepSpans(binary, "nothingLikeThis()", "tsx", CART)).toEqual([]);
     expect(await astGrepSpans(binary, "(((", "tsx", CART)).toEqual([]);
-    expect(await astGrepSpans(binary, "$X", "no-such-language", CART)).toEqual([]);
+    expect(await astGrepSpans(binary, "$X", "no-such-language", CART)).toBeNull();
   });
 
   test("a pattern is one argument, even when it looks like an option", async () => {
@@ -78,12 +83,12 @@ describe("astGrepSpans", () => {
     expect(await astGrepSpans(binary, "-1", "tsx", "const a = -1\n")).toEqual([{ first: 1, last: 1 }]);
   });
 
-  test("a pattern that cannot be passed as an argument finds nothing", async () => {
-    expect(await astGrepSpans(binary, "a\0b", "tsx", CART)).toEqual([]);
+  test("a pattern that cannot be passed as an argument fails", async () => {
+    expect(await astGrepSpans(binary, "a\0b", "tsx", CART)).toBeNull();
   });
 
-  test("a missing binary finds nothing", async () => {
-    expect(await astGrepSpans("/nonexistent/lore-test/ast-grep", "$X", "tsx", CART)).toEqual([]);
+  test("a missing binary fails", async () => {
+    expect(await astGrepSpans("/nonexistent/lore-test/ast-grep", "$X", "tsx", CART)).toBeNull();
   });
 
   test("an sgconfig.yml around the working directory is not read", async () => {

@@ -38,7 +38,7 @@ const LANGUAGE_OF: ReadonlyMap<string, string> = new Map(
   Object.entries(LANGUAGES).flatMap(([language, extensions]) => extensions.map((extension) => [extension, language] as const)),
 );
 
-// A file that times out yields no hits, which looks the same as a file with no matches.
+// A file that times out is a failure (null spans), not a file with no matches.
 const TIMEOUT_MS = 10_000;
 // The spec follows this release's matches, so any other version counts as no binary.
 const PINNED_VERSION = "ast-grep 0.51.0";
@@ -59,23 +59,23 @@ export async function astGrepAvailable(binary: string): Promise<boolean> {
   return run !== null && run.code === 0 && run.stdout.trim() === PINNED_VERSION;
 }
 
-// Lines count from 1. A spawn failure, a timeout or an exit ast-grep uses for errors finds nothing.
-export async function astGrepSpans(binary: string, pattern: string, language: string, content: string): Promise<LineSpan[]> {
+// Lines count from 1. A spawn failure, a timeout, an error exit or unreadable output is null.
+export async function astGrepSpans(binary: string, pattern: string, language: string, content: string): Promise<LineSpan[] | null> {
   // --config names an empty file, so no sgconfig.yml around the working directory changes the search.
   const args = ["run", `--pattern=${pattern}`, `--lang=${language}`, `--config=${devNull}`, "--json=compact", "--stdin"];
   const run = await execute(binary, args, content);
-  if (run === null || (run.code !== 0 && run.code !== NO_MATCH_EXIT)) return [];
+  if (run === null || (run.code !== 0 && run.code !== NO_MATCH_EXIT)) return null;
   return spansOf(run.stdout);
 }
 
-function spansOf(stdout: string): LineSpan[] {
+function spansOf(stdout: string): LineSpan[] | null {
   let matches: unknown;
   try {
     matches = JSON.parse(stdout);
   } catch {
-    return [];
+    return null;
   }
-  if (!Array.isArray(matches)) return [];
+  if (!Array.isArray(matches)) return null;
   const spans: LineSpan[] = [];
   for (const match of matches) {
     const range = (match as { range?: { start?: Point; end?: Point } } | null)?.range;

@@ -37,9 +37,9 @@ export function validateDialect(pattern: string): string | null {
 
 export function toRegExp(pattern: string): RegExp {
   const scan = translate(pattern);
-  if ("error" in scan) throw new Error(`${scan.error}: ${pattern}`);
+  if ("error" in scan) throw new Error(`${scan.error}: ${shown(pattern)}`);
   if (scan.depth > MAX_GROUP_NESTING) {
-    throw new RegexLimitError(`groups nested ${scan.depth} deep, past the limit of ${MAX_GROUP_NESTING}: ${pattern}`);
+    throw new RegexLimitError(`groups nested ${scan.depth} deep, past the limit of ${MAX_GROUP_NESTING}: ${shown(pattern)}`);
   }
   try {
     const regex = new RegExp(scan.source, "us");
@@ -48,10 +48,17 @@ export function toRegExp(pattern: string): RegExp {
     return regex;
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof RangeError) {
-      throw new RegexLimitError(`the regular expression engine cannot compile this pattern (${error.message}): ${pattern}`);
+      throw new RegexLimitError(`the regular expression engine cannot compile this pattern (${error.message}): ${shown(pattern)}`);
     }
     throw error;
   }
+}
+
+const SHOWN_CODE_POINTS = 100;
+
+function shown(pattern: string): string {
+  const chars = Array.from(pattern);
+  return chars.length > SHOWN_CODE_POINTS ? `${chars.slice(0, SHOWN_CODE_POINTS).join("")}...` : pattern;
 }
 
 function translate(pattern: string): Scan {

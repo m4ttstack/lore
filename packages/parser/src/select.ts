@@ -35,7 +35,8 @@ export async function select(input: LoreInput, change: Change, options: SelectOp
   }
 
   const binary = options.astGrepBinary === undefined ? DEFAULT_BINARY : options.astGrepBinary;
-  const checks = await runChecks(selected, new Map(input.repo.map((file) => [file.path, file.content])), {
+  const repoContents = new Map(input.repo.map((file) => [file.path, file.content]));
+  const checks = await runChecks(selected, options.fileContent ?? ((path) => repoContents.get(path)), {
     regex: capabilities.has("regex"),
     astGrep: capabilities.has("ast-grep") ? binary : null,
     regexes,
@@ -137,7 +138,7 @@ interface CheckSupport { regex: boolean; astGrep: string | null; regexes: Regexe
 
 async function runChecks(
   selected: readonly Selected[],
-  contents: ReadonlyMap<string, string>,
+  contentOf: (path: string) => string | null | undefined,
   support: CheckSupport,
 ): Promise<{ hits: Hit[]; warnings: Diagnostic[] }> {
   const hits = new Map<string, Hit>();
@@ -160,6 +161,7 @@ async function runChecks(
         const regex = support.regexes(check.body);
         for (const file of searched) for (const added of file.added) if (regex.test(added.text)) hit(entry.id, file.newPath, added);
       } else if (check.lang === "ast-grep" && (await astGrepReady())) {
+        let needsFile = false;
         for (const file of searched) {
           const language = astGrepLanguage(file.newPath);
           if (language === null) {
@@ -167,10 +169,19 @@ async function runChecks(
             unknownLanguage.add(file.newPath);
             continue;
           }
-          const content = contents.get(file.newPath);
+          const content = contentOf(file.newPath);
           if (content === undefined) continue;
+          if (content === null) {
+            if (!needsFile) warnings.push(place.diagnostic("check-needs-file", place.checkLines[n]));
+            needsFile = true;
+            continue;
+          }
           runs.push(async () => {
             const spans = await astGrepSpans(astGrep!, check.body, language, content);
+            if (spans === null) {
+              warnings.push({ name: "ast-grep-failed", file: file.newPath, entry: entry.id, line: 1 });
+              return;
+            }
             for (const added of file.added) if (spans.some(({ first, last }) => first <= added.line && added.line <= last)) hit(entry.id, file.newPath, added);
           });
         }

@@ -26,4 +26,8 @@ export interface Change { files: ChangedFile[] }
 export interface Hit { rule: string; file: string; line: number; text: string }
 export interface EligibilityResult { eligible: string[]; hits: Hit[]; excluded: Diagnostic[]; warnings: Diagnostic[] }
 export type Capability = "regex" | "ast-grep";
-export interface SelectOptions { capabilities?: Capability[]; astGrepBinary?: string | null }
+export interface SelectOptions {
+  capabilities?: Capability[];
+  astGrepBinary?: string | null;
+  fileContent?: (path: string) => string | null;
+}
