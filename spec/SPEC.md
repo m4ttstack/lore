@@ -111,9 +111,12 @@ starting at 1, and belong to the section under the nearest heading
 before them.
 
 Lines of the form `requires: <capability>` may directly follow the
-opening line. Two capabilities are defined, `regex` and `ast-grep`: an
-example that requires one is run only by a tool that supports checks in
-that language (see [Checks](#checks)), and other tools skip it.
+opening line. Three capabilities are defined, `regex`, `ast-grep` and
+`loose-given-folder`: an example that requires `regex` or `ast-grep` is
+run only by a tool that supports checks in that language (see
+[Checks](#checks)), one that requires `loose-given-folder` only by a tool
+that collects a given folder in no working copy (see
+[External folders](#external-folders)), and other tools skip it.
 
 The rest of the example is a series of sections. Each starts with a line
 `=== ` followed by a name, and runs to the next such line or to the end
@@ -123,6 +126,7 @@ of the example:
 |---|---|
 | `=== <path>` | An input file at `<path>` in the governed repo: the section's lines, joined with line feeds. |
 | `=== external:<path>` | An input file at `<path>` in the external repository described below. |
+| `=== loose:<path>` | A file of one given folder that is in no working copy, `<path>` relative to that folder. |
 | `=== rules:<path>` | Eligibility only. A file of the governed repo as it is at the rules revision (see [Collecting files](#collecting-files)). With at least one such section, the tool is given a rules revision. |
 | `=== remote` | Eligibility only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, and in every parse example, the remote is `https://github.com/acme/shop`. |
 | `=== diff` | Eligibility only, required. The change, in the format below. |
@@ -173,8 +177,8 @@ item by item in order (see Order below), and objects compare regardless
 of the order of their members. In both kinds:
 
 - **Paths.** Every `file` field is a path exactly as written in the
-  example: after `=== ` for an input file, keeping the `external:` or
-  `rules:` prefix, or in the diff for a changed file.
+  example: after `=== ` for an input file, keeping the `external:`,
+  `loose:` or `rules:` prefix, or in the diff for a changed file.
 - **Scopes.** Globs in an entry's `scopes` are resolved to paths from the
   governed repo's root: a glob `g` in a file whose base is `b` appears as
   `b/g`, and a glob in a file whose base is the repo root appears as `g`.
@@ -5097,6 +5101,14 @@ team-repo/lore/
   holds the marked directory, not one inside it.
 - A file that more than one given folder reaches, such as when one given
   folder holds another, is collected and read once.
+- A tool MAY collect a given folder that is in no working copy, such as
+  a downloaded copy of a team repository, counting every file under it
+  except those inside a directory whose name starts with `.` other than
+  `.lore`. When it does, it MUST report `untracked-given-folder` once
+  for that folder. A tool MAY instead refuse such a folder and collect
+  nothing from it. Without version control, the team, not the tool,
+  decides what is in the folder, so a stray copy of a Lore folder in it
+  can add rules.
 - Below a marked directory, directories mirror the governed repo: the
   directory `<marked>/<path>` stands for `<path>` in the governed repo.
   The base of a Lore file below a marked directory is found as
@@ -5164,6 +5176,34 @@ M apps/web/src/checkout/Price.tsx
   "hits": [],
   "excluded": [],
   "warnings": []
+}
+``````
+
+A given folder in no working copy, such as a plain download, is
+collected whole. The stray copy under `.cache/` is not read, and the
+tool reports the folder:
+
+``````example eligibility
+requires: loose-given-folder
+=== loose:.loreconfig
+repo: github.com/acme/shop
+=== loose:.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== loose:.cache/.lore/stale.lore
+<rule id="stale-copy" category="documentation">
+A copy a tool left behind.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12 const total = quote.total
+=== expect
+{
+  "eligible": ["price-from-quote"],
+  "hits": [],
+  "excluded": [],
+  "warnings": [{ "name": "untracked-given-folder", "file": "loose:.", "entry": null, "line": 1 }]
 }
 ``````
 
@@ -5514,7 +5554,9 @@ M apps/web/src/checkout/Price.tsx
 
 A tool collects the files it reads from the governed repo and from the
 folders it was given. It MUST collect only files tracked by
-version control, and MUST NOT find them by walking a file system, so a
+version control, and MUST NOT find them by walking a file system (except
+in a given folder that is in no working copy, see
+[External folders](#external-folders)), so a
 Lore folder in an installed dependency, a build output or an ignored
 scratch folder cannot add rules to a review.
 
@@ -5716,6 +5758,7 @@ given as [`errors.json`](errors.json).
 | `unsupported-check-language` | warning | A check uses a language the tool does not support. |
 | `ast-grep-no-language` | warning | An ast-grep check skips a changed file whose extension maps to no ast-grep language. |
 | `unknown-disabled-id` | warning | A disable list names an id of no entry it can switch off. |
+| `untracked-given-folder` | warning | A given folder in no working copy was collected whole. |
 
 Whether an error excludes a file, an entry or a `.loreconfig`, and for
 some errors where it is found, is listed in [Error reach](#error-reach).

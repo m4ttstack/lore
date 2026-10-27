@@ -11,15 +11,20 @@ export function toInput(example: Example): LoreInput {
   const repo: InputFile[] = [];
   const external: InputFile[] = [];
   const rules: InputFile[] = [];
+  const loose: InputFile[] = [];
   for (const file of example.files) {
     const path = file.path.slice(file.path.indexOf(":") + 1);
     if (file.place === "external") external.push({ path, content: file.content });
     else if (file.place === "rules") rules.push({ path, content: file.content });
+    else if (file.place === "loose") loose.push({ path, content: file.content });
     else if (file.place === "repo") repo.push({ path: file.path, content: file.content });
   }
   return {
     repo,
-    given: external.length > 0 ? [{ folder: "", files: external }] : [],
+    given: [
+      ...(external.length > 0 ? [{ folder: "", files: external }] : []),
+      ...(loose.length > 0 ? [{ folder: "", loose: true, files: loose }] : []),
+    ],
     remotes: [example.remote ?? DEFAULT_REMOTE],
     ...(rules.length > 0 ? { rules } : {}),
   };

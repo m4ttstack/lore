@@ -1,6 +1,6 @@
 export interface InputFile { path: string; content: string }
 // Given folders with the same `repository` key are one repository; without keys on both, equal file lists are.
-export interface GivenFolder { folder: string; files: InputFile[]; repository?: string }
+export interface GivenFolder { folder: string; files: InputFile[]; repository?: string; loose?: boolean }
 export interface LoreInput {
   repo: InputFile[]; given: GivenFolder[]; remotes: string[];
   // When given, the governed repo's Lore files, .loreconfig files and src targets come from these only (named "rules:<path>"); repo is the change's side.

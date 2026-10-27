@@ -36,6 +36,7 @@ export interface Collected {
   configs: ConfigFile[];
   diagnostics: Diagnostic[];
   trees: TreeInfo[];
+  warnings: Diagnostic[];
   // Indexed by Repository number: the tracked files of each repository of the given folders.
   repositoryFiles: InputFile[][];
   configsByRepository: ReadonlyMap<Repository, ReadonlyMap<string, ConfigFile>>;
@@ -49,6 +50,7 @@ interface Source { repository: Repository; prefix: string; files: InputFile[]; f
 const LORE_FOLDER = ".lore";
 const CONFIG_NAME = ".loreconfig";
 export const EXTERNAL = "external:";
+export const LOOSE = "loose:";
 export const RULES = "rules:";
 const ROOT = "";
 const NO_CONFIGS: Configs = new Map();
@@ -56,14 +58,15 @@ const NO_CONFIGS: Configs = new Map();
 export function collect(input: LoreInput): Collected {
   const given = repositories(input.given);
   const collected: Collected = {
-    files: [], configs: [], diagnostics: [], trees: [], repositoryFiles: given.map(({ files }) => files), configsByRepository: new Map(),
+    files: [], configs: [], diagnostics: [], warnings: [], trees: [], repositoryFiles: given.map(({ files }) => files), configsByRepository: new Map(),
   };
   const governed = input.rules === undefined
     ? { prefix: "", files: input.repo }
     : { prefix: RULES, files: input.rules };
   collectSource({ repository: "repo", ...governed, folders: null }, input.remotes, collected);
-  given.forEach(({ files, folders }, repository) => {
-    collectSource({ repository, prefix: EXTERNAL, files, folders }, input.remotes, collected);
+  given.forEach(({ files, folders, prefix }, repository) => {
+    if (prefix === LOOSE) collected.warnings.push({ name: "untracked-given-folder", file: `${LOOSE}.`, entry: null, line: 1 });
+    collectSource({ repository, prefix, files, folders }, input.remotes, collected);
   });
   collected.files.sort((a, b) => compareCodePoints(a.file, b.file));
   const byRepository = new Map<Repository, Map<string, ConfigFile>>();
@@ -158,15 +161,24 @@ function readConfigs(
 }
 
 // Given folders of one repository are read together, so a file they both reach is read once.
-function repositories(given: readonly GivenFolder[]): { files: InputFile[]; folders: string[] }[] {
-  const groups: { first: GivenFolder; files: InputFile[]; folders: string[] }[] = [];
+// A loose folder is no repository's tracked files: it stands alone, and its dot-folders are not read.
+function repositories(given: readonly GivenFolder[]): { files: InputFile[]; folders: string[]; prefix: string }[] {
+  const groups: { first: GivenFolder; files: InputFile[]; folders: string[]; prefix: string }[] = [];
   for (const folder of given) {
     const trimmed = folder.folder.replace(/\/+$/, "");
-    const group = groups.find((g) => sameRepository(g.first, folder));
-    if (group === undefined) groups.push({ first: folder, files: folder.files, folders: [trimmed] });
+    if (folder.loose === true) {
+      groups.push({ first: folder, files: folder.files.filter(({ path }) => !inDotFolder(path)), folders: [trimmed], prefix: LOOSE });
+      continue;
+    }
+    const group = groups.find((g) => g.prefix === EXTERNAL && sameRepository(g.first, folder));
+    if (group === undefined) groups.push({ first: folder, files: folder.files, folders: [trimmed], prefix: EXTERNAL });
     else group.folders.push(trimmed);
   }
-  return groups.map(({ files, folders }) => ({ files, folders }));
+  return groups.map(({ files, folders, prefix }) => ({ files, folders, prefix }));
+}
+
+function inDotFolder(path: string): boolean {
+  return path.split("/").slice(0, -1).some((name) => name.startsWith(".") && name !== LORE_FOLDER);
 }
 
 function sameRepository(a: GivenFolder, b: GivenFolder): boolean {

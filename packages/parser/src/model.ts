@@ -1,5 +1,5 @@
 import { checkDefaults, checkScope } from "./blocks";
-import { EXTERNAL, collect, type Collected, type Tree } from "./collect";
+import { collect, type Collected, type Tree } from "./collect";
 import { DEFAULT_FILES, lineDiagnostic, readEntry, resolveScope, type EntryResult, type FileContext } from "./entries";
 import { disjoint } from "./glob";
 import { dedent } from "./indent";
@@ -50,7 +50,7 @@ export function parseWithContext(input: LoreInput): ParsedInput {
       continue;
     }
     const context: FileContext = {
-      base: file.base, filePrefix: file.prefix, prefix: file.tree === "repo" ? "" : EXTERNAL, loreRoot: file.loreRoot, categories,
+      base: file.base, filePrefix: file.prefix, prefix: file.tree === "repo" ? "" : file.prefix, loreRoot: file.loreRoot, categories,
       defaults: blocks.defaults, scope: resolveScope(file.base, blocks.scope),
     };
     const fileFiles = blocks.scope.files ?? DEFAULT_FILES;
@@ -61,7 +61,7 @@ export function parseWithContext(input: LoreInput): ParsedInput {
   const uses = new Map<string, number>();
   for (const { result: { id } } of read) if (id !== null) uses.set(id, (uses.get(id) ?? 0) + 1);
   const entries: Entry[] = [];
-  const warnings: Diagnostic[] = [];
+  const warnings: Diagnostic[] = [...collected.warnings];
   const placeOf = new WeakMap<Entry, EntryPlace>();
   for (const { result, fileFiles, place } of read) {
     if ("error" in result) errors.push(result.error);

@@ -99,7 +99,7 @@ describe("collect", () => {
   });
 
   test("an external file's base is the directory it stands for, its Lore root is in its own repository", () => {
-    const collected = collect(toInput(example(92)));
+    const collected = collect(toInput(example(93)));
     expect(collected.files).toEqual([
       expect.objectContaining({
         file: "external:lore/shop/apps/web/.lore/web.lore", base: "apps/web", loreRoot: "lore", tree: 0,
@@ -183,7 +183,7 @@ describe("disabledFor", () => {
   });
 
   test("a governed list switches off an external entry, an external list never a governed one", () => {
-    const collected = collect(toInput(example(96)));
+    const collected = collect(toInput(example(97)));
     expect(disabledFor(collected, "shared-currency-from-settings", "apps/web/src/checkout/Price.tsx", 0)).toBe(true);
     expect(disabledFor(collected, "shared-currency-from-settings", "apps/api/orders.ts", 0)).toBe(false);
     expect(disabledFor(collected, "currency-from-settings", "apps/web/src/checkout/Price.tsx", "repo")).toBe(false);
@@ -209,7 +209,7 @@ describe("disabledFor", () => {
 
 describe("parseWithContext", () => {
   test("keeps each entry's base, external ones included", () => {
-    const { model, placeOf } = parseWithContext(toInput(example(92)));
+    const { model, placeOf } = parseWithContext(toInput(example(93)));
     expect(model.entries.map((e) => ({ base: placeOf.get(e)!.base, tree: placeOf.get(e)!.tree }))).toEqual([
       { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 },
     ]);
@@ -225,4 +225,18 @@ test("with rules given, Lore files come from rules and carry the rules: prefix",
   });
   expect(collected.files.map((f) => f.file)).toEqual(["rules:.lore/a.lore"]);
   expect(collected.files[0]!.base).toBe("");
+});
+
+test("a loose given folder is collected whole, except dot-folders, with a warning", () => {
+  const lore = (id: string) => `<rule id="${id}" category="documentation">\nText.\n</rule>\n`;
+  const collected = collect({
+    repo: [], remotes: ["https://github.com/acme/shop"],
+    given: [{ folder: "", loose: true, files: [
+      { path: ".loreconfig", content: "repo: github.com/acme/shop\n" },
+      { path: ".lore/a.lore", content: lore("kept") },
+      { path: ".cache/.lore/b.lore", content: lore("dropped") },
+    ] }],
+  });
+  expect(collected.files.map((f) => f.file)).toEqual(["loose:.lore/a.lore"]);
+  expect(collected.warnings).toEqual([{ name: "untracked-given-folder", file: "loose:.", entry: null, line: 1 }]);
 });

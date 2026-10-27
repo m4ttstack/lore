@@ -203,5 +203,10 @@
     "name": "unknown-disabled-id",
     "kind": "warning",
     "description": "A disable list names an id of no entry it can switch off."
+  },
+  {
+    "name": "untracked-given-folder",
+    "kind": "warning",
+    "description": "A given folder in no working copy was collected whole."
   }
 ]

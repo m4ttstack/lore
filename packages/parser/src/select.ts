@@ -1,5 +1,5 @@
 import { astGrepAvailable, astGrepLanguage, astGrepSpans } from "./astgrep";
-import { EXTERNAL, collect, disabledFor, type Collected, type Tree } from "./collect";
+import { EXTERNAL, LOOSE, collect, disabledFor, type Collected, type Tree } from "./collect";
 import { matchFromBase } from "./glob";
 import { compareDiagnostics, parseWithContext, parsedContextOf, type EntryPlace } from "./model";
 import { toRegExp } from "./regex";
@@ -228,9 +228,11 @@ function srcTargetsMissing(
   for (const entry of model.entries) {
     if (entry.src === null) continue;
     const place = placeOf.get(entry)!;
-    const found = entry.src.startsWith(EXTERNAL)
-      ? externalPaths(place.tree).has(entry.src.slice(EXTERNAL.length))
-      : governed.has(entry.src);
+    const src = entry.src;
+    const outside = [EXTERNAL, LOOSE].find((prefix) => src.startsWith(prefix));
+    const found = outside !== undefined
+      ? externalPaths(place.tree).has(src.slice(outside.length))
+      : governed.has(src);
     if (!found) missing.push(place.diagnostic("missing-src-target"));
   }
   return missing;

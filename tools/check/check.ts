@@ -28,7 +28,8 @@ const FILE_LINE = /^([AMD]) (\S(?:.*\S)?)$/;
 const RENAME_LINE = /^R (\S(?:.*?\S)?) -> (\S(?:.*\S)?)$/;
 const PLUS_LINE = /^\+([1-9]\d*) (.*)$/;
 
-const CAPABILITIES = new Set(["regex", "ast-grep"]);
+const CAPABILITIES = new Set(["regex", "ast-grep", "loose-given-folder"]);
+const LOOSE_FOLDER_FILE = "loose:.";
 const CHECK_TAG = /^[ \t]*<check[ \t>]/m;
 
 interface Diagnostic { name: string; file: string; entry: string | null; line: number }
@@ -172,6 +173,7 @@ function checkReferences(ex: Example, diagnostics: Diagnostic[], entries: Entry[
     if (rename) paths.add(rename[1]!).add(rename[2]!);
   }
   for (const { file } of [...diagnostics, ...entries]) {
+    if (file === LOOSE_FOLDER_FILE && ex.files.some((f) => f.place === "loose")) continue;
     if (!paths.has(file)) report("unknown-file", `"${file}" is neither an input nor a diff path`);
   }
   for (const { file, entry } of diagnostics) {

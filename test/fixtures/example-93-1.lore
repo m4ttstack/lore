@@ -1,3 +1,16 @@
-<rule id="price-from-quote" category="functional_correctness">
-A displayed price must come from the quote that produced it.
+<scope>
+files: ["src/**/*.tsx"]
+</scope>
+
+<rule id="checkout-prices-from-quote" category="functional_correctness">
+<scope>
+files: ["src/checkout/**"]
+</scope>
+A price the checkout displays comes from the quote that produced it.
 </rule>
+
+<context id="web-architecture" src="docs/architecture.md">
+</context>
+
+<context id="review-handbook" src="../../../../handbook.md">
+</context>
