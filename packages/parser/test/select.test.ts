@@ -42,6 +42,20 @@ test("an ast-grep run that fails reports ast-grep-failed for the changed file", 
   }
 });
 
+test("ast-grep-failed warnings come out in the spec's diagnostic order, whichever run ends first", async () => {
+  const lore = `<rule id="no-any" category="code_style">\n<check lang="ast-grep">\n$A as any\n</check>\nNo casts to any.\n</rule>\n`;
+  const input = { repo: [{ path: ".lore/a.lore", content: lore }], given: [], remotes: ["https://github.com/acme/shop"] };
+  const files = ["z.ts", "m.ts", "a.ts"];
+  const change = { files: files.map((path) => ({ kind: "M" as const, path, added: [{ line: 1, text: "x as any" }] })) };
+  const stub = stubAstGrep("ast-grep 0.51.0");
+  try {
+    const result = await select(input, change, { capabilities: ["ast-grep"], astGrepBinary: stub.binary, fileContent: () => "x as any" });
+    expect(result.warnings.map((w) => w.file)).toEqual(["a.ts", "m.ts", "z.ts"]);
+  } finally {
+    stub.remove();
+  }
+});
+
 const brief = (diagnostics: Diagnostic[]) => diagnostics.map(({ name, file, entry, line }) => ({ name, file, entry, line }));
 
 function repo(files: Record<string, string>): LoreInput {
