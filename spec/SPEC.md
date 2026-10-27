@@ -2577,7 +2577,9 @@ repo's root, or null when the context has no `src`. A file-relative
 `src` in a file of an external folder names a file in that folder's
 repository, not in the governed repo. Its `src` in the document model is
 `external:<path>`, where `<path>` is from that repository's root, as in
-a `file` field.
+a `file` field. In a loose folder (see
+[External folders](#external-folders)) it is `loose:<path>`, where
+`<path>` is from the loose folder.
 
 A context with a plain `src`, one with a `src` beside the Lore file and
 no body, and one with no `src`, whose body is the context:
@@ -2687,7 +2689,8 @@ report this warning. A tool reports it when it computes eligibility,
 where the governed repo's files are known, for every context in the
 document model whose target is missing, eligible or not. A target named
 `external:<path>` is looked for among the tracked files of that external
-folder's repository.
+folder's repository, and one named `loose:<path>` among the files of
+that loose folder.
 
 `docs/payments-architecture.md` and `docs/refunds-architecture.md` are
 not in the governed repo. The first two contexts are eligible, and the
@@ -4414,10 +4417,10 @@ Every changed file has one or two **paths**:
 
 A Lore file or a `.loreconfig` in the change is a changed file like any
 other, and counts for every entry whose scope holds it. The entries
-themselves are read from the files as the change leaves them, unless the
+themselves are read from the files as the change leaves them, so an
+entry the change adds can be eligible for that same change, unless the
 tool was given a rules revision (see
-[Collecting files](#collecting-files)), so an entry the change adds can
-be eligible for that same change.
+[Collecting files](#collecting-files)).
 
 An entry with no `<scope>` and no `<when>`, in a file with no
 `<scope>`, has the whole of its base as its scope. Unless it is
@@ -5082,7 +5085,8 @@ team-repo/lore/
 
 - A **given folder** is a directory in a working copy of another
   repository that the tool's user hands to the tool, for example with a
-  command-line option or a setting. A tool MAY be given any number of
+  command-line option or a setting. A loose folder, below, is the one
+  kind of given folder that is in no working copy. A tool MAY be given any number of
   folders, and treats each one the same way. In a conformance example,
   the tool is given one folder: the root of the repository that holds
   the `external:` input files.
@@ -5103,10 +5107,14 @@ team-repo/lore/
   holds the marked directory, not one inside it.
 - A file that more than one given folder reaches, such as when one given
   folder holds another, is collected and read once.
-- A tool MAY collect a given folder that is in no working copy, such as
-  a downloaded copy of a team repository, counting every file under it
-  except those inside a directory whose name starts with `.` other than
-  `.lore`. When it does, it MUST report `untracked-given-folder` once
+- A tool MAY collect a given folder that is in no working copy (a
+  **loose folder**), such as a downloaded copy of a team repository,
+  counting every file under it except those inside a directory whose
+  name starts with `.` other than `.lore`. A loose folder is a
+  repository of its own whose root is the folder, so a Lore root found
+  in it is at or below the folder, and a file-relative `src` that would
+  climb above that Lore root is `src-escapes-root`. Its files carry
+  `loose:` and their path from the folder. When it does, it MUST report `untracked-given-folder` once
   for that folder, with `file` `loose:.`, `entry` `null` and `line` 1.
   A tool MAY instead refuse such a folder and collect nothing from it.
   The team, not version control, decides what is in such a folder, so a
@@ -5574,10 +5582,11 @@ scratch folder cannot add rules to a review.
   governed repo to read Lore files, `.loreconfig` files and `src` targets
   from, instead of the revision the change leaves. The change itself, its
   files and added lines, is unaffected. Without one, a tool reads as
-  above. A change that is judged by its own rules can delete or loosen
-  the rule in its way.
+  above. This exists because a change judged by its own rules can
+  delete or loosen the rule in its way.
 - **A given folder.** A tool reads the files tracked in the working
-  copy that holds it. It reads every `.loreconfig` of that repository in
+  copy that holds it, or, for a loose folder, the files under it that
+  [External folders](#external-folders) counts. It reads every `.loreconfig` of that repository in
   the given folder, below it or above it, and collects the Lore files of
   each external folder found in it: those at or below each marked
   directory that names the governed repo (see
@@ -5662,7 +5671,9 @@ gives under Order, and every `file` field follows Paths there.
 the file. A file of the governed repo has its plain path, except that a
 file read from a rules revision has `rules:` before it. A file of a
 given folder's repository has `external:` before its path, so that it is
-never mistaken for a file of the governed repo. The prefix does not say
+never mistaken for a file of the governed repo, and a file of a loose
+folder has `loose:` before its path from that folder (see
+[External folders](#external-folders)). The prefix does not say
 which repository the file is in, so a tool given folders of two
 repositories can list two different files with the same `file`. This
 version of the format does not tell them apart. Every other path in
