@@ -1,0 +1,26 @@
+{
+  "name": "@lore/language-server",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "lore-language-server": "bin/lore-language-server.js"
+  },
+  "files": ["bin", "dist"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "esbuild src/server.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/server.js"
+  },
+  "dependencies": {
+    "@lore/parser": "workspace:*",
+    "vscode-languageserver": "^9.0.1",
+    "vscode-languageserver-textdocument": "^1.0.12",
+    "vscode-uri": "^3.0.8"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "vscode-jsonrpc": "^8.2.0"
+  }
+}
