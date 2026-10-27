@@ -1,3 +1,0 @@
-<rule id="api-errors-typed" category="functional_correctness">
-Every error the API returns carries a typed error code.
-</rule>

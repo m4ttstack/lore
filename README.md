@@ -27,7 +27,7 @@ or AI, can work out exactly which rules matter for a given change.
 
 <rule id="money-in-minor-units" category="functional_correctness">
   <when>
-    addedMatches: ['parseFloat\(|toFixed\(']
+    addedContains: ["parseFloat(", "toFixed("]
   </when>
   Amounts are integers in minor units (cents). Floating point never touches
   money.
@@ -115,7 +115,9 @@ narrow that scope, never widen it.
 `<when>` adds conditions on the change itself: text in added lines
 (`addedContains`, `addedMatches`), or other files that did or didn't
 change (`changed`, `unchanged`). A rule applies only when its scope matches
-a changed file and all of its conditions hold.
+a changed file and all of its conditions hold. The added lines that
+`addedContains` or `addedMatches` find are also pointed out to the
+reviewer, so one condition both selects the rule and shows where to look.
 
 ```html
 <rule id="migration-with-schema" category="backwards_compatibility" severity="blocking">
@@ -132,10 +134,11 @@ a changed file and all of its conditions hold.
 ### Checks
 
 A `<check>` is a deterministic search that points a reviewer at specific
-lines. It is a hint, never a verdict: the reviewer still decides whether
-the rule is broken. Checks are regular expressions or
-[ast-grep](https://ast-grep.github.io/) patterns. Lore never runs shell
-commands.
+lines without deciding whether the rule applies. It is a hint, never a
+verdict: the reviewer still decides whether the rule is broken. Checks are
+regular expressions or [ast-grep](https://ast-grep.github.io/) patterns,
+which can match code by its structure rather than its text. Lore never
+runs shell commands.
 
 ```html
 <rule id="tenant-scoped-queries" category="security" severity="blocking">
@@ -186,7 +189,8 @@ Given a change, a tool:
 1. collects the `.lore` files tracked in the repository;
 2. selects every rule whose scope matches a changed file and whose
    conditions hold;
-3. runs the selected rules' checks to find lines worth a closer look;
+3. finds lines worth a closer look, from the selected rules' conditions
+   and checks;
 4. hands the selected rules, hits and context to a reviewer.
 
 Selection is fully specified, so it is the same in every tool. How a

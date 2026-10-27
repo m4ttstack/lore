@@ -98,7 +98,7 @@ produces from them. There are two kinds:
 - a **parse** example gives Lore files, and any `.loreconfig` files that
   apply to them, and expects the document model a tool builds from them;
 - an **eligibility** example also gives a change, and expects the
-  eligible entries, the check hits, the excluded files and entries, and
+  eligible entries, the hits, the excluded files and entries, and
   the warnings.
 
 An example is a fenced block. Its opening line starts at column 0 and is
@@ -221,7 +221,14 @@ Display text never hard-codes a currency code.
 M apps/web/src/checkout/Price.tsx
 +12 const label = 'USD'
 === expect
-{ "eligible": ["currency-from-settings"], "hits": [], "excluded": [], "warnings": [] }
+{
+  "eligible": ["currency-from-settings"],
+  "hits": [
+    { "rule": "currency-from-settings", "file": "apps/web/src/checkout/Price.tsx", "line": 12, "text": "const label = 'USD'" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
 ``````
 ```````
 
@@ -3388,6 +3395,11 @@ when every one of its conditions holds.
   leading `/` resolves against the base, as in a scope.
 - With an empty list, `unchanged` always holds and the other three
   conditions never do.
+- When a rule is eligible, each added line of a counted file that one of
+  its `addedContains` or `addedMatches` conditions finds is a hit, as a
+  check's would be (see [Running checks](#running-checks)). All of the
+  conditions together decide eligibility; each added-line condition then
+  points at the lines it finds on its own. A context has no hits.
 
 A tool checks a `<when>` in this order, and reports the first problem it
 finds:
@@ -3417,7 +3429,8 @@ written, or null when the entry has no `<when>`.
 Only added lines count. `'USD'` is on an unchanged line of `Price.tsx`,
 so the first rule is not eligible. The third rule's scope holds
 `format.ts` but not `Price.tsx`, so the `parseFloat(` on the added line of
-`Price.tsx` does not count for it:
+`Price.tsx` does not count for it. The line the second rule's condition
+finds is a hit:
 
 ``````example eligibility
 === .lore/checkout.lore
@@ -3457,7 +3470,14 @@ M apps/web/src/checkout/Price.tsx
 M apps/web/src/checkout/format.ts
 +1 export const ZERO = '0.00'
 === expect
-{ "eligible": ["prices-not-parsed"], "hits": [], "excluded": [], "warnings": [] }
+{
+  "eligible": ["prices-not-parsed"],
+  "hits": [
+    { "rule": "prices-not-parsed", "file": "apps/web/src/checkout/Price.tsx", "line": 4, "text": "  const amount = parseFloat(quote.total)" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
 ``````
 
 A pattern in `addedMatches` is searched for in each added line. `^`
@@ -3483,7 +3503,56 @@ Shipping costs come from the quote.
 M apps/web/src/checkout/Shipping.tsx
 +7   const shipping = 4.99
 === expect
-{ "eligible": ["no-price-literals"], "hits": [], "excluded": [], "warnings": [] }
+{
+  "eligible": ["no-price-literals"],
+  "hits": [
+    { "rule": "no-price-literals", "file": "apps/web/src/checkout/Shipping.tsx", "line": 7, "text": "  const shipping = 4.99" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+Each added line that the rule's condition finds is a hit. Its check also
+finds line 5, which is still one hit. The context is eligible, and has
+no hits:
+
+``````example eligibility
+requires: regex
+=== .lore/money.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<when>
+addedContains: ["parseFloat(", "toFixed("]
+</when>
+<check>
+toFixed\(
+</check>
+Amounts are integers in minor units (cents).
+</rule>
+
+<context id="rounding-guide" src="docs/rounding.md">
+<when>
+addedContains: ["toFixed("]
+</when>
+Read before changing how amounts are rounded.
+</context>
+=== docs/rounding.md
+# Rounding
+=== diff
+M apps/web/src/checkout/Price.tsx
++4   const amount = parseFloat(quote.total)
++5   return amount.toFixed(2)
++6   return amount
+=== expect
+{
+  "eligible": ["money-in-minor-units", "rounding-guide"],
+  "hits": [
+    { "rule": "money-in-minor-units", "file": "apps/web/src/checkout/Price.tsx", "line": 4, "text": "  const amount = parseFloat(quote.total)" },
+    { "rule": "money-in-minor-units", "file": "apps/web/src/checkout/Price.tsx", "line": 5, "text": "  return amount.toFixed(2)" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
 ``````
 
 `changed` looks at the whole change. The API schema is outside the
@@ -3863,7 +3932,14 @@ Display text never spells out a currency code.
 M apps/web/src/checkout/labels.ts
 +4 export const price = '٣USD'
 === expect
-{ "eligible": ["currency-code-from-settings"], "hits": [], "excluded": [], "warnings": [] }
+{
+  "eligible": ["currency-code-from-settings"],
+  "hits": [
+    { "rule": "currency-code-from-settings", "file": "apps/web/src/checkout/labels.ts", "line": 4, "text": "export const price = '٣USD'" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
 ``````
 
 Line 4 holds a no-break space (U+00A0) between `Total` and `USD`. `\s`
@@ -3890,7 +3966,14 @@ M apps/web/src/checkout/labels.ts
 +4 export const heading = 'Total USD:'
 +5 const fallback = 'USD'
 === expect
-{ "eligible": ["fallback-currency-from-settings"], "hits": [], "excluded": [], "warnings": [] }
+{
+  "eligible": ["fallback-currency-from-settings"],
+  "hits": [
+    { "rule": "fallback-currency-from-settings", "file": "apps/web/src/checkout/labels.ts", "line": 5, "text": "const fallback = 'USD'" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
 ``````
 
 An empty alternative matches the empty string, so `(|export )` matches
@@ -3909,7 +3992,14 @@ The tax rate comes from the shop's settings, never from a constant.
 M apps/web/src/checkout/tax.ts
 +1 const TAX_RATE = 0.2
 === expect
-{ "eligible": ["tax-rate-from-settings"], "hits": [], "excluded": [], "warnings": [] }
+{
+  "eligible": ["tax-rate-from-settings"],
+  "hits": [
+    { "rule": "tax-rate-from-settings", "file": "apps/web/src/checkout/tax.ts", "line": 1, "text": "const TAX_RATE = 0.2" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
 ``````
 
 ## Checks
@@ -3919,6 +4009,11 @@ eligible, a tool runs the search over the rule's counted files (see
 [Conditions](#conditions)), and its **hits** go to the reviewer with
 the rule. A hit is a pointer to a line, never a verdict: a hit does not
 mean the rule is broken, and no hits does not mean it passed.
+
+A rule's `addedContains` and `addedMatches` conditions already point at
+the lines they find (see [Conditions](#conditions)). A check is for a
+search that should not decide whether the rule is eligible, or one that
+a condition cannot express, such as an `ast-grep` pattern.
 
 A rule MAY have any number of checks. A context has none (see
 [Context](#context)).
@@ -4021,8 +4116,10 @@ A tool runs the checks of every eligible rule, and of no other rule.
 Each check searches the rule's counted files that have added lines; a
 deleted file has none. A **hit** names the rule, the changed file (by
 its new path), the number of an added line, and that line's text (see
-[Conditions](#conditions)). A rule has at most one hit per file and
-line, however many of its checks or matches find that line.
+[Conditions](#conditions)). An eligible rule's hits are those of its
+checks and those of its added-line conditions. A rule has at most one
+hit per file and line, however many of its checks or conditions find
+that line.
 
 A `regex` check has a hit for each added line whose text its pattern
 matches, as [Regex dialect](#regex-dialect) defines.
@@ -4317,7 +4414,8 @@ A deleted file counts by its old path, and a renamed file by both of its
 paths. `OldPrice.tsx` was deleted under `legacy/`. `Price.tsx` moved
 from the checkout folder to the pricing folder, so it is in the scope of
 the rules of both. Its added line counts for both conditions, though
-the checkout rule counts the file by its old path only:
+the checkout rule counts the file by its old path only. Each rule's hit
+names the new path:
 
 ``````example eligibility
 === apps/web/src/checkout/.lore/checkout.lore
@@ -4345,7 +4443,10 @@ R apps/web/src/checkout/Price.tsx -> apps/web/src/pricing/Price.tsx
 === expect
 {
   "eligible": ["checkout-currency-from-settings", "legacy-removals-logged", "pricing-currency-from-settings"],
-  "hits": [],
+  "hits": [
+    { "rule": "checkout-currency-from-settings", "file": "apps/web/src/pricing/Price.tsx", "line": 3, "text": "  const label = 'USD'" },
+    { "rule": "pricing-currency-from-settings", "file": "apps/web/src/pricing/Price.tsx", "line": 3, "text": "  const label = 'USD'" }
+  ],
   "excluded": [],
   "warnings": []
 }

@@ -150,6 +150,10 @@ async function runChecks(
 
   for (const { entry, place, counted } of selected) {
     const searched = counted.filter((file) => file.newPath !== null && file.added.length > 0) as (Changed & { newPath: string })[];
+    if (entry.kind === "rule") {
+      const found = addedLineConditions(entry.when, support.regexes);
+      if (found !== null) for (const file of searched) for (const added of file.added) if (found(added.text)) hit(entry.id, file.newPath, added);
+    }
     const unknownLanguage = new Set<string>();
     for (const [n, check] of entry.checks.entries()) {
       if (check.lang === "regex" && support.regex) {
@@ -177,6 +181,14 @@ async function runChecks(
   }
   await runAtOnce(runs, AST_GREP_RUNS_AT_ONCE);
   return { hits: [...hits.values()], warnings };
+}
+
+// An added line that an addedContains or addedMatches condition finds is a hit, as a check's would be.
+function addedLineConditions(when: Record<string, string[]> | null, regexes: Regexes): ((text: string) => boolean) | null {
+  const contains = when?.addedContains ?? [];
+  const patterns = (when?.addedMatches ?? []).map(regexes);
+  if (contains.length === 0 && patterns.length === 0) return null;
+  return (text) => contains.some((value) => text.includes(value)) || patterns.some((pattern) => pattern.test(text));
 }
 
 async function runAtOnce(runs: readonly (() => Promise<void>)[], limit: number): Promise<void> {

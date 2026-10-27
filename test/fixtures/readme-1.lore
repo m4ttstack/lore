@@ -11,7 +11,7 @@
 
 <rule id="money-in-minor-units" category="functional_correctness">
   <when>
-    addedMatches: ['parseFloat\(|toFixed\(']
+    addedContains: ["parseFloat(", "toFixed("]
   </when>
   Amounts are integers in minor units (cents). Floating point never touches
   money.

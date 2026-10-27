@@ -1,6 +1,6 @@
-<rule id="lore-rules-owned" category="documentation">
-<scope>
-files: ["**/.lore/**/*.lore"]
-</scope>
-Every new rule records its owner in its `<meta>`.
+<rule id="checkout-currency-from-settings" category="functional_correctness">
+<check>
+'USD'
+</check>
+Checkout display text never hard-codes a currency code.
 </rule>

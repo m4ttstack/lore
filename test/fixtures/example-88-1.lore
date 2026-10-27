@@ -1,11 +1,11 @@
-<scope>
-files: ["apps/web/src/checkout/**"]
-</scope>
-
-<rule id="price-source-recorded" category="data_provenance">
-Every price the checkout stores records the quote it came from.
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
 </rule>
 
-<context id="review-handbook" src="./../../handbook.md">
-Read for the organization's review conventions.
+<rule id="dates-from-locale" category="functional_correctness" severity="high">
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+Read before judging any change to how a price is computed.
 </context>

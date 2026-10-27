@@ -37,8 +37,8 @@ export const ATTRIBUTE_DOCS: Readonly<Record<string, string>> = {
 };
 
 export const WHEN_DOCS: Readonly<Record<string, string>> = {
-  addedContains: "Holds when an added line of a counted file contains one of the strings, case-sensitive.",
-  addedMatches: "Holds when an added line of a counted file matches one of the patterns in the regex dialect.",
+  addedContains: "Holds when an added line of a counted file contains one of the strings, case-sensitive. In a rule, each such line is a hit.",
+  addedMatches: "Holds when an added line of a counted file matches one of the patterns in the regex dialect. In a rule, each such line is a hit.",
   changed: "Holds when a changed file anywhere in the change matches one of the globs.",
   unchanged: "Holds when no changed file anywhere in the change matches any of the globs.",
 };

@@ -1,6 +1,3 @@
-<rule id="pricing-currency-from-settings" category="functional_correctness">
-<when>
-addedContains: ["'USD'"]
-</when>
-Pricing code never hard-codes a currency code.
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
 </rule>
