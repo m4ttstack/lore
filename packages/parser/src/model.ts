@@ -1,5 +1,6 @@
 import { checkDefaults, checkScope } from "./blocks";
-import { lineDiagnostic, readEntry, resolveScope, type EntryResult, type FileContext } from "./entries";
+import { DEFAULT_FILES, lineDiagnostic, readEntry, resolveScope, type EntryResult, type FileContext } from "./entries";
+import { disjoint } from "./glob";
 import { dedent } from "./indent";
 import { parseFile, type BlockNode, type LoreFile } from "./scan";
 import type { Diagnostic, DocumentModel, Entry, InputFile, LoreInput } from "./types";
@@ -14,7 +15,7 @@ export const FIXED_CATEGORIES: ReadonlySet<string> = new Set([
 
 export function parse(input: LoreInput): DocumentModel {
   const errors: Diagnostic[] = [];
-  const read: EntryResult[] = [];
+  const read: { result: EntryResult; fileFiles: readonly string[] }[] = [];
   for (const { file, base } of loreFiles(input.repo)) {
     const lore = parseFile(file.path, file.content);
     const blocks = readFileBlocks(lore, FIXED_CATEGORIES);
@@ -26,19 +27,24 @@ export function parse(input: LoreInput): DocumentModel {
       base, loreRoot: REPO_ROOT, categories: FIXED_CATEGORIES,
       defaults: blocks.defaults, scope: resolveScope(base, blocks.scope),
     };
-    for (const node of lore.nodes) if (node.kind === "entry") read.push(readEntry(lore, node, context));
+    const fileFiles = blocks.scope.files ?? DEFAULT_FILES;
+    for (const node of lore.nodes) if (node.kind === "entry") read.push({ result: readEntry(lore, node, context), fileFiles });
   }
 
   const uses = new Map<string, number>();
-  for (const { id } of read) if (id !== null) uses.set(id, (uses.get(id) ?? 0) + 1);
+  for (const { result: { id } } of read) if (id !== null) uses.set(id, (uses.get(id) ?? 0) + 1);
   const entries: Entry[] = [];
   const warnings: Diagnostic[] = [];
-  for (const result of read) {
+  for (const { result, fileFiles } of read) {
     if ("error" in result) errors.push(result.error);
     else if (uses.get(result.id)! > 1) errors.push(result.diagnostic("duplicate-id"));
     else {
       entries.push(result.entry);
       if (result.entry.kind === "rule" && result.entry.category === null) warnings.push(result.diagnostic("missing-category"));
+      const own = result.ownScope;
+      if (own !== null && own.files.every((glob) => fileFiles.every((outer) => disjoint(glob, outer)))) {
+        warnings.push(result.diagnostic("empty-scope", own.line));
+      }
     }
   }
   return { entries, errors: errors.sort(compareDiagnostics), warnings: warnings.sort(compareDiagnostics) };

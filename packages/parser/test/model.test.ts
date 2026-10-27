@@ -135,3 +135,29 @@ describe("duplicate-id", () => {
     expect(result.warnings).toEqual([]);
   });
 });
+
+describe("empty-scope", () => {
+  const scoped = (files: string) => `<scope>\nfiles: ${files}\n</scope>\n\n`;
+  const entry = (id: string, scope: string) =>
+    `<rule id="${id}" category="documentation">\n<scope>\n${scope}\n</scope>\nA.\n</rule>\n`;
+
+  test("globs are compared as written, so a base holding glob characters does not hide a conflict", () => {
+    const content = scoped('["checkout/**"]') + entry("a", 'files: ["cart/**"]');
+    const result = parse(input({ path: "a/{x}/.lore/a.lore", content }));
+    expect(brief(result.warnings)).toEqual([{ name: "empty-scope", file: "a/{x}/.lore/a.lore", entry: "a", line: 6 }]);
+    expect(result.entries.map((e) => e.id)).toEqual(["a"]);
+  });
+
+  test("an entry scope without files, or a file without a scope, never warns", () => {
+    const result = parse(input(
+      { path: ".lore/a.lore", content: scoped('["**/*.ts"]') + entry("a", 'ignores: ["**/*.md"]') },
+      { path: ".lore/b.lore", content: entry("b", 'files: ["**/*.md"]') },
+    ));
+    expect(result.warnings).toEqual([]);
+  });
+
+  test("one overlapping pair of files globs is enough to keep the scope", () => {
+    const content = scoped('["**/*.ts", "**/*.md"]') + entry("a", 'files: ["**/*.md"]');
+    expect(parse(input({ path: ".lore/a.lore", content })).warnings).toEqual([]);
+  });
+});

@@ -1,14 +1,9 @@
+import { validateGlob, type GlobPlace } from "./glob";
 import type { BlockProblem } from "./yaml";
-
-export type GlobPlace = "files" | "ignores" | "changed" | "unchanged";
 
 export const CATEGORY = /^[a-z][a-z0-9_]*$/;
 export const SEVERITIES = ["blocking", "advisory"];
 const CONDITIONS = ["addedContains", "addedMatches", "changed", "unchanged"] as const;
-
-function checkGlob(_glob: string, _place: GlobPlace): string | null {
-  return null;
-}
 
 export function checkRegex(_pattern: string): string | null {
   return null;
@@ -38,7 +33,7 @@ export function checkScope(value: unknown, line: number): BlockProblem | null {
     ...ignores.map((glob): [string, GlobPlace] => [glob, "ignores"]),
   ];
   for (const [glob, place] of globs) {
-    const name = checkGlob(glob, place);
+    const name = validateGlob(glob, place);
     if (name !== null) return { name, line };
   }
   return null;
@@ -59,7 +54,7 @@ export function checkWhen(value: unknown, line: number): BlockProblem | null {
     for (const item of items) {
       const name = condition === "addedMatches" ? checkRegex(item)
         : condition === "addedContains" ? null
-        : checkGlob(item, condition);
+        : validateGlob(item, condition);
       if (name !== null) return { name, line };
     }
   }

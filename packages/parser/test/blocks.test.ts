@@ -47,6 +47,12 @@ describe("checkScope", () => {
   test("an empty files list is empty-files", () => {
     expect(checkScope({ files: [] }, LINE)).toEqual({ name: "empty-files", line: LINE });
   });
+
+  test("globs are checked files first, then ignores, each in order", () => {
+    expect(checkScope({ ignores: ["/x"], files: ["a//b"] }, LINE)).toEqual({ name: "invalid-glob", line: LINE });
+    expect(checkScope({ files: ["src/**", "../x"], ignores: ["/x"] }, LINE)).toEqual({ name: "glob-escapes-base", line: LINE });
+    expect(checkScope({ files: ["src/**"], ignores: ["/x"] }, LINE)).toEqual({ name: "leading-slash", line: LINE });
+  });
 });
 
 describe("checkWhen", () => {

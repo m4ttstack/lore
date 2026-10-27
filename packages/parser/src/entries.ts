@@ -1,4 +1,5 @@
 import { CATEGORY, SEVERITIES, checkMeta, checkRegex, checkScope, checkWhen } from "./blocks";
+import { resolveGlob } from "./glob";
 import { dedentEntry } from "./indent";
 import { readAttributes, type AttributeList, type ChildNode, type EntryNode, type LoreFile } from "./scan";
 import type { Check, Diagnostic, Entry, Scope } from "./types";
@@ -16,7 +17,9 @@ export interface FileContext {
 
 export type EntryResult =
   | { id: string | null; error: Diagnostic }
-  | { id: string; entry: Entry; diagnostic(name: string): Diagnostic };
+  | { id: string; entry: Entry; ownScope: WrittenScope | null; diagnostic(name: string, line?: number): Diagnostic };
+
+export interface WrittenScope { files: readonly string[]; line: number }
 
 type ValueRule = (value: string | null) => string | null;
 
@@ -24,6 +27,7 @@ const ID = /^[a-z][a-z0-9-]*$/;
 const SINGLE_CHILDREN = new Set(["meta", "scope", "when"]);
 const RULE_CHILDREN = new Set([...SINGLE_CHILDREN, "check"]);
 const DEFAULT_LANG = "regex";
+export const DEFAULT_FILES: readonly string[] = ["**"];
 
 export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): EntryResult {
   const list = readAttributes(node.attributes.text);
@@ -65,13 +69,18 @@ export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): E
     summary: summaryOf(prose), prose: prose.join("\n"),
     src: resolved.src,
   };
-  return { id: readableId, entry, diagnostic: (name) => lineDiagnostic(name, lore, readableId, node.openLine) };
+  const scopeLine = node.children.find((child) => child.name === "scope")?.openLine;
+  return {
+    id: readableId, entry,
+    ownScope: scope === undefined ? null : { files: scope.files ?? DEFAULT_FILES, line: scopeLine! },
+    diagnostic: (name, line = node.openLine) => lineDiagnostic(name, lore, readableId, line),
+  };
 }
 
 export function resolveScope(base: string, value: { files?: string[]; ignores?: string[] }): Scope {
   return {
-    files: (value.files ?? ["**"]).map((glob) => fromBase(base, glob)),
-    ignores: (value.ignores ?? []).map((glob) => fromBase(base, glob)),
+    files: (value.files ?? DEFAULT_FILES).map((glob) => resolveGlob(base, glob)),
+    ignores: (value.ignores ?? []).map((glob) => resolveGlob(base, glob)),
   };
 }
 
