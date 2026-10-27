@@ -21,7 +21,7 @@
 - Code that runs inside an editor or Prettier (parser, prettier-plugin, language-server, vscode) must run under Node >= 20, not only Bun: no `Bun.*` APIs outside tests and scripts.
 - `spec/`, `tools/check/` and the existing `tests/` are not modified by this plan, except Task 1's workspace wiring in the root `package.json`. A disagreement between the parser and a conformance example is reported, never "fixed" by editing the example.
 - Comments only where they state a constraint the code cannot show. No em or en dashes in prose.
-- Commit after each task, ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- Commit after each task, ending with the `Co-Authored-By` attribution line given in the session's system reminder.
 
 ## Review Focus
 
@@ -74,7 +74,7 @@ test/fixtures/                    shared grammar fixtures (generated, see Task 1
 ```ts
 // packages/parser/src/types.ts
 export interface InputFile { path: string; content: string }          // path relative to its repository root
-export interface GivenFolder { files: InputFile[] }                    // tracked files of one other repository, from its root
+export interface GivenFolder { folder: string; files: InputFile[] }   // tracked files of the repository holding the given folder, paths from that repository's root; folder = the given folder's path within it ("" for the root)
 export interface LoreInput { repo: InputFile[]; given: GivenFolder[]; remotes: string[] }
 export interface Position { line: number; character: number }          // 0-based, UTF-16 units (LSP)
 export interface Range { start: Position; end: Position }
@@ -96,7 +96,7 @@ export interface Change { files: ChangedFile[] }
 export interface Hit { rule: string; file: string; line: number; text: string }
 export interface EligibilityResult { eligible: string[]; hits: Hit[]; excluded: Diagnostic[]; warnings: Diagnostic[] }
 export type Capability = "regex" | "ast-grep";
-export interface SelectOptions { capabilities?: Capability[]; astGrepBinary?: string | null }
+export interface SelectOptions { capabilities?: Capability[]; astGrepBinary?: string | null } // astGrepBinary: string = that binary; undefined = `ast-grep` on PATH; null = no binary (capability unsupported)
 ```
 
 Paths in `Diagnostic.file` and `Entry.file` follow the spec: repository files as written, given-folder files prefixed `external:`. `range` is extra (for editors) and is stripped before comparing to an expect.
@@ -106,7 +106,7 @@ Paths in `Diagnostic.file` and `Entry.file` follow the spec: repository files as
 ### Task 1: Workspace, parser package and conformance harness
 
 **Files:**
-- Modify: `package.json` (add `"workspaces": ["packages/*"]`, script `"build"`; keep `test` and `check`)
+- Modify: `package.json` (add `"workspaces": ["packages/*"]`, script `"build": "bun run --filter '*' build"`; keep `test` and `check`)
 - Create: `packages/parser/package.json`, `packages/parser/tsconfig.json`, `packages/parser/src/types.ts`, `packages/parser/src/index.ts`
 - Create: `packages/parser/test/conformance.test.ts`, `packages/parser/test/pending.json`
 - Modify: `tsconfig.json` (include `packages/*/src`, `packages/*/test`)
@@ -116,7 +116,7 @@ Paths in `Diagnostic.file` and `Entry.file` follow the spec: repository files as
 - Produces: the types above; `parse(input: LoreInput): DocumentModel` and `select(input: LoreInput, change: Change, options?: SelectOptions): Promise<EligibilityResult>` exported from `@lore/parser`, both throwing `new Error("not implemented")` for now; `toInput(example: Example): LoreInput` and `toChange(diff: string): Change` in `test/conformance.test.ts` (exported from a sibling `test/harness.ts` so later unit tests reuse them).
 
 - [ ] **Step 1: Write the harness tests** in `packages/parser/test/harness.test.ts`:
-  - `toInput puts external: files in one given folder with the prefix stripped`
+  - `toInput puts external: files in one given folder with the prefix stripped and folder ""`
   - `toInput uses https://github.com/acme/shop when the example has no remote`
   - `toChange reads A, M, D and R lines and their + lines` (for `R a -> b` with `+3 x`: `{kind:"R", oldPath:"a", path:"b", added:[{line:3,text:"x"}]}`)
 - [ ] **Step 2: Run** `bun test packages/parser/test/harness.test.ts`. Expected: FAIL (module missing).
@@ -146,7 +146,7 @@ Every later parser task follows one rule for `pending.json`: remove the numbers 
 
 **Interfaces:**
 - Consumes: `LoreFile`, `dedent` (Task 2).
-- Produces: `readBlock(lines: string[], firstLine: number): { value: unknown; diagnostic: { name: string; line: number } | null }` in `yaml.ts` (YAML 1.2 core schema via `yaml`'s `parseDocument`; duplicate keys, anchors, aliases, every tag, non-string keys, `.inf`/`.nan` rejected with the spec's names and lines; trailing commas accepted). `checkDefaults`, `checkScope`, `checkWhen`, `checkMeta` in `blocks.ts`, each `(value: unknown, line: number) => { name: string; line: number } | null`, using the spec's specific names before the generic `invalid-*` (see the spec's Structured blocks and the error-name rules). Glob and regex validity are NOT checked here (Tasks 5 and 6 add them through hooks `checkGlob` and `checkRegex` that default to "valid").
+- Produces: `readBlock(lines: string[], firstLine: number, incompleteLine: number): { value: unknown; diagnostic: { name: string; line: number } | null }` (`incompleteLine` is where an incomplete document is reported: the block's closing tag line for a block, the file's last line for a `.loreconfig` in Task 7) in `yaml.ts` (YAML 1.2 core schema via `yaml`'s `parseDocument`; duplicate keys, anchors, aliases, every tag, non-string keys, `.inf`/`.nan` rejected with the spec's names and lines; trailing commas accepted). `checkDefaults`, `checkScope`, `checkWhen`, `checkMeta` in `blocks.ts`, each `(value: unknown, line: number) => { name: string; line: number } | null`, using the spec's specific names before the generic `invalid-*` (see the spec's Structured blocks and the error-name rules). Glob and regex validity are NOT checked here (Tasks 5 and 6 add them through hooks `checkGlob` and `checkRegex` that default to "valid").
 - Target sections: Structured blocks.
 
 - [ ] **Step 1: Write failing tests** for each YAML trap the spec lists (unquoted `**/*.ts`, `"\d"` in double quotes, `#` in a plain scalar, `[[A-Z]+_PRICE]`, a trailing comma accepted, `!!str` rejected), asserting name and line.
@@ -189,7 +189,7 @@ Every later parser task follows one rule for `pending.json`: remove the numbers 
 **Files:** Create `src/regex.ts`; test `test/regex.test.ts`.
 
 **Interfaces:**
-- Produces: `validateRegex(pattern: string): string | null` (`regex-outside-dialect`, `regex-not-one-line` or null) and `toRegExp(pattern: string): RegExp` (translation per the spec's translation note: ASCII `\d \w \s \b`, no flags; the spec's code-point semantics require the `u` flag only where the translation note says so). Wire `checkRegex` into `blocks.ts` for `addedMatches` and into `entries.ts` for `<check lang="regex">` bodies.
+- Produces: `validateRegex(pattern: string): string | null` (`regex-outside-dialect`, `regex-not-one-line` or null) and `toRegExp(pattern: string): RegExp` per the spec's translation note (SPEC.md Regex dialect): flags `us` (code points; `.` matches every character); `\s` and `\S` rewritten as explicit ASCII sets; `\d`, `\w`, `\b` kept (already ASCII in ECMAScript); identity escapes that `u` rejects (such as `\'`) rewritten as the bare character. Wire `checkRegex` into `blocks.ts` for `addedMatches` and into `entries.ts` for `<check lang="regex">` bodies.
 - Target sections: Conditions (parse-time examples), Regex dialect, Checks (parse-time).
 
 - [ ] **Step 1: Write failing tests** for each dialect rule: lookahead, backreference, named group, inline `(?i)`, `a{` rejected and `a\{` accepted, leading-zero quantifier rejected, nested-bound product over 1000 rejected (`{0}` counted as 1), empty alternatives accepted, `[\b]` rejected, `\d` not matching U+0663, `\s` not matching U+00A0, `$` at end of text.
@@ -217,12 +217,12 @@ Every later parser task follows one rule for `pending.json`: remove the numbers 
 **Files:** Create `src/select.ts`, `src/astgrep.ts`; tests `test/select.test.ts`, `test/astgrep.test.ts`. Add `@ast-grep/cli` `0.51.0` (exact) to `packages/parser` devDependencies and resolve its binary path in tests.
 
 **Interfaces:**
-- Produces: `select(input, change, options)`: counted files (deleted by old path, renamed by both), scope matching, `<when>` conditions, `disable`, eligibility-time warnings, regex checks (when `"regex"` is in `capabilities`), ast-grep checks (when `"ast-grep"` is in `capabilities` and `astGrepBinary` resolves; the runner calls the binary per changed file with the spec's language for its extension and default options, and maps matches to the line of the match's last character). `coveringEntries(input: LoreInput, model: DocumentModel, path: string): Entry[]` (exported from `@lore/parser`) for the editor lens (scope and `disable` only; `<when>` ignored; disabled entries omitted).
+- Produces: `select(input, change, options)`: counted files (deleted by old path, renamed by both), scope matching, `<when>` conditions, `disable`, eligibility-time warnings, regex checks (when `"regex"` is in `capabilities`), ast-grep checks (when `"ast-grep"` is in `capabilities` and `astGrepBinary` resolves; the runner calls the binary per changed file with the spec's language for its extension and default options). A match covers the lines from its first character's line to its last character's line; every added line it covers is a hit, deduplicated per rule, file and line (SPEC.md ast-grep checks). `coveringEntries(input: LoreInput, model: DocumentModel, path: string): Entry[]` (exported from `@lore/parser`) for the editor lens (scope and `disable` only; `<when>` ignored; disabled entries omitted).
 - Target sections: Conditions, Running checks, ast-grep checks, Eligibility, Error reach, Disable, and every remaining eligibility example.
 
 - [ ] **Step 1: Write failing tests:** `without the binary, ast-grep checks are skipped and warned` (with `astGrepBinary: null`, example 76's rule is still eligible, no hits, and the warning the spec defines for an unsupported check language is reported); `coveringEntries omits a rule switched off by disable for that path`.
 - [ ] **Step 2: Run.** Expected: FAIL.
-- [ ] **Step 3: Implement.**
+- [ ] **Step 3: Implement,** and update `test/conformance.test.ts` to pass `astGrepBinary` = the `@ast-grep/cli` devDependency's bin (`node_modules/.bin/ast-grep`).
 - [ ] **Step 4: Empty `pending.json`** to `{}` and add a test asserting it is empty. Run `bun test packages/parser`. Expected: 96 conformance examples PASS.
 - [ ] **Step 5: Commit** `parser: selection and checks; all conformance examples pass`.
 
@@ -232,7 +232,7 @@ Every later parser task follows one rule for `pending.json`: remove the numbers 
 
 **Interfaces:**
 - Consumes: `parseFile`, `parse` (round-trip test).
-- Produces: a Prettier 3 plugin exporting `languages` (`name: "Lore"`, `parsers: ["lore"]`, `extensions: [".lore"]`), `parsers.lore` (`astFormat: "lore"`, `locStart`, `locEnd`) and `printers.lore` with `embed` for YAML blocks (`textToDoc(text, { parser: "yaml" })`) and the Markdown part of prose (`{ parser: "markdown", proseWrap: "preserve" }`).
+- Produces: a Prettier 3 plugin (tested through Bun; using it from a `prettier` run under Node needs a built `dist/`, which `build` produces with esbuild and the package README explains) exporting `languages` (`name: "Lore"`, `parsers: ["lore"]`, `extensions: [".lore"]`), `parsers.lore` (`astFormat: "lore"`, `locStart`, `locEnd`) and `printers.lore` with `embed` for YAML blocks (`textToDoc(text, { parser: "yaml" })`) and the Markdown part of prose (`{ parser: "markdown", proseWrap: "preserve" }`).
 - Behavior is exactly the design's "Prettier plugin" section: indentation one level (2 spaces or a tab with `useTabs`), top-level tags at column 0, one blank line between top-level elements, attribute order `id`, `category`, `severity`, `src`, `lang`, `disabled`, prose split at its first blank line outside a fence with the first part only re-indented, Markdown printer then re-indent, `<check>` bodies only re-indented, comments byte for byte, file with a file-level error returned unchanged, an entry with an entry-level error left as written.
 
 - [ ] **Step 1: Write failing tests:** `formats the README sample to the README layout` (input: the README's first `.lore` sample flush-left; expected: the README's indented text); `round-trips every conformance input` (the design's comparison: every model field equal except `prose` after the first blank line, compared after the Markdown printer, and diagnostic lines; and formatting twice equals formatting once); `keeps every top-level comment byte for byte`; `returns a file with a file-level error unchanged`; `keeps a list directly under the first sentence in the summary`; `uses a tab with useTabs`.
@@ -243,11 +243,11 @@ Every later parser task follows one rule for `pending.json`: remove the numbers 
 
 ### Task 10: TextMate grammar and shared fixtures
 
-**Files:** Create `packages/vscode/syntaxes/lore.tmLanguage.json`, `packages/vscode/language-configuration.json`, `scripts/fixtures.ts` (root), `test/fixtures/` (generated, committed), `packages/vscode/test/grammar.test.ts`. Dev dependencies `vscode-textmate`, `vscode-oniguruma`.
+**Files:** Create `packages/vscode/syntaxes/lore.tmLanguage.json`, `packages/vscode/language-configuration.json`, `scripts/fixtures.ts` (root), `test/fixtures/` (generated, committed, with `test/fixtures/index.json`), `packages/vscode/test/grammar.test.ts`. Dev dependencies `vscode-textmate`, `vscode-oniguruma`.
 
 **Interfaces:**
-- Produces: scope name `source.lore`; scopes `entity.name.tag.lore` (tags), `entity.other.attribute-name.lore`, `string.quoted.double.lore`, `comment.block.lore`; embedded `source.yaml` inside `<defaults>`, `<scope>`, `<when>`, `<meta>` and `text.html.markdown` for prose, `string.regexp.lore` for `<check>` bodies. `bun scripts/fixtures.ts` writes every conformance example input file to `test/fixtures/example-<n>-<i>.lore` plus the README samples.
-- [ ] **Step 1: Write failing tests** with `vscode-textmate`: `every fixture tokenizes without throwing`; `every tag line in every fixture gets entity.name.tag.lore`; `YAML inside <scope> gets source.yaml`; `prose gets text.html.markdown`.
+- Produces: scope name `source.lore`; scopes `entity.name.tag.lore` (tags), `entity.other.attribute-name.lore`, `string.quoted.double.lore`, `comment.block.lore`; embedded `source.yaml` inside `<defaults>`, `<scope>`, `<when>`, `<meta>` and `text.html.markdown` for prose, `string.regexp.lore` for `<check>` bodies. `bun scripts/fixtures.ts` writes every conformance example input `.lore` file to `test/fixtures/example-<n>-<i>.lore` plus the README samples, and `test/fixtures/index.json` mapping each fixture to its example number, kind and the error names its expect lists for that file.
+- [ ] **Step 1: Write failing tests** with `vscode-textmate`: `every fixture tokenizes without throwing`; `every tag line in every fixture gets entity.name.tag.lore` (tag lines are the open and close lines `parseFile` reports for top-level nodes and children, so tag-shaped prose lines are excluded); `YAML inside <scope> gets source.yaml`; `prose gets text.html.markdown`.
 - [ ] **Step 2: Run.** Expected: FAIL.
 - [ ] **Step 3: Implement** the grammar (YAML and Markdown grammars for the test loaded from small vendored copies or the `vscode-textmate` test setup; the extension itself relies on the editor's built-in YAML and Markdown grammars).
 - [ ] **Step 4: Run.** Expected: PASS.
@@ -259,7 +259,8 @@ Every later parser task follows one rule for `pending.json`: remove the numbers 
 
 **Interfaces:**
 - Consumes: `parse`, `parseFile`, `collect`.
-- Produces: a stdio LSP server (`vscode-languageserver/node`). `files.ts`: `listFiles(root: string): Promise<string[] | null>` (`git ls-files -co --exclude-standard -z`; null when git is missing or `root` is not a repository) and `buildInput(workspace, openDocuments, externalFolders): Promise<LoreInput>` (tracked plus untracked-not-ignored files, open buffer contents over disk, each `lore.externalFolders` entry a given folder). Diagnostics for every open `.lore` and `.loreconfig`, with `range` from the parser, `code` = registry name, message = registry description (read from `spec/errors.json` at build time, bundled). Settings: `lore.externalFolders: string[]`.
+- Produces: a stdio LSP server (`vscode-languageserver/node`). `files.ts`: `listFiles(root: string): Promise<string[] | null>` (`git ls-files -co --exclude-standard -z`; null when git is missing or `root` is not a repository) and `buildInput(workspace, openDocuments, externalFolders): Promise<LoreInput>` (tracked plus untracked-not-ignored files, open buffer contents over disk, each `lore.externalFolders` entry a given folder). Diagnostics for every open `.lore` and `.loreconfig`, with `range` from the parser, `code` = registry name, message = registry description (read from `spec/errors.json` at build time, bundled). Settings: `lore.externalFolders: string[]`; for each, `buildInput` lists files from its enclosing repository root (`git rev-parse --show-toplevel`) and sets `folder` to the setting's path relative to that root.
+- Build: `build` bundles `src/server.ts` (with `spec/errors.json` inlined) into `dist/server.js` with esbuild (platform node, target node20); `bin/lore-language-server.js` is a Node shim that requires `../dist/server.js`. The stdio tests run against the built output.
 - [ ] **Step 1: Write failing tests** (drive the server in-process through `vscode-languageserver`'s test connection or spawn the bin over stdio): `publishes diagnostics with the registry name and description`; `half-typed buffer publishes diagnostics` (an unclosed `<rule` at the end); `works without a git repository`; `an untracked new .lore file counts`; `an unsaved buffer wins over disk`; `parses a 2,000-entry file in under 200 ms`.
 - [ ] **Step 2: Run.** Expected: FAIL.
 - [ ] **Step 3: Implement.** Debounce re-parses at 150 ms.
@@ -294,22 +295,23 @@ Every later parser task follows one rule for `pending.json`: remove the numbers 
 
 ### Task 14: tree-sitter grammar and Zed extension
 
-**Files:** Create `packages/tree-sitter-lore/{grammar.js,src/scanner.c,queries/highlights.scm,queries/injections.scm,test/corpus/*.txt,package.json}`, `packages/zed/{extension.toml,Cargo.toml,src/lib.rs,languages/lore/config.toml,languages/lore/highlights.scm,languages/lore/injections.scm,README.md}`, `scripts/zed-grammar-rev.ts`.
+**Files:** Create `packages/tree-sitter-lore/{grammar.js,tree-sitter.json,src/scanner.c,queries/highlights.scm,queries/injections.scm,test/corpus/*.txt,package.json}` plus the generated and committed `src/parser.c`, `src/grammar.json`, `src/node-types.json`, `src/tree_sitter/*.h`; `packages/zed/{extension.toml.in,Cargo.toml,src/lib.rs,languages/lore/config.toml,languages/lore/highlights.scm,languages/lore/injections.scm,README.md}`, `scripts/zed-grammar-rev.ts`.
 
 **Interfaces:**
 - Consumes: shared fixtures (Task 10), the server bin (Task 11).
-- Produces: a tree-sitter grammar with an external scanner for the line rules (column-0 tags, prose to the column-0 closing tag, fences in prose); node types `source_file`, `comment`, `defaults_block`, `scope_block`, `rule`, `context`, `child` (with `tag_name`, `attribute`, `attribute_name`, `attribute_value`), `yaml_body`, `check_body`, `prose`; injections `yaml_body` -> `yaml`, `prose` -> `markdown`. Zed extension: `extension.toml` grammar entry with `repository = "file://<repo root>"`, `path = "packages/tree-sitter-lore"`, `rev` set by `bun scripts/zed-grammar-rev.ts` to the latest commit touching the grammar; `language_server_command` returns `lsp.lore-language-server.binary.path` from Zed settings when set, else `lore-language-server` found on the worktree's PATH. The README says how to install it as a dev extension and how to put `lore-language-server` on PATH.
+- Produces: a tree-sitter grammar with an external scanner for the line rules (column-0 tags, prose to the column-0 closing tag, fences in prose); node types `source_file`, `comment`, `defaults_block`, `scope_block`, `rule`, `context`, `child` (with `tag_name`, `attribute`, `attribute_name`, `attribute_value`), `yaml_body`, `check_body`, `prose`; injections `yaml_body` -> `yaml`, `prose` -> `markdown`. Zed extension: `bun scripts/zed-grammar-rev.ts` writes `packages/zed/extension.toml` (gitignored, machine-specific) from the committed `extension.toml.in`, with grammar `repository = "file://<this checkout's root>"`, `path = "packages/tree-sitter-lore"` and `rev` = the latest commit touching `packages/tree-sitter-lore`; `language_server_command` returns `lsp.lore-language-server.binary.path` from Zed settings when set, else `lore-language-server` found on the worktree's PATH. The README says how to install it as a dev extension and how to put `lore-language-server` on PATH.
 - [ ] **Step 1: Write failing tests:** a `test/corpus/` case per top-level form and one for a `</rule>` inside a fenced block in prose; a script test `every fixture parses without ERROR nodes` (`tree-sitter parse --quiet` over `test/fixtures/`, excluding fixtures from examples that expect `unreadable-structure` or `top-level-text`).
-- [ ] **Step 2: Run** `bunx tree-sitter test` in the grammar package. Expected: FAIL.
-- [ ] **Step 3: Implement** the grammar, scanner, queries and the Zed extension (`cargo build --target wasm32-wasip1` must succeed).
-- [ ] **Step 4: Run** the corpus tests and the fixture script. Expected: PASS. Then install the dev extension in Zed and confirm highlighting and diagnostics on `test/fixtures/`; record what was seen in the report.
-- [ ] **Step 5: Commit** `tree-sitter and zed: grammar and extension`.
+- [ ] **Step 2: Run** `bunx tree-sitter test` in the grammar package (the package pins `tree-sitter-cli` 0.27.x as a devDependency so `bunx tree-sitter` is the CLI). Expected: FAIL.
+- [ ] **Step 3: Implement** the grammar, scanner and queries; run `tree-sitter generate` and keep the generated `src/` files (Zed compiles from them without generating).
+- [ ] **Step 4: Run** the corpus tests and the fixture script. Expected: PASS. **Commit** `tree-sitter: lore grammar` (the Zed `rev` must name an existing commit).
+- [ ] **Step 5: Implement** the Zed extension, run `bun scripts/zed-grammar-rev.ts`, and check `cargo build --target wasm32-wasip1` succeeds. Install the dev extension in Zed and confirm highlighting and diagnostics on `test/fixtures/`; record what was seen in the report.
+- [ ] **Step 6: Commit** `zed: lore extension`.
 
 ### Task 15: CI and docs
 
 **Files:** Modify `.github/workflows/ci.yml`, `README.md` (Roadmap item 2 and a short "Editor support" section linking the two extension READMEs).
 
-- [ ] **Step 1: Extend CI:** install Rust (`dtolnay/rust-toolchain` with target `wasm32-wasip1`) and run, after the existing steps: `bun test` (now covering all packages), `bunx tree-sitter test` in `packages/tree-sitter-lore`, the fixture parse script, `cargo build --target wasm32-wasip1` in `packages/zed`, and `bun run --filter lore-vscode package`.
+- [ ] **Step 1: Extend CI:** install Rust (`dtolnay/rust-toolchain` with target `wasm32-wasip1`) and run, after the existing steps: `bun test` (now covering all packages), `bunx tree-sitter test` in `packages/tree-sitter-lore`, the fixture parse script, `bun scripts/zed-grammar-rev.ts` then `cargo build --target wasm32-wasip1` in `packages/zed`, and `bun run --filter lore-vscode package`.
 - [ ] **Step 2: Update README** Roadmap item 2 to "done: reference parser, Prettier plugin, language server, VS Code/Cursor and Zed extensions (not yet published)", and add the Editor support section.
-- [ ] **Step 3: Push** and confirm CI is green with `gh run list -R m4ttstack/lore -L 1`.
-- [ ] **Step 4: Commit** `ci and docs: editor tooling`.
+- [ ] **Step 3: Commit** `ci and docs: editor tooling`.
+- [ ] **Step 4: Push** and confirm CI is green with `gh run list -R m4ttstack/lore -L 1`.
