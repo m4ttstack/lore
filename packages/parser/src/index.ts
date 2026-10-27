@@ -1,10 +1,13 @@
-import type { Change, DocumentModel, EligibilityResult, LoreInput, SelectOptions } from "./types";
+import type { Change, EligibilityResult, LoreInput, SelectOptions } from "./types";
 
 export type * from "./types";
-
-export function parse(_input: LoreInput): DocumentModel {
-  throw new Error("not implemented");
-}
+export type { DecodedText } from "./text";
+export type {
+  Attribute, AttributeList, BlockNode, ChildNode, CommentNode, EntryNode, LoreFile, RawAttributes, TextNode, TopNode,
+} from "./scan";
+export { parseFile, readAttributes } from "./scan";
+export { dedent, dedentEntry } from "./indent";
+export { parse } from "./model";
 
 export async function select(
   _input: LoreInput,
