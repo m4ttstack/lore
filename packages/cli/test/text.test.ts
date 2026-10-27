@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { toSelection } from "../src/selection";
-import { renderText } from "../src/text";
+import { excludedLines, renderText } from "../src/text";
 import { change, model, readSrc, result } from "./fixtures";
 
 describe("renderText", () => {
@@ -38,6 +38,18 @@ describe("renderText", () => {
   test("an empty selection renders one line", () => {
     const empty = toSelection({ entries: [], errors: [], warnings: [] }, { eligible: [], hits: [], excluded: [], warnings: [] }, { files: [] }, readSrc);
     expect(renderText(empty)).toBe("No Lore rules apply to this change.\n");
+  });
+
+  test("an empty selection with excluded entries says so, and the excluded lines name each one", () => {
+    const excluded = [
+      { name: "unknown-attribute", file: ".lore/bad.lore", entry: "broken", line: 3 },
+      { name: "invalid-loreconfig", file: ".loreconfig", entry: null, line: 1 },
+    ];
+    const empty = toSelection({ entries: [], errors: [], warnings: [] }, { eligible: [], hits: [], excluded, warnings: [] }, { files: [] }, readSrc);
+    expect(renderText(empty)).toBe("No Lore rules apply to this change. Some Lore entries were excluded; see the errors.\n");
+    expect(excludedLines(empty)).toBe(
+      "lore: excluded unknown-attribute in .lore/bad.lore line 3 (entry broken)\nlore: excluded invalid-loreconfig in .loreconfig line 1\n",
+    );
   });
 
   test("an empty selection still lists its warnings", () => {

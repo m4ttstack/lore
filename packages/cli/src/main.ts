@@ -7,7 +7,7 @@ import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
 import { buildInput, findRepoRoot } from "./input";
 import { toSelection } from "./selection";
-import { renderText } from "./text";
+import { excludedLines, renderText } from "./text";
 import { checkVerdicts, readSelection } from "./verdicts";
 
 export interface IO {
@@ -85,7 +85,11 @@ async function runSelect(command: SelectCommand, io: IO): Promise<number> {
   });
   const selection = toSelection(model, result, change, readSrc);
   const format = command.format ?? (io.isTTY ? "text" : "json");
-  io.stdout(format === "json" ? `${JSON.stringify(selection, null, 2)}\n` : renderText(selection));
+  if (format === "json") io.stdout(`${JSON.stringify(selection, null, 2)}\n`);
+  else {
+    io.stderr(excludedLines(selection));
+    io.stdout(renderText(selection));
+  }
   return command.strict && selection.excluded.length > 0 ? 1 : 0;
 }
 

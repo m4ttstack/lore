@@ -106,6 +106,45 @@ describe("lore select", () => {
     expect(JSON.parse(lax.out).excluded[0]).toMatchObject({ name: "unknown-attribute", entry: "broken" });
   });
 
+  test("text output writes each excluded entry to stderr, one line each, and keeps stdout to the prompt", async () => {
+    const { root, diff } = project({ ".lore/bad.lore": BROKEN });
+    const { code, out, err } = await lore(["select", "--repo", root, "--diff", diff, "--format", "text"]);
+    expect(code).toBe(0);
+    expect(err).toBe("lore: excluded unknown-attribute in .lore/bad.lore line 1 (entry broken)\n");
+    expect(out).toContain("## Rule `no-usd`");
+    expect(out).not.toContain("broken");
+    const json = await lore(["select", "--repo", root, "--diff", diff, "--format", "json"]);
+    expect(json.err).toBe("");
+  });
+
+  test("text output never says no rules apply without saying entries were excluded", async () => {
+    const root = repoWith({ ".lore/bad.lore": BROKEN });
+    const diff = join(root, "change.diff");
+    writeFileSync(diff, DIFF);
+    const { code, out, err } = await lore(["select", "--repo", root, "--diff", diff, "--format", "text"]);
+    expect(code).toBe(0);
+    expect(out).toBe("No Lore rules apply to this change. Some Lore entries were excluded; see the errors.\n");
+    expect(err).toContain("lore: excluded unknown-attribute");
+  });
+
+  test("a file-relative src in a loose folder resolves inside that folder and is read", async () => {
+    const folder = tempDir();
+    write(folder, {
+      ".loreconfig": "lore: 1\nrepo: github.com/acme/shop\n",
+      ".lore/a.lore": '<context id="guide" src="./../docs/guide.md">\nRead the guide.\n</context>\n',
+      "docs/guide.md": "Use formatMoney.\n",
+    });
+    const { code, out, err } = await lore(
+      ["select", "--no-repo", "--remote", "github.com/acme/shop", "--given", folder, "--diff", "-", "--format", "json"],
+      { stdin: DIFF },
+    );
+    expect(err).toBe("");
+    expect(code).toBe(0);
+    expect(JSON.parse(out).context).toEqual([
+      { id: "guide", file: "loose:.lore/a.lore", summary: "Read the guide.", prose: "Read the guide.", src: "loose:docs/guide.md", srcText: "Use formatMoney.\n" },
+    ]);
+  });
+
   test("a regex nested past the group limit is an input error with a short message", async () => {
     const pattern = `${"(".repeat(1500)}a${")".repeat(1500)}`;
     const deep = `<rule id="deep" category="security">\n<when>\naddedMatches: ['${pattern}']\n</when>\nProse.\n</rule>\n`;

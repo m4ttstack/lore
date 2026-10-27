@@ -17,10 +17,13 @@ Return the verdicts as one fenced code block tagged \`lore-verdicts\`:
 { "lore": "1", "verdicts": [{ "rule": "<id>", "verdict": "fail", "evidence": [{ "file": "<path>", "line": 12 }], "note": "<why>" }] }
 \`\`\``;
 
+const NOTHING = "No Lore rules apply to this change.";
+
 export function renderText(selection: Selection): string {
   const sections: string[] = [];
-  if (selection.rules.length === 0 && selection.context.length === 0) sections.push("No Lore rules apply to this change.");
-  else {
+  if (selection.rules.length === 0 && selection.context.length === 0) {
+    sections.push(selection.excluded.length === 0 ? NOTHING : `${NOTHING} Some Lore entries were excluded; see the errors.`);
+  } else {
     sections.push(PREAMBLE);
     for (const rule of selection.rules) {
       const lines = [`## Rule ${span(rule.id)} (${rule.severity}, ${rule.category ?? "no category"})`, "", rule.prose];
@@ -41,6 +44,12 @@ export function renderText(selection: Selection): string {
   }
   if (selection.warnings.length > 0) sections.push(["## Warnings", "", ...selection.warnings.map(warningLine)].join("\n"));
   return `${sections.join("\n\n")}\n`;
+}
+
+export function excludedLines(selection: Selection): string {
+  return selection.excluded
+    .map(({ name, file, line, entry }) => `lore: excluded ${name} in ${file} line ${line}${entry === null ? "" : ` (entry ${entry})`}\n`)
+    .join("");
 }
 
 function warningLine(warning: Diagnostic): string {
