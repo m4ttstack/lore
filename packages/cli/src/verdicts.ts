@@ -30,7 +30,7 @@ export function checkVerdicts(selection: Selection, verdictSet: unknown): Verdic
   verdictSet.verdicts.forEach((raw: unknown, index: number) => {
     const verdict = readVerdict(raw, index + 1);
     if (typeof verdict === "string") {
-      report("invalid-verdict-set", isObject(raw) && typeof raw.rule === "string" ? raw.rule : null, verdict);
+      report("invalid-verdict-set", null, verdict);
       return;
     }
     const { rule } = verdict;

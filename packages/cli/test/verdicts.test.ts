@@ -64,12 +64,12 @@ describe("checkVerdicts", () => {
     expect(problems.filter((p) => p.name === "invalid-verdict-set")).toEqual([
       { name: "invalid-verdict-set", rule: null, detail: "Verdict 1 is not an object." },
       { name: "invalid-verdict-set", rule: null, detail: 'Verdict 2 has no string "rule".' },
-      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 3 for "alpha": "verdict" must be pass, fail or not-applicable.' },
-      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 4 for "alpha": evidence 1 "line" must be a whole number of 1 or more.' },
-      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 5 for "alpha": evidence 2 "side" must be new or old.' },
-      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 6 for "alpha": "evidence" must be an array.' },
-      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 7 for "alpha": evidence 1 is not an object.' },
-      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 8 for "alpha": evidence 1 "file" must be a string.' },
+      { name: "invalid-verdict-set", rule: null, detail: 'Verdict 3 for "alpha": "verdict" must be pass, fail or not-applicable.' },
+      { name: "invalid-verdict-set", rule: null, detail: 'Verdict 4 for "alpha": evidence 1 "line" must be a whole number of 1 or more.' },
+      { name: "invalid-verdict-set", rule: null, detail: 'Verdict 5 for "alpha": evidence 2 "side" must be new or old.' },
+      { name: "invalid-verdict-set", rule: null, detail: 'Verdict 6 for "alpha": "evidence" must be an array.' },
+      { name: "invalid-verdict-set", rule: null, detail: 'Verdict 7 for "alpha": evidence 1 is not an object.' },
+      { name: "invalid-verdict-set", rule: null, detail: 'Verdict 8 for "alpha": evidence 1 "file" must be a string.' },
     ]);
     expect(problems.map((p) => p.name)).toContain("missing-verdict");
   });

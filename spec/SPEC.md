@@ -5114,8 +5114,8 @@ team-repo/lore/
   repository of its own whose root is the folder, so a Lore root found
   in it is at or below the folder, and a file-relative `src` that would
   climb above that Lore root is `src-escapes-root`. Its files carry
-  `loose:` and their path from the folder. When it does, it MUST report `untracked-given-folder` once
-  for that folder, with `file` `loose:.`, `entry` `null` and `line` 1.
+  `loose:` and their path from the folder. When a tool collects a loose
+  folder, it MUST report `untracked-given-folder` once for that folder, with `file` `loose:.`, `entry` `null` and `line` 1.
   A tool MAY instead refuse such a folder and collect nothing from it.
   The team, not version control, decides what is in such a folder, so a
   stray copy of a Lore folder in it can add rules.

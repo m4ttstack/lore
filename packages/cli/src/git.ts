@@ -14,7 +14,9 @@ export class GitMissingError extends InputError {
 
 function git(root: string, args: string[]): string {
   try {
-    return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", maxBuffer: MAX_BUFFER, stdio: ["ignore", "pipe", "pipe"] });
+    // gitRoot matches git's English message, so a translated git must not answer in another language.
+    const env = { ...process.env, LC_ALL: "C" };
+    return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env, maxBuffer: MAX_BUFFER, stdio: ["ignore", "pipe", "pipe"] });
   } catch (error) {
     const { code, stderr } = error as NodeJS.ErrnoException & { stderr?: string };
     if (code === "ENOENT") throw new GitMissingError("git is not installed");

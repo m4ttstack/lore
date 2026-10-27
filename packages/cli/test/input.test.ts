@@ -346,6 +346,30 @@ describe("reads that leave the folder or fail", () => {
   });
 });
 
+describe("under a translated git", () => {
+  test("a folder in no working copy is still loose when the caller's locale is not English", async () => {
+    const bin = tempDir();
+    writeFileSync(
+      join(bin, "git"),
+      '#!/bin/sh\nif [ "$LC_ALL" = C ]; then echo "fatal: not a git repository (or any of the parent directories): .git" >&2; else echo "fatal: kein Git-Repository (oder irgendeines der Elternverzeichnisse): .git" >&2; fi\nexit 128\n',
+      { mode: 0o755 },
+    );
+    const plain = tempDir();
+    write(plain, { ".lore/x.lore": rule("x") });
+    const saved = { PATH: process.env.PATH, LANG: process.env.LANG, LC_ALL: process.env.LC_ALL };
+    Object.assign(process.env, { PATH: bin, LANG: "de_DE.UTF-8", LC_ALL: "de_DE.UTF-8" });
+    try {
+      const { input } = await buildInput({ repo: null, rulesRef: null, given: [plain], remotes: ["github.com/acme/shop"] });
+      expect(input.given).toEqual([{ folder: "", loose: true, files: [{ path: ".lore/x.lore", content: rule("x") }] }]);
+    } finally {
+      for (const [key, value] of Object.entries(saved)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  });
+});
+
 describe("without a git binary", () => {
   async function withoutGit<T>(run: () => Promise<T>): Promise<T> {
     const path = process.env.PATH;
