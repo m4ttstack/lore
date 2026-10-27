@@ -31,8 +31,13 @@ Prettier then formats every `.lore` file with the `lore` parser.
 - Top-level tags stay at column 0, with one blank line between top-level elements.
 - Attributes are written in the order `id`, `category`, `severity`, `src`, `lang`, `disabled`.
 - YAML blocks go through Prettier's YAML printer.
-- Prose up to its first blank line outside a fenced code block holds the summary and is only re-indented. The rest goes through Prettier's Markdown printer with `proseWrap: "preserve"`.
+- Prose up to its first blank line outside a fenced code block holds the summary and is only re-indented. The rest goes through Prettier's Markdown printer with `proseWrap: "preserve"`, leaving the code in fenced blocks as written. A rest whose first line is indented continues the summary's Markdown, so it is only re-indented.
 - `<check>` bodies and top-level comments are kept as written.
 - A file with a file-level error is returned unchanged, and an entry with an entry-level error is left as written.
+- Every formatted block and entry is parsed again. If the parser would read it differently, the prose is kept as written; if that still differs, the whole element is.
 
-The formatter sees one file, not its `.loreconfig`, so it accepts any category name when it decides whether a file or entry has an error.
+## Limits
+
+- The formatter sees one file, not its `.loreconfig`, so it accepts any category name when it decides whether a file or entry has an error.
+- Prettier turns a lone carriage return into a line feed before the plugin sees the text, so a file holding one can change even when it is otherwise returned unchanged.
+- Without a file path (formatting from stdin), a context's `src` that starts with `..` is taken to escape the Lore root, and that entry is left as written.

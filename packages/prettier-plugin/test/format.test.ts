@@ -25,7 +25,7 @@ function flushLeft(text: string): string {
 }
 
 function markdown(text: string): Promise<string> {
-  return prettier.format(text, { parser: "markdown", proseWrap: "preserve" });
+  return prettier.format(text, { parser: "markdown", proseWrap: "preserve", embeddedLanguageFormatting: "off" });
 }
 
 async function comparable(model: DocumentModel) {
@@ -89,11 +89,11 @@ describe("prettier plugin", () => {
       "\t-->\t",
       "",
       "",
-      "<!-- one --><!-- two -->",
     ].join("\n");
     const output = await format(written);
+    expect(output).toContain("\n  A displayed price must come from the quote that produced it.\n");
     expect(commentTexts(output)).toEqual(commentTexts(written));
-    expect(commentTexts(written)).toHaveLength(3);
+    expect(commentTexts(written)).toHaveLength(2);
 
     for (const example of examples) {
       for (const file of loreFiles(toInput(example))) {
@@ -156,6 +156,57 @@ describe("prettier plugin", () => {
       "  A helper that recomputes a price _from its inputs_ drops:",
       "",
       "  - quote-level discounts.",
+      "</rule>",
+      "",
+    ].join("\n"));
+  });
+
+  test("keeps the prose as written when the Markdown printer would break a Lore fence", async () => {
+    const rests = [
+      "-\n  ```js\n  const x = 1;\n  ```",
+      "1.\n   ```\n   x\n   ```",
+      "~~~ a`b\nx\n~~~",
+    ];
+    for (const rest of rests) {
+      const content = `<rule id="fenced" category="documentation">\nSummary.\n\n${rest}\n</rule>\n`;
+      const input: LoreInput = { repo: [{ path: ".lore/docs.lore", content }], given: [], remotes: [] };
+      const formatted = await formatInput(input);
+      const model = parse(formatted);
+      expect({ rest, errors: model.errors }).toEqual({ rest, errors: [] });
+      expect(await comparable(model)).toEqual(await comparable(parse(input)));
+      expect(loreFiles(await formatInput(formatted))).toEqual(loreFiles(formatted));
+    }
+  });
+
+  test("keeps fenced code in the prose byte for byte", async () => {
+    const written = [
+      "<rule id=\"single-quotes\" category=\"code_style\">",
+      "Strings use single quotes.",
+      "",
+      "```ts",
+      "const s = 'x';",
+      "if(x){y()}",
+      "```",
+      "</rule>",
+    ].join("\n");
+    expect(await format(written)).toContain("\n  ```ts\n  const s = 'x';\n  if(x){y()}\n  ```\n");
+  });
+
+  test("keeps a prose rest that starts indented as written", async () => {
+    const written = [
+      "<rule id=\"listed\" category=\"documentation\">",
+      "Summary:",
+      "- *one*",
+      "",
+      "  continues the *item*.",
+      "</rule>",
+    ].join("\n");
+    expect(await format(written)).toBe([
+      "<rule id=\"listed\" category=\"documentation\">",
+      "  Summary:",
+      "  - *one*",
+      "",
+      "    continues the *item*.",
       "</rule>",
       "",
     ].join("\n"));

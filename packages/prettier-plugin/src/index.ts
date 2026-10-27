@@ -1,19 +1,11 @@
 import {
   dedent, dedentEntry, parseFile, readAttributes, readEntry, readFileBlocks,
-  type BlockNode, type EntryNode, type FileContext, type LoreFile, type RawAttributes,
+  type BlockNode, type EntryNode, type LoreFile, type RawAttributes,
 } from "@lore/parser";
 import type { Parser, Plugin, SupportLanguage } from "prettier";
-import { lorePrinter, splitProse, type Child, type Element, type LoreNode, type Root } from "./print";
+import { ANY_CATEGORY, CONTEXT, lorePrinter, splitProse, type ChildElement, type Element, type LoreNode, type Root } from "./print";
 
 const ATTRIBUTE_ORDER = ["id", "category", "severity", "src", "lang", "disabled"];
-
-// The formatter sees one file, not the .loreconfig, so it cannot tell a configured category from an unknown one.
-const ANY_CATEGORY: ReadonlySet<string> = Object.assign(new Set<string>(), { has: () => true });
-
-const CONTEXT: FileContext = {
-  base: "", prefix: "", loreRoot: "", categories: ANY_CATEGORY,
-  defaults: {}, scope: { files: ["**"], ignores: [] },
-};
 
 function orderedAttributes(raw: RawAttributes): string[] {
   const rank = (name: string) => {
@@ -30,52 +22,50 @@ function spanOf(lore: LoreFile, openLine: number, closeLine: number): { start: n
   return { start: lineStarts[openLine - 1]!, end: lineStarts[closeLine - 1]! + lines[closeLine - 1]!.length };
 }
 
-function hasText(lines: string[]): boolean {
-  return lines.some((line) => line !== "");
+function writtenLines(lore: LoreFile, openLine: number, closeLine: number): string[] {
+  return lore.text.lines.slice(openLine - 1, closeLine);
 }
 
-function block(lore: LoreFile, node: BlockNode): Element {
-  const span = spanOf(lore, node.openLine, node.closeLine);
-  const lines = dedent(node.body).lines;
-  return { type: "block", name: node.name, ...span, body: hasText(lines) ? { type: "yaml", lines, depth: 1, ...span } : null };
+function block(lore: LoreFile, node: BlockNode, values: { defaults: unknown; scope: unknown }): Element {
+  return {
+    type: "block", name: node.name, lines: dedent(node.body).lines, value: values[node.name], path: lore.path,
+    written: writtenLines(lore, node.openLine, node.closeLine), ...spanOf(lore, node.openLine, node.closeLine),
+  };
 }
 
-function entry(lore: LoreFile, node: EntryNode, context: FileContext): Element {
+function entry(lore: LoreFile, node: EntryNode): Element {
   const span = spanOf(lore, node.openLine, node.closeLine);
-  if ("error" in readEntry(lore, node, context)) {
-    return { type: "raw", lines: lore.text.lines.slice(node.openLine - 1, node.closeLine), ...span };
-  }
+  const written = writtenLines(lore, node.openLine, node.closeLine);
+  const read = readEntry(lore, node, CONTEXT);
+  if ("error" in read) return { type: "raw", lines: written, ...span };
   const contents = dedentEntry(lore.text.lines, node);
-  const children = node.children.map((child, n): Child => {
-    const lines = contents.children[n]!.lines;
-    const childSpan = spanOf(lore, child.openLine, child.closeLine);
-    const body = child.name === "check"
-      ? { type: "verbatim" as const, lines, depth: 2, ...childSpan }
-      : hasText(lines) ? { type: "yaml" as const, lines, depth: 2, ...childSpan } : null;
-    return { type: "child", name: child.name, attributes: orderedAttributes(child.attributes), body, ...childSpan };
-  });
+  const children = node.children.map((child, n): ChildElement => ({
+    name: child.name, attributes: orderedAttributes(child.attributes),
+    lines: contents.children[n]!.lines, yaml: child.name !== "check",
+  }));
   let end = contents.prose.length;
   while (end > 0 && contents.prose[end - 1] === "") end--;
   const { first, rest } = splitProse(contents.prose.slice(0, end));
   return {
-    type: "entry", name: node.name, attributes: orderedAttributes(node.attributes), children, ...span,
-    first: first.length === 0 ? null : { type: "verbatim", lines: first, depth: 1, ...span },
-    rest: rest === null ? null : { type: "markdown", lines: rest, depth: 1, ...span },
+    type: "entry", name: node.name, attributes: orderedAttributes(node.attributes), children,
+    first, rest, model: read.entry, path: lore.path, written, ...span,
   };
 }
 
 export function toTree(text: string, path = ""): Root {
   const lore = parseFile(path, text);
   const unchanged: Root = { type: "root", text, elements: null, start: 0, end: text.length };
-  if (lore.diagnostics.length > 0 || "error" in readFileBlocks(lore, ANY_CATEGORY)) return unchanged;
+  if (lore.diagnostics.length > 0) return unchanged;
+  const values = readFileBlocks(lore, ANY_CATEGORY);
+  if ("error" in values) return unchanged;
   const elements = lore.nodes.map((node): Element => {
     switch (node.kind) {
       case "comment":
-        return { type: "raw", lines: lore.text.lines.slice(node.openLine - 1, node.closeLine), ...spanOf(lore, node.openLine, node.closeLine) };
+        return { type: "raw", lines: writtenLines(lore, node.openLine, node.closeLine), ...spanOf(lore, node.openLine, node.closeLine) };
       case "block":
-        return block(lore, node);
+        return block(lore, node, values);
       case "entry":
-        return entry(lore, node, CONTEXT);
+        return entry(lore, node);
       case "text":
         throw new Error("a text node only follows a file-level error");
     }
