@@ -2,9 +2,11 @@
   "name": "lore-spec",
   "private": true,
   "type": "module",
+  "workspaces": ["packages/*"],
   "scripts": {
     "test": "bun test",
-    "check": "bun tools/check/cli.ts"
+    "check": "bun tools/check/cli.ts",
+    "build": "bun run --filter '*' build"
   },
   "devDependencies": {
     "@types/bun": "latest",

@@ -11,8 +11,17 @@
         "yaml": "^2.6.0",
       },
     },
+    "packages/parser": {
+      "name": "@lore/parser",
+      "version": "0.0.0",
+      "dependencies": {
+        "yaml": "^2.6.0",
+      },
+    },
   },
   "packages": {
+    "@lore/parser": ["@lore/parser@workspace:packages/parser"],
+
     "@types/bun": ["@types/bun@1.4.4", "", { "dependencies": { "bun-types": "1.4.4" } }, "sha512-9wkRDXUXK124pEnAutE6n/l18j+i9GC5IAHK8TmX/2nlySETmky0OU6yL5U8pW1AoKh++AN9auDCr647BfurjQ=="],
 
     "@types/node": ["@types/node@26.6.5", "", { "dependencies": { "undici-types": "~8.9.0" } }, "sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg=="],

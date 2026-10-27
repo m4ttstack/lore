@@ -1,0 +1,15 @@
+{
+  "name": "@lore/parser",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "true"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  }
+}
