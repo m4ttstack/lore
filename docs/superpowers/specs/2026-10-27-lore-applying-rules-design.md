@@ -152,8 +152,15 @@ example with no `rules:` section is run as today. A diagnostic's `file`
 for a file read at the rules revision keeps the `rules:` prefix, as
 `external:` files keep theirs. One new example, placed beside the
 existing Eligibility example where a change adds `quote-expiry-shown`,
-gives the same change with the rule file absent from its `rules:`
-sections and expects the rule not eligible.
+gives the same change with `checkout.lore` at the rules revision
+holding `price-from-quote` but not `quote-expiry-shown`, and expects
+`price-from-quote` eligible and `quote-expiry-shown` not.
+
+Two existing spec sentences gain a qualifier when these additions land:
+Eligibility's "the entries themselves are read from the files as the
+change leaves them" (unless a rules revision is given), and Collecting
+files' "MUST NOT find them by walking a file system" (except in a given
+folder in no working copy).
 
 **Given folders outside a working copy.** The spec collects only files
 tracked by version control, so that a stray `node_modules/**/.lore/`
@@ -169,7 +176,9 @@ the folder.
 
 The example format gains `=== loose:<path>`: a file of one given folder
 that is in no working copy, `<path>` relative to that folder. The
-warning's `file` is `loose:.` and its `line` is 1. One new example gives
+warning's `file` is `loose:.` and its `line` is 1, and it joins
+`errors.json` as a warning. A diagnostic in a loose folder's file keeps
+the `loose:` prefix, as `rules:` and `external:` files keep theirs. One new example gives
 a loose folder with a `.loreconfig` mapping it to the governed repo, a
 rule that is eligible, and a `.lore` file inside a dot-folder
 (`.cache/.lore/stale.lore`) that is not collected; it expects the
