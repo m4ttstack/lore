@@ -1,0 +1,3 @@
+[test]
+# Zed clones the whole repository here when the dev extension is installed.
+pathIgnorePatterns = ["packages/zed/grammars/**"]
