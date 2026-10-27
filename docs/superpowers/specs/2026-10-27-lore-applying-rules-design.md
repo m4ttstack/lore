@@ -87,10 +87,12 @@ that any tool can use it the same way.
   (`bun build --target node`). This closes the step 2 gate where
   `@lore/parser`'s `main` points at TypeScript source: the command never
   imports source at run time.
-- Rules can come from an untrusted branch only if the caller says so
-  (see Rules). By default they are read from a ref the caller names, and
-  the first adopter names the branch a change merges into, so every rule
-  that runs has been merged. The linear-time regex gate from step 2 is
+- The caller decides which revision's rules run (see Rules): `--rules-ref`
+  or `--base` names one, and otherwise the working tree or the given
+  folders are read as they stand. The first adopter's rules are in a
+  given folder that ships with its reviewer, and once in-repo they are
+  read at the branch a change merges into, so every rule that runs has
+  been merged. The linear-time regex gate from step 2 is
   therefore not a blocker for this step; the remaining two small gates
   are:
   - a `RegexLimitError` message is truncated before it is printed;
@@ -106,9 +108,12 @@ that any tool can use it the same way.
 ## The command
 
 ```
-lore select   [rules] [change] [--capabilities regex,ast-grep] [--format text|json]
+lore select   [rules] [change] [--capabilities regex,ast-grep] [--format text|json] [--strict]
 lore verdicts --selection <file> [<verdicts-file> | -]
 ```
+
+`--capabilities` defaults to both; `ast-grep` is dropped, with the
+parser's existing warning, when no ast-grep binary is found.
 
 ### Rules
 
@@ -135,17 +140,47 @@ and `src` targets from, instead of the revision the change leaves. The
 change itself (its files and added lines) is unaffected. Without one, a
 tool reads as today, so every existing example keeps its meaning, and
 the command's tests compare against the examples with no rules revision
-given. One new example shows the difference: a change that adds a rule
-and breaks it, eligible as the change leaves the repo and not eligible
-with the rules revision at the base. `--rules-ref`, and `--base` when
-`--rules-ref` is absent, set it.
+given. `--rules-ref`, and `--base` when `--rules-ref` is absent, set it.
+
+The example format gains a section for it, `=== rules:<path>`: a file of
+the governed repo as it is at the rules revision. An eligibility example
+with at least one `rules:` section is run with a rules revision: Lore
+files, `.loreconfig` files and `src` targets are collected from the
+`rules:` files only, and the plain `=== <path>` files are still the
+governed repo as the change leaves it (the content checks search). An
+example with no `rules:` section is run as today. A diagnostic's `file`
+for a file read at the rules revision keeps the `rules:` prefix, as
+`external:` files keep theirs. One new example, placed beside the
+existing Eligibility example where a change adds `quote-expiry-shown`,
+gives the same change with the rule file absent from its `rules:`
+sections and expects the rule not eligible.
 
 **Given folders outside a working copy.** The spec collects only files
-tracked by version control. A given folder that is in no git working
-copy (an installed plugin, an unpacked release, a CI artifact) would
-therefore collect nothing. The spec gains: a given folder in no working
-copy counts every file under it as tracked, ignoring dot-folders other
-than `.lore`. One example covers it.
+tracked by version control, so that a stray `node_modules/**/.lore/`
+cannot add rules. A given folder that is in no git working copy (an
+installed plugin, an unpacked release, a CI artifact) would therefore
+collect nothing. The spec gains: a tool MAY collect a given folder that
+is in no working copy, counting every file under it except those inside
+a dot-folder other than `.lore`; when it does, it MUST report the warning
+`untracked-given-folder` once for that folder, and a tool MAY instead
+refuse such a folder and collect nothing from it. The spec text names
+the trade-off: the team, not version control, then decides what is in
+the folder.
+
+The example format gains `=== loose:<path>`: a file of one given folder
+that is in no working copy, `<path>` relative to that folder. The
+warning's `file` is `loose:.` and its `line` is 1. One new example gives
+a loose folder with a `.loreconfig` mapping it to the governed repo, a
+rule that is eligible, and a `.lore` file inside a dot-folder
+(`.cache/.lore/stale.lore`) that is not collected; it expects the
+warning. An example with `loose:` sections is run only by a tool that
+collects such folders, declared with `requires: loose-given-folder`, as
+`regex` and `ast-grep` are. The reference parser and `lore select`
+collect such folders and report the warning.
+
+Both sections are new to `tools/check` (its extractor accepts only the
+current five) and to the parser's conformance test, which learn them in
+the same change as the spec text.
 
 **No governed repo.** `--repo` may point nowhere a reviewer can reach: a
 review that reads only a diff can run outside any checkout. With
@@ -153,7 +188,8 @@ review that reads only a diff can run outside any checkout. With
 `src` targets; rules come only from `--given` folders, and `--remote` is
 then required, since there is no git to read it from. Without `--no-repo`
 and with no git root found, the command exits 2 and says to pass
-`--repo` or `--no-repo`.
+`--repo` or `--no-repo`. `--rules-ref`, `--base` and `--head` with
+`--no-repo` are usage errors (exit 2): there is no git to read them in.
 
 ### Change
 
