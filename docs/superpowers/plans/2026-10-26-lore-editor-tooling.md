@@ -64,7 +64,7 @@ packages/vscode/                  package.json (extension manifest), syntaxes/lo
                                   language-configuration.json, src/extension.ts, scripts/package.ts, test/
 packages/tree-sitter-lore/        grammar.js, src/scanner.c, queries/highlights.scm,
                                   queries/injections.scm, test/corpus/, package.json
-packages/zed/                     extension.toml, Cargo.toml, src/lib.rs,
+packages/zed/                     extension.toml.in (extension.toml is generated, gitignored), Cargo.toml, src/lib.rs,
                                   languages/lore/{config.toml,highlights.scm,injections.scm}
 test/fixtures/                    shared grammar fixtures (generated, see Task 10)
 ```
@@ -106,7 +106,7 @@ Paths in `Diagnostic.file` and `Entry.file` follow the spec: repository files as
 ### Task 1: Workspace, parser package and conformance harness
 
 **Files:**
-- Modify: `package.json` (add `"workspaces": ["packages/*"]`, script `"build": "bun run --filter '*' build"`; keep `test` and `check`)
+- Modify: `package.json` (add `"workspaces": ["packages/*"]`, script `"build": "bun run --filter '*' build"`; keep `test` and `check`). Every package later tasks create gets a `build` script, a no-op (`true`) where nothing is built, so the fan-out never stops on a missing script.
 - Create: `packages/parser/package.json`, `packages/parser/tsconfig.json`, `packages/parser/src/types.ts`, `packages/parser/src/index.ts`
 - Create: `packages/parser/test/conformance.test.ts`, `packages/parser/test/pending.json`
 - Modify: `tsconfig.json` (include `packages/*/src`, `packages/*/test`)
@@ -301,7 +301,7 @@ Every later parser task follows one rule for `pending.json`: remove the numbers 
 - Consumes: shared fixtures (Task 10), the server bin (Task 11).
 - Produces: a tree-sitter grammar with an external scanner for the line rules (column-0 tags, prose to the column-0 closing tag, fences in prose); node types `source_file`, `comment`, `defaults_block`, `scope_block`, `rule`, `context`, `child` (with `tag_name`, `attribute`, `attribute_name`, `attribute_value`), `yaml_body`, `check_body`, `prose`; injections `yaml_body` -> `yaml`, `prose` -> `markdown`. Zed extension: `bun scripts/zed-grammar-rev.ts` writes `packages/zed/extension.toml` (gitignored, machine-specific) from the committed `extension.toml.in`, with grammar `repository = "file://<this checkout's root>"`, `path = "packages/tree-sitter-lore"` and `rev` = the latest commit touching `packages/tree-sitter-lore`; `language_server_command` returns `lsp.lore-language-server.binary.path` from Zed settings when set, else `lore-language-server` found on the worktree's PATH. The README says how to install it as a dev extension and how to put `lore-language-server` on PATH.
 - [ ] **Step 1: Write failing tests:** a `test/corpus/` case per top-level form and one for a `</rule>` inside a fenced block in prose; a script test `every fixture parses without ERROR nodes` (`tree-sitter parse --quiet` over `test/fixtures/`, excluding fixtures from examples that expect `unreadable-structure` or `top-level-text`).
-- [ ] **Step 2: Run** `bunx tree-sitter test` in the grammar package (the package pins `tree-sitter-cli` 0.27.x as a devDependency so `bunx tree-sitter` is the CLI). Expected: FAIL.
+- [ ] **Step 2: Run** `bunx tree-sitter test` in the grammar package (it compiles `src/parser.c` with the system C compiler: Xcode command line tools on macOS, present on ubuntu-latest; the package pins `tree-sitter-cli` 0.27.x as a devDependency so `bunx tree-sitter` is the CLI). Expected: FAIL.
 - [ ] **Step 3: Implement** the grammar, scanner and queries; run `tree-sitter generate` and keep the generated `src/` files (Zed compiles from them without generating).
 - [ ] **Step 4: Run** the corpus tests and the fixture script. Expected: PASS. **Commit** `tree-sitter: lore grammar` (the Zed `rev` must name an existing commit).
 - [ ] **Step 5: Implement** the Zed extension, run `bun scripts/zed-grammar-rev.ts`, and check `cargo build --target wasm32-wasip1` succeeds. Install the dev extension in Zed and confirm highlighting and diagnostics on `test/fixtures/`; record what was seen in the report.
@@ -311,7 +311,7 @@ Every later parser task follows one rule for `pending.json`: remove the numbers 
 
 **Files:** Modify `.github/workflows/ci.yml`, `README.md` (Roadmap item 2 and a short "Editor support" section linking the two extension READMEs).
 
-- [ ] **Step 1: Extend CI:** install Rust (`dtolnay/rust-toolchain` with target `wasm32-wasip1`) and run, after the existing steps: `bun test` (now covering all packages), `bunx tree-sitter test` in `packages/tree-sitter-lore`, the fixture parse script, `bun scripts/zed-grammar-rev.ts` then `cargo build --target wasm32-wasip1` in `packages/zed`, and `bun run --filter lore-vscode package`.
+- [ ] **Step 1: Extend CI:** add `bun run build` right after `bun install --frozen-lockfile` (the server tests and the vsix need built output); install Rust (`dtolnay/rust-toolchain` with target `wasm32-wasip1`) and run, after the existing steps: `bun test` (now covering all packages), `bunx tree-sitter test` in `packages/tree-sitter-lore`, the fixture parse script, `bun scripts/zed-grammar-rev.ts` then `cargo build --target wasm32-wasip1` in `packages/zed`, and `bun run --filter lore-vscode package`.
 - [ ] **Step 2: Update README** Roadmap item 2 to "done: reference parser, Prettier plugin, language server, VS Code/Cursor and Zed extensions (not yet published)", and add the Editor support section.
 - [ ] **Step 3: Commit** `ci and docs: editor tooling`.
 - [ ] **Step 4: Push** and confirm CI is green with `gh run list -R m4ttstack/lore -L 1`.
