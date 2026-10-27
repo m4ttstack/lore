@@ -4,3 +4,10 @@ export class InputError extends Error {
     this.name = "InputError";
   }
 }
+
+export class UsageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UsageError";
+  }
+}
