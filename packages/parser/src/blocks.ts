@@ -4,6 +4,10 @@ import type { BlockProblem } from "./yaml";
 
 export const CATEGORY = /^[a-z][a-z0-9_]*$/;
 export const SEVERITIES = ["blocking", "advisory"];
+export const FIXED_CATEGORIES: ReadonlySet<string> = new Set([
+  "functional_correctness", "test_coverage", "security", "performance", "accessibility",
+  "observability", "backwards_compatibility", "documentation", "code_style",
+]);
 const CONDITIONS = ["addedContains", "addedMatches", "changed", "unchanged"] as const;
 
 export function checkDefaults(value: unknown, line: number): BlockProblem | null {

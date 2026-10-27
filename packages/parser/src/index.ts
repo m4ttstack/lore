@@ -8,6 +8,8 @@ export type {
 export { parseFile, readAttributes } from "./scan";
 export { dedent, dedentEntry } from "./indent";
 export { parse } from "./model";
+export { collect, disabledFor, type Collected, type CollectedFile, type ConfigFile, type Tree, type TreeInfo } from "./collect";
+export { normalizeRemote, type DisableItem } from "./loreconfig";
 export { disjoint, matchFromBase, matchGlob, resolveGlob, validateGlob, type GlobPlace } from "./glob";
 
 export async function select(

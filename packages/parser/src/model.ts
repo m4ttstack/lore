@@ -1,45 +1,59 @@
 import { checkDefaults, checkScope } from "./blocks";
+import { EXTERNAL, collect, type Collected, type Tree } from "./collect";
 import { DEFAULT_FILES, lineDiagnostic, readEntry, resolveScope, type EntryResult, type FileContext } from "./entries";
 import { disjoint } from "./glob";
 import { dedent } from "./indent";
 import { parseFile, type BlockNode, type LoreFile } from "./scan";
-import type { Diagnostic, DocumentModel, Entry, InputFile, LoreInput } from "./types";
+import { compareCodePoints } from "./text";
+import type { Diagnostic, DocumentModel, Entry, LoreInput } from "./types";
 import { readBlock, type BlockProblem } from "./yaml";
 
-const LORE_FOLDER = ".lore";
-const REPO_ROOT = "";
-export const FIXED_CATEGORIES: ReadonlySet<string> = new Set([
-  "functional_correctness", "test_coverage", "security", "performance", "accessibility",
-  "observability", "backwards_compatibility", "documentation", "code_style",
-]);
+export interface EntryPlace { base: string; tree: Tree }
+
+export interface ParsedInput {
+  model: DocumentModel;
+  collected: Collected;
+  placeOf: WeakMap<Entry, EntryPlace>;
+}
+
+interface ReadEntry { result: EntryResult; fileFiles: readonly string[]; place: EntryPlace }
 
 export function parse(input: LoreInput): DocumentModel {
-  const errors: Diagnostic[] = [];
-  const read: { result: EntryResult; fileFiles: readonly string[] }[] = [];
-  for (const { file, base } of loreFiles(input.repo)) {
-    const lore = parseFile(file.path, file.content);
-    const blocks = readFileBlocks(lore, FIXED_CATEGORIES);
+  return parseWithContext(input).model;
+}
+
+export function parseWithContext(input: LoreInput): ParsedInput {
+  const collected = collect(input);
+  const errors: Diagnostic[] = [...collected.diagnostics];
+  const read: ReadEntry[] = [];
+  for (const file of collected.files) {
+    const lore = parseFile(file.file, file.content);
+    const categories = new Set(file.categories);
+    const blocks = readFileBlocks(lore, categories);
     if ("error" in blocks || lore.diagnostics.length > 0) {
       errors.push("error" in blocks ? blocks.error : lore.diagnostics[0]!);
       continue;
     }
     const context: FileContext = {
-      base, loreRoot: REPO_ROOT, categories: FIXED_CATEGORIES,
-      defaults: blocks.defaults, scope: resolveScope(base, blocks.scope),
+      base: file.base, prefix: file.tree === "repo" ? "" : EXTERNAL, loreRoot: file.loreRoot, categories,
+      defaults: blocks.defaults, scope: resolveScope(file.base, blocks.scope),
     };
     const fileFiles = blocks.scope.files ?? DEFAULT_FILES;
-    for (const node of lore.nodes) if (node.kind === "entry") read.push({ result: readEntry(lore, node, context), fileFiles });
+    const place = { base: file.base, tree: file.tree };
+    for (const node of lore.nodes) if (node.kind === "entry") read.push({ result: readEntry(lore, node, context), fileFiles, place });
   }
 
   const uses = new Map<string, number>();
   for (const { result: { id } } of read) if (id !== null) uses.set(id, (uses.get(id) ?? 0) + 1);
   const entries: Entry[] = [];
   const warnings: Diagnostic[] = [];
-  for (const { result, fileFiles } of read) {
+  const placeOf = new WeakMap<Entry, EntryPlace>();
+  for (const { result, fileFiles, place } of read) {
     if ("error" in result) errors.push(result.error);
     else if (uses.get(result.id)! > 1) errors.push(result.diagnostic("duplicate-id"));
     else {
       entries.push(result.entry);
+      placeOf.set(result.entry, place);
       if (result.entry.kind === "rule" && result.entry.category === null) warnings.push(result.diagnostic("missing-category"));
       const own = result.ownScope;
       if (own !== null && own.files.every((glob) => fileFiles.every((outer) => disjoint(glob, outer)))) {
@@ -47,24 +61,25 @@ export function parse(input: LoreInput): DocumentModel {
       }
     }
   }
-  return { entries, errors: errors.sort(compareDiagnostics), warnings: warnings.sort(compareDiagnostics) };
+  warnings.push(...unknownDisabledIds(collected, read));
+  const model = { entries, errors: errors.sort(compareDiagnostics), warnings: warnings.sort(compareDiagnostics) };
+  return { model, collected, placeOf };
 }
 
-function loreFiles(repo: InputFile[]): { file: InputFile; base: string }[] {
-  return repo
-    .flatMap((file) => {
-      const base = baseOf(file.path);
-      return base === null ? [] : [{ file, base }];
-    })
-    .sort((a, b) => compareCodePoints(a.file.path, b.file.path));
-}
-
-function baseOf(path: string): string | null {
-  const segments = path.split("/");
-  if (!segments.at(-1)!.endsWith(".lore")) return null;
-  const folder = segments.indexOf(LORE_FOLDER);
-  if (folder === -1 || folder === segments.length - 1) return null;
-  return segments.slice(0, folder).join("/");
+// A governed list can switch off every entry whose id counts; a given folder's list only those of its trees.
+function unknownDisabledIds(collected: Collected, read: readonly ReadEntry[]): Diagnostic[] {
+  const counted = read.filter(({ result }) => result.id !== null);
+  const idsOf = (trees: readonly Tree[]) =>
+    new Set(counted.filter(({ place }) => trees.includes("repo") || trees.includes(place.tree)).map(({ result }) => result.id!));
+  const found: Diagnostic[] = [];
+  for (const config of collected.configs) {
+    if (config.trees.length === 0 || config.disable.length === 0) continue;
+    const known = idsOf(config.trees);
+    for (const item of config.disable) {
+      if (!known.has(item.id)) found.push({ name: "unknown-disabled-id", file: config.file, entry: null, line: item.line, range: item.range });
+    }
+  }
+  return found;
 }
 
 type FileBlocks =
@@ -96,16 +111,6 @@ function readFileBlock(node: BlockNode, categories: ReadonlySet<string>): { prob
   const category = node.name === "defaults" ? (read.value as FileContext["defaults"]).category : undefined;
   if (category !== undefined && !categories.has(category)) return { problem: { name: "unknown-category", line: node.openLine } };
   return { value: read.value };
-}
-
-function compareCodePoints(a: string, b: string): number {
-  const left = [...a];
-  const right = [...b];
-  for (let i = 0; i < Math.min(left.length, right.length); i++) {
-    const diff = left[i]!.codePointAt(0)! - right[i]!.codePointAt(0)!;
-    if (diff !== 0) return diff;
-  }
-  return left.length - right.length;
 }
 
 function compareDiagnostics(a: Diagnostic, b: Diagnostic): number {

@@ -58,3 +58,13 @@ export function firstInvalidLine(text: DecodedText): number | null {
   const index = text.lines.findIndex((line) => LONE_SURROGATE.test(line));
   return index === -1 ? null : index + 1;
 }
+
+export function compareCodePoints(a: string, b: string): number {
+  const left = [...a];
+  const right = [...b];
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    const diff = left[i]!.codePointAt(0)! - right[i]!.codePointAt(0)!;
+    if (diff !== 0) return diff;
+  }
+  return left.length - right.length;
+}

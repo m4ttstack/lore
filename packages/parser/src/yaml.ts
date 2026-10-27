@@ -1,4 +1,4 @@
-import { Parser, isScalar, parseDocument, visit, type DocumentOptions, type ParseOptions, type SchemaOptions } from "yaml";
+import { Parser, isScalar, parseDocument, visit, type Document, type DocumentOptions, type ParseOptions, type SchemaOptions } from "yaml";
 
 export interface BlockProblem {
   name: string;
@@ -8,6 +8,7 @@ export interface BlockProblem {
 export interface ReadBlock {
   value: unknown;
   diagnostic: BlockProblem | null;
+  document: Document | null;
 }
 
 interface SourceToken {
@@ -23,6 +24,7 @@ const OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
   uniqueKeys: true,
   strict: true,
   prettyErrors: false,
+  keepSourceTokens: true,
 };
 
 const BLANK_OR_COMMENT = /^[ \t]*(#[^\n]*)?$/;
@@ -34,7 +36,7 @@ const FEATURE_TOKENS = new Set(["anchor", "alias", "tag", "directive"]);
 export function readBlock(lines: string[], firstLine: number, incompleteLine: number): ReadBlock {
   const source = lines.join("\n");
   const lineAt = (offset: number) => firstLine + countLineFeeds(source, offset);
-  const fail = (name: string, line: number): ReadBlock => ({ value: undefined, diagnostic: { name, line } });
+  const fail = (name: string, line: number): ReadBlock => ({ value: undefined, diagnostic: { name, line }, document: null });
   const doc = parseDocument(source, OPTIONS);
   const tokens = sourceTokens(source);
 
@@ -59,7 +61,7 @@ export function readBlock(lines: string[], firstLine: number, incompleteLine: nu
   if (duplicate !== null && (feature === null || duplicate < feature)) return fail("duplicate-key", lineAt(duplicate));
   if (feature !== null) return fail("yaml-feature-not-allowed", lineAt(feature));
 
-  return { value: doc.contents === null ? {} : doc.toJS(), diagnostic: null };
+  return { value: doc.contents === null ? {} : doc.toJS(), diagnostic: null, document: doc };
 }
 
 // A multi-line implicit key breaks at its end, where yaml's paired BLOCK_AS_IMPLICIT_KEY reports its start.
