@@ -1,8 +1,8 @@
-import { readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { EXTERNAL, LOOSE, type InputFile, type LoreInput } from "@lore/parser";
 import { InputError } from "./errors";
-import { gitRoot, readFileAt, remoteUrls, trackedPaths } from "./git";
+import { GitMissingError, gitRoot, readContained, readFileAt, remoteUrls, trackedPaths } from "./git";
 
 export interface RuleSources {
   repo: string | null;
@@ -27,27 +27,25 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
   const governed = repo === null ? [] : readFiles(repo, rulesRef, trackedPaths(repo, rulesRef));
   const input: LoreInput = rulesRef === null ? { repo: governed, given: [], remotes } : { repo: [], rules: governed, given: [], remotes };
 
-  const repositories = new Set<string>();
-  const looseFolders: string[] = [];
-  const trackedByRoot = new Map<string, InputFile[]>();
+  const repositories = new Map<string, InputFile[]>();
+  const looseFolders = new Map<string, InputFile[]>();
   for (const typed of sources.given) {
     const dir = realFolder(typed);
-    const root = gitRoot(dir);
+    const root = workingCopyOf(dir);
     if (root === null) {
-      looseFolders.push(dir);
-      input.given.push({ folder: "", loose: true, files: readLoose(dir) });
+      if (!looseFolders.has(dir)) looseFolders.set(dir, readLoose(dir));
+      input.given.push({ folder: "", loose: true, files: looseFolders.get(dir)! });
       continue;
     }
-    repositories.add(root);
-    if (!trackedByRoot.has(root)) trackedByRoot.set(root, readFiles(root, null, trackedPaths(root, null)));
-    input.given.push({ folder: relative(root, dir).split(sep).join("/"), repository: root, files: trackedByRoot.get(root)! });
+    if (!repositories.has(root)) repositories.set(root, readFiles(root, null, trackedPaths(root, null)));
+    input.given.push({ folder: relative(root, dir).split(sep).join("/"), repository: root, files: repositories.get(root)! });
   }
 
   const readSrc = (file: string): string | null => {
-    if (file.startsWith(EXTERNAL)) return readFirst([...repositories], file.slice(EXTERNAL.length));
+    if (file.startsWith(EXTERNAL)) return readFirst(repositories, file.slice(EXTERNAL.length));
     if (file.startsWith(LOOSE)) return readFirst(looseFolders, file.slice(LOOSE.length));
     if (repo === null) return null;
-    if (rulesRef === null) return readInside(repo, file);
+    if (rulesRef === null) return readContained(repo, file);
     try {
       return readFileAt(repo, rulesRef, file);
     } catch {
@@ -55,6 +53,16 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     }
   };
   return { input, readSrc };
+}
+
+// Without a git binary no folder can be a working copy, so a given folder is loose.
+function workingCopyOf(dir: string): string | null {
+  try {
+    return gitRoot(dir);
+  } catch (error) {
+    if (error instanceof GitMissingError) return null;
+    throw error;
+  }
 }
 
 function realFolder(typed: string): string {
@@ -76,8 +84,19 @@ function wantsContent(path: string): boolean {
   return name === CONFIG_NAME && !folders.includes(LORE_FOLDER);
 }
 
+// A working-tree Lore or .loreconfig file that does not resolve to a readable file inside root
+// (an escaping or dangling symlink, a directory, a skipped sparse-checkout file) is left out of the input.
 function readFiles(root: string, ref: string | null, paths: string[]): InputFile[] {
-  return paths.map((path) => ({ path, content: wantsContent(path) ? readFileAt(root, ref, path) : "" }));
+  const files: InputFile[] = [];
+  for (const path of paths) {
+    if (!wantsContent(path)) files.push({ path, content: "" });
+    else if (ref !== null) files.push({ path, content: readFileAt(root, ref, path) });
+    else {
+      const content = readContained(root, path);
+      if (content !== null) files.push({ path, content });
+    }
+  }
+  return files;
 }
 
 function readLoose(dir: string): InputFile[] {
@@ -92,24 +111,15 @@ function readLoose(dir: string): InputFile[] {
     }
   };
   walk(dir, "");
-  return paths.map((path) => ({ path, content: wantsContent(path) ? readFileSync(join(dir, path), "utf8") : "" }));
+  return readFiles(dir, null, paths);
 }
 
-function readFirst(roots: string[], path: string): string | null {
-  for (const root of roots) {
-    const content = readInside(root, path);
+// Only a place whose own file list holds the path is read, so an untracked file in one repository cannot shadow a tracked one in another.
+function readFirst(places: Map<string, InputFile[]>, path: string): string | null {
+  for (const [root, files] of places) {
+    if (!files.some((file) => file.path === path)) continue;
+    const content = readContained(root, path);
     if (content !== null) return content;
   }
   return null;
-}
-
-function readInside(root: string, path: string): string | null {
-  const target = resolve(root, path);
-  const from = relative(root, target);
-  if (from === ".." || from.startsWith(`..${sep}`)) return null;
-  try {
-    return readFileSync(target, "utf8");
-  } catch {
-    return null;
-  }
 }

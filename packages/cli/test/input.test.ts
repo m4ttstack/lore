@@ -1,9 +1,10 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { InputError } from "../src/errors";
+import { readFileAt } from "../src/git";
 import { buildInput } from "../src/input";
 
 const made: string[] = [];
@@ -187,5 +188,86 @@ describe("readSrc", () => {
     expect(withRepo.readSrc("external:docs/a.md")).toBeNull();
     const noRepo = await buildInput({ repo: null, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
     expect(noRepo.readSrc("docs/a.md")).toBeNull();
+  });
+});
+
+describe("readSrc with several given places", () => {
+  test("external: reads the repository that tracks the path, not one with an untracked copy", async () => {
+    const first = repoWith({ "rules/.lore/a.lore": rule("a") });
+    write(first, { "docs/guide.md": "untracked\n" });
+    const second = repoWith({ "rules/.lore/b.lore": rule("b"), "docs/guide.md": "tracked\n" });
+    const root = repoWith({ ".lore/r.lore": rule("r") });
+    const { readSrc } = await buildInput({ repo: root, rulesRef: null, given: [join(first, "rules"), join(second, "rules")], remotes: ["github.com/acme/shop"] });
+    expect(readSrc("external:docs/guide.md")).toBe("tracked\n");
+  });
+
+  test("loose: reads the folder whose walked files hold the path", async () => {
+    const first = tempDir();
+    write(first, { ".cache/docs/guide.md": "skipped\n", "x.md": "x\n" });
+    const second = tempDir();
+    write(second, { "docs/guide.md": "walked\n" });
+    const root = repoWith({ ".lore/r.lore": rule("r") });
+    const { readSrc } = await buildInput({ repo: root, rulesRef: null, given: [first, second], remotes: ["github.com/acme/shop"] });
+    expect(readSrc("loose:docs/guide.md")).toBe("walked\n");
+  });
+});
+
+describe("reads that leave the folder or fail", () => {
+  test("a tracked symlink pointing outside the repo is not read as a src target or as a Lore file", async () => {
+    const outside = tempDir();
+    write(outside, { "secret.txt": "host file\n", "evil.lore": rule("evil") });
+    const root = tempDir();
+    git(root, "init", "-q", "-b", "main");
+    write(root, { ".lore/a.lore": rule("a") });
+    mkdirSync(join(root, "src"));
+    symlinkSync(join(outside, "secret.txt"), join(root, "src/leak"));
+    symlinkSync(join(outside, "evil.lore"), join(root, ".lore/evil.lore"));
+    git(root, "add", ".");
+    git(root, "commit", "-q", "-m", "first");
+    const { input, readSrc } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    expect(readSrc("src/leak")).toBeNull();
+    expect(input.repo.map(({ path }) => path)).toEqual([".lore/a.lore", "src/leak"]);
+  });
+
+  test("a dangling tracked Lore symlink is left out instead of throwing", async () => {
+    const root = tempDir();
+    git(root, "init", "-q", "-b", "main");
+    write(root, { ".lore/a.lore": rule("a") });
+    symlinkSync(join(root, "missing.lore"), join(root, ".lore/dangling.lore"));
+    git(root, "add", ".");
+    git(root, "commit", "-q", "-m", "first");
+    const { input } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    expect(input.repo.map(({ path }) => path)).toEqual([".lore/a.lore"]);
+  });
+
+  test("readFileAt on the working tree names the path when it cannot be read", () => {
+    const root = tempDir();
+    expect(() => readFileAt(root, null, "absent.lore")).toThrow(InputError);
+    expect(() => readFileAt(root, null, "absent.lore")).toThrow(/absent\.lore/);
+  });
+});
+
+describe("without a git binary", () => {
+  async function withoutGit<T>(run: () => Promise<T>): Promise<T> {
+    const path = process.env.PATH;
+    process.env.PATH = tempDir();
+    try {
+      return await run();
+    } finally {
+      process.env.PATH = path;
+    }
+  }
+
+  test("a given folder is loose and the run needs no git", async () => {
+    const plain = tempDir();
+    write(plain, { ".lore/x.lore": rule("x") });
+    const { input } = await withoutGit(() => buildInput({ repo: null, rulesRef: null, given: [plain], remotes: ["github.com/acme/shop"] }));
+    expect(input.given).toEqual([{ folder: "", loose: true, files: [{ path: ".lore/x.lore", content: rule("x") }] }]);
+  });
+
+  test("a governed repo still reports the missing git", async () => {
+    const root = repoWith({ ".lore/a.lore": rule("a") });
+    const attempt = withoutGit(() => buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] }));
+    await expect(attempt).rejects.toThrow("git is not installed");
   });
 });
