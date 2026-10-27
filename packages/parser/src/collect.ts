@@ -10,6 +10,8 @@ export type Repository = "repo" | number;
 
 export interface CollectedFile {
   file: string;
+  // The source's prefix, already on `file`.
+  prefix: string;
   base: string;
   loreRoot: string;
   categories: string[];
@@ -97,7 +99,7 @@ function collectSource(source: Source, remotes: readonly string[], out: Collecte
       if (base === null) continue;
       const loreRoot = loreRootOf(configs, dir, marked);
       out.files.push({
-        file: source.prefix + file.path, base, loreRoot,
+        file: source.prefix + file.path, prefix: source.prefix, base, loreRoot,
         categories: [...new Set([...FIXED_CATEGORIES, ...applying(configs, dir, loreRoot).flatMap((c) => c.categories)])],
         tree, content: file.content,
       });

@@ -1,5 +1,5 @@
 import { checkDefaults, checkScope } from "./blocks";
-import { EXTERNAL, RULES, collect, type Collected, type Tree } from "./collect";
+import { EXTERNAL, collect, type Collected, type Tree } from "./collect";
 import { DEFAULT_FILES, lineDiagnostic, readEntry, resolveScope, type EntryResult, type FileContext } from "./entries";
 import { disjoint } from "./glob";
 import { dedent } from "./indent";
@@ -50,7 +50,7 @@ export function parseWithContext(input: LoreInput): ParsedInput {
       continue;
     }
     const context: FileContext = {
-      base: file.base, filePrefix: filePrefixOf(file.file), prefix: file.tree === "repo" ? "" : EXTERNAL, loreRoot: file.loreRoot, categories,
+      base: file.base, filePrefix: file.prefix, prefix: file.tree === "repo" ? "" : EXTERNAL, loreRoot: file.loreRoot, categories,
       defaults: blocks.defaults, scope: resolveScope(file.base, blocks.scope),
     };
     const fileFiles = blocks.scope.files ?? DEFAULT_FILES;
@@ -80,10 +80,6 @@ export function parseWithContext(input: LoreInput): ParsedInput {
   const parsed = { model, collected, placeOf };
   parsedModels.set(model, parsed);
   return parsed;
-}
-
-function filePrefixOf(name: string): string {
-  return name.startsWith(RULES) ? RULES : name.startsWith(EXTERNAL) ? EXTERNAL : "";
 }
 
 // A governed list can switch off every entry whose id counts; a given folder's list only those of its trees.

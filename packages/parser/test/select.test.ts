@@ -273,3 +273,12 @@ test("a file-relative src in a rules file resolves to a plain governed path", ()
   });
   expect(model.entries[0]!.src).toBe("docs/.lore/guide.md");
 });
+
+test("a governed file literally named external:... keeps that name in a resolved src", () => {
+  const context = `<context id="guide" src="./guide.md">\nRead it.\n</context>\n`;
+  const model = parse({
+    repo: [{ path: "external:docs/.lore/a.lore", content: context }],
+    given: [], remotes: ["https://github.com/acme/shop"],
+  });
+  expect(model.entries[0]!.src).toBe("external:docs/.lore/guide.md");
+});
