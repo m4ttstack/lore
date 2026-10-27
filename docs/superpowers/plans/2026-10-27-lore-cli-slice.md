@@ -90,7 +90,7 @@ test("a file-relative src in a rules file resolves to a plain governed path", ()
 - [ ] **Step 2: Run them to verify they fail**
 
 Run: `bun test packages/parser/test/collect.test.ts packages/parser/test/select.test.ts`
-Expected: the two new tests FAIL (TypeScript accepts `rules` only after Step 3; until then they fail on the file name and the missing warning).
+Expected: the three new tests FAIL (TypeScript accepts `rules` only after Step 3; until then they fail on the file name, the missing warning and the missing entry).
 
 - [ ] **Step 3: Implement the rules revision in the parser**
 
