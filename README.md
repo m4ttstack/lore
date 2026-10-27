@@ -237,7 +237,7 @@ file.
 
 ### Editor support
 
-The repository holds a reference parser, a [Prettier
+The repository holds a [reference parser](packages/parser/README.md), a [Prettier
 plugin](packages/prettier-plugin/README.md), a language server, and
 extensions for [VS Code and Cursor](packages/vscode/README.md) and
 [Zed](packages/zed/README.md). None are published yet, so install them from

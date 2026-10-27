@@ -13,10 +13,17 @@ jobs:
         with:
           fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-wasip1
       - run: bun install --frozen-lockfile
+      - run: bunx tree-sitter generate
+        working-directory: packages/tree-sitter-lore
+      - run: bun scripts/fixtures.ts
+      - name: Generated files are current
+        run: git diff --exit-code -- packages/tree-sitter-lore/src test/fixtures
       - run: bun run build
       - run: bunx tsc --noEmit
       - run: bun test

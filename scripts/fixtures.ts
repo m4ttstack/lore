@@ -22,40 +22,45 @@ function errorNames(example: Example, path: string): string[] {
   return diagnostics.filter((d) => d.file === path).map((d) => d.name);
 }
 
-function readmeSamples(readme: string): string[] {
+export function readmeSamples(readme: string): string[] {
   const open = "```html\n";
   const samples: string[] = [];
   for (let start = readme.indexOf(open); start !== -1; start = readme.indexOf(open, start)) {
     start += open.length;
     const end = readme.indexOf("\n```", start);
+    if (end === -1) break;
     samples.push(readme.slice(start, end) + "\n");
     start = end;
   }
   return samples;
 }
 
-const fixtures = new Map<string, { content: string; info: FixtureInfo }>();
+function writeFixtures(): void {
+  const fixtures = new Map<string, { content: string; info: FixtureInfo }>();
 
-for (const example of extractExamples(readFileSync(join(root, "spec", "SPEC.md"), "utf8"))) {
-  const lore = example.files.filter((file) => file.path.endsWith(".lore"));
-  lore.forEach((file, i) => {
-    fixtures.set(`example-${example.number}-${i + 1}.lore`, {
-      content: file.content,
-      info: { example: example.number, kind: example.kind, path: file.path, errors: errorNames(example, file.path) },
+  for (const example of extractExamples(readFileSync(join(root, "spec", "SPEC.md"), "utf8"))) {
+    const lore = example.files.filter((file) => file.path.endsWith(".lore"));
+    lore.forEach((file, i) => {
+      fixtures.set(`example-${example.number}-${i + 1}.lore`, {
+        content: file.content,
+        info: { example: example.number, kind: example.kind, path: file.path, errors: errorNames(example, file.path) },
+      });
     });
+  }
+
+  readmeSamples(readFileSync(join(root, "README.md"), "utf8")).forEach((content, i) => {
+    fixtures.set(`readme-${i + 1}.lore`, { content, info: { example: null, kind: "readme", path: "README.md", errors: [] } });
   });
+
+  mkdirSync(out, { recursive: true });
+  for (const name of readdirSync(out)) if (GENERATED.test(name)) rmSync(join(out, name));
+  const index: Record<string, FixtureInfo> = {};
+  for (const [name, { content, info }] of fixtures) {
+    writeFileSync(join(out, name), content);
+    index[name] = info;
+  }
+  writeFileSync(join(out, "index.json"), JSON.stringify(index, null, 2) + "\n");
+  console.log(`wrote ${fixtures.size} fixtures to test/fixtures`);
 }
 
-readmeSamples(readFileSync(join(root, "README.md"), "utf8")).forEach((content, i) => {
-  fixtures.set(`readme-${i + 1}.lore`, { content, info: { example: null, kind: "readme", path: "README.md", errors: [] } });
-});
-
-mkdirSync(out, { recursive: true });
-for (const name of readdirSync(out)) if (GENERATED.test(name)) rmSync(join(out, name));
-const index: Record<string, FixtureInfo> = {};
-for (const [name, { content, info }] of fixtures) {
-  writeFileSync(join(out, name), content);
-  index[name] = info;
-}
-writeFileSync(join(out, "index.json"), JSON.stringify(index, null, 2) + "\n");
-console.log(`wrote ${fixtures.size} fixtures to test/fixtures`);
+if (import.meta.main) writeFixtures();
