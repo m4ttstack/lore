@@ -1,10 +1,12 @@
 import { existsSync } from "node:fs";
 import { basename, dirname, sep } from "node:path";
 import { createConnection, ProposedFeatures, TextDocuments, TextDocumentSyncKind } from "vscode-languageserver/node";
+import type { LoreInput } from "@lore/parser";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
 import { diagnose } from "./diagnostics";
 import { buildInput, canonicalPath, isLorePath, pathWithin, repositoryRoot } from "./files";
+import { externalName, governs, markOver, marksOf, rulesInput, type Mark } from "./marks";
 
 const DEBOUNCE_MS = 150;
 const LORE_FOLDER = ".lore";
@@ -66,17 +68,66 @@ async function refresh(): Promise<void> {
     byRoot.set(root, [...(byRoot.get(root) ?? []), file]);
   }
 
+  const inputs = new Map<string, Promise<LoreInput>>();
+  const inputOf = (root: string): Promise<LoreInput> => {
+    let input = inputs.get(root);
+    if (input === undefined) {
+      input = externalFolders(root).then((folders) => buildInput(root, open, folders));
+      inputs.set(root, input);
+    }
+    return input;
+  };
+  const governed = await governedRoots();
+
   for (const [root, files] of byRoot) {
     try {
-      const found = diagnose(await buildInput(root, open, await externalFolders(root)));
+      const input = await inputOf(root);
+      const marks = marksOf(input.repo);
+      const parses = new Map<string, { input: LoreInput; named: { uri: string; name: string }[] }>();
+      const add = (key: string, parseInput: LoreInput, uri: string, name: string) => {
+        const parse = parses.get(key) ?? { input: parseInput, named: [] };
+        parses.set(key, parse);
+        parse.named.push({ uri, name });
+      };
       for (const { uri, path } of files) {
-        if (documents.get(uri) === undefined) continue;
-        connection.sendDiagnostics({ uri, diagnostics: found.get(pathWithin(root, path) ?? "") ?? [] });
+        const name = pathWithin(root, path) ?? "";
+        const mark = markOver(marks, name);
+        if (mark === undefined) {
+          add(root, input, uri, name);
+          continue;
+        }
+        const governing = await findGoverning(governed.filter((other) => other !== root), inputOf, root, mark);
+        if (governing === undefined) add(`rules:${root}`, rulesInput(root, input.repo, marks), uri, externalName(name));
+        else add(governing.root, governing.input, uri, externalName(name));
+      }
+      for (const { input: parseInput, named } of parses.values()) {
+        const found = diagnose(parseInput);
+        for (const { uri, name } of named) {
+          if (documents.get(uri) !== undefined) connection.sendDiagnostics({ uri, diagnostics: found.get(name) ?? [] });
+        }
       }
     } catch (error) {
       logFailure(error);
     }
   }
+}
+
+async function findGoverning(
+  candidates: readonly string[],
+  inputOf: (root: string) => Promise<LoreInput>,
+  repository: string,
+  mark: Mark,
+): Promise<{ root: string; input: LoreInput } | undefined> {
+  for (const root of candidates) {
+    const input = await inputOf(root);
+    if (governs(input, repository, mark)) return { root, input };
+  }
+  return undefined;
+}
+
+async function governedRoots(): Promise<string[]> {
+  const roots = await Promise.all(workspaceFolders.map(async (folder) => (await repositoryRoot(folder)) ?? folder));
+  return [...new Set(roots)];
 }
 
 // The repository holding the file; else the workspace folder holding it; else the folder above its Lore folder.

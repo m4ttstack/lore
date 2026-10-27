@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -45,7 +45,9 @@ function uri(path: string): string {
   return pathToFileURL(path).href;
 }
 
-async function start(workspace: string, env: Record<string, string> = {}): Promise<Client> {
+interface StartOptions { env?: Record<string, string>; folders?: string[]; externalFolders?: string[] }
+
+async function start(workspace: string, { env = {}, folders = [], externalFolders = [] }: StartOptions = {}): Promise<Client> {
   const child = spawn(NODE, [BIN, "--stdio"], { env: { ...process.env, ...env }, stdio: ["pipe", "pipe", "inherit"] });
   const connection = createMessageConnection(new StreamMessageReader(child.stdout!), new StreamMessageWriter(child.stdin!));
   const latest = new Map<string, PublishedDiagnostic[]>();
@@ -58,12 +60,12 @@ async function start(workspace: string, env: Record<string, string> = {}): Promi
     }
   });
   connection.onRequest("workspace/configuration", (params: { items: { section?: string }[] }) =>
-    params.items.map(() => ({ externalFolders: [] })));
+    params.items.map(() => ({ externalFolders })));
   connection.listen();
   await connection.sendRequest("initialize", {
     processId: process.pid,
     rootUri: uri(workspace),
-    workspaceFolders: [{ uri: uri(workspace), name: "workspace" }],
+    workspaceFolders: [workspace, ...folders].map((path) => ({ uri: uri(path), name: path })),
     capabilities: { workspace: { configuration: true } },
   });
   connection.sendNotification("initialized", {});
@@ -160,7 +162,7 @@ describe("language server over stdio", () => {
     const root = folder();
     execFileSync("git", ["init", "-q"], { cwd: root });
     const lore = join(root, ".lore/checkout.lore");
-    const client = await start(root, { PATH: join(root, "no-binaries-here") });
+    const client = await start(root, { env: { PATH: join(root, "no-binaries-here") } });
     client.open(lore, "stray text\n");
     expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["top-level-text"]);
   });
@@ -174,6 +176,46 @@ describe("language server over stdio", () => {
     const client = await start(root);
     client.open(lore, rule);
     expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["duplicate-id"]);
+  });
+});
+
+describe("rules repository", () => {
+  const MARK = "lore: 1\nrepo: github.com/acme/shop\n";
+  const VALID = "<rule id=\"price-from-quote\" category=\"functional_correctness\">\nText.\n</rule>\n";
+
+  function rules(): string {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    write(root, ".loreconfig", "lore: 1\nroot: true\ncategories: [data_provenance]\n");
+    write(root, "shop/.loreconfig", MARK);
+    write(root, "shop/.lore/ok.lore", "<rule id=\"ok\" category=\"data_provenance\">\nText.\n</rule>\n");
+    write(root, "shop/.lore/broken.lore", "<rule id=\"broken\" category=\"made_up\">\nText.\n</rule>\n");
+    write(root, "own/.lore/own.lore", "stray text\n");
+    return root;
+  }
+
+  test("a file below a marked directory gets diagnostics without the governed repository", async () => {
+    const root = rules();
+    const client = await start(root);
+    const [ok, broken, mark, own] = ["shop/.lore/ok.lore", "shop/.lore/broken.lore", "shop/.loreconfig", "own/.lore/own.lore"]
+      .map((path) => join(root, path)) as [string, string, string, string];
+    for (const path of [ok, broken, mark, own]) client.open(path, readFileSync(path, "utf8"));
+    expect(names(await client.published(broken, (d) => d.length > 0))).toEqual(["unknown-category"]);
+    expect(names(await client.published(own, (d) => d.length > 0))).toEqual(["top-level-text"]);
+    expect(await client.published(ok)).toEqual([]);
+    expect(await client.published(mark)).toEqual([]);
+  });
+
+  test("an open governed repository that names the mark through an external folder is used", async () => {
+    const root = rules();
+    const shop = folder();
+    execFileSync("git", ["init", "-q"], { cwd: shop });
+    execFileSync("git", ["remote", "add", "origin", "git@github.com:acme/shop.git"], { cwd: shop });
+    write(shop, ".lore/checkout.lore", VALID);
+    const ok = join(root, "shop/.lore/ok.lore");
+    const client = await start(shop, { folders: [root], externalFolders: [join(root, "shop")] });
+    client.open(ok, VALID);
+    expect(names(await client.published(ok, (d) => d.length > 0))).toEqual(["duplicate-id"]);
   });
 });
 
