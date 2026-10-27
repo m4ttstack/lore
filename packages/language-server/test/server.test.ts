@@ -148,6 +148,16 @@ describe("language server over stdio", () => {
     expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["unreadable-structure"]);
     client.change(lore, valid);
     expect(await client.published(lore, (d) => d.length === 0)).toEqual([]);
+    client.change(lore, `${valid}\n<rule`);
+    expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["top-level-text"]);
+  });
+
+  test("a .lore file the collection leaves out still gets its structure diagnostics", async () => {
+    const root = folder();
+    const loose = join(root, "notes/loose.lore");
+    const client = await start(root);
+    client.open(loose, "stray text\n");
+    expect(names(await client.published(loose, (d) => d.length > 0))).toEqual(["top-level-text"]);
   });
 
   test("works without a git repository", async () => {
@@ -204,6 +214,22 @@ describe("rules repository", () => {
     expect(names(await client.published(own, (d) => d.length > 0))).toEqual(["top-level-text"]);
     expect(await client.published(ok)).toEqual([]);
     expect(await client.published(mark)).toEqual([]);
+  });
+
+  test("marks for different repositories are checked apart", async () => {
+    const root = rules();
+    write(root, "pay/.loreconfig", "lore: 1\nrepo: github.com/acme/payments\n");
+    const same = "<rule id=\"same\" category=\"functional_correctness\">\nText.\n</rule>\n";
+    const [shopRule, payRule, payBroken] = ["shop/.lore/same.lore", "pay/.lore/same.lore", "pay/.lore/broken.lore"]
+      .map((path) => join(root, path)) as [string, string, string];
+    write(root, "shop/.lore/same.lore", same);
+    write(root, "pay/.lore/same.lore", same);
+    write(root, "pay/.lore/broken.lore", "<rule id=\"pay-broken\" category=\"made_up\">\nText.\n</rule>\n");
+    const client = await start(root);
+    for (const path of [shopRule, payRule, payBroken]) client.open(path, readFileSync(path, "utf8"));
+    expect(names(await client.published(payBroken, (d) => d.length > 0))).toEqual(["unknown-category"]);
+    expect(await client.published(shopRule)).toEqual([]);
+    expect(await client.published(payRule)).toEqual([]);
   });
 
   test("an open governed repository that names the mark through an external folder is used", async () => {

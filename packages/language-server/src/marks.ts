@@ -17,12 +17,19 @@ export function marksOf(files: readonly InputFile[]): Mark[] {
 }
 
 export function markOver(marks: readonly Mark[], path: string): Mark | undefined {
-  return marks.find((mark) => within(path, mark.dir));
+  return marks
+    .filter((mark) => within(path, mark.dir))
+    .reduce<Mark | undefined>((deepest, mark) => (deepest === undefined || mark.dir.length > deepest.dir.length ? mark : deepest), undefined);
 }
 
-// The repository's files as one given folder, with a remote naming every mark so each marked directory is an external folder.
-export function rulesInput(repository: string, files: InputFile[], marks: readonly Mark[]): LoreInput {
-  return { repo: [], given: [{ folder: "", files, repository }], remotes: [...new Set(marks.map((mark) => `https://${mark.repo}`))] };
+// The repository's files as one given folder, with a remote naming only the mark's repository, so marks for other repositories stay out.
+export function rulesInput(repository: string, files: InputFile[], mark: Mark): LoreInput {
+  return { repo: [], given: [{ folder: "", files, repository }], remotes: [`https://${mark.repo}`] };
+}
+
+// Repository names compare ignoring ASCII case, as the parser matches them.
+export function repoKey(repo: string): string {
+  return repo.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
 }
 
 export function governs(input: LoreInput, repository: string, mark: Mark): boolean {

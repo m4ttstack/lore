@@ -4,12 +4,14 @@ import { createConnection, ProposedFeatures, TextDocuments, TextDocumentSyncKind
 import type { LoreInput } from "@lore/parser";
 import { TextDocument } from "vscode-languageserver-textdocument";
 import { URI } from "vscode-uri";
-import { diagnose } from "./diagnostics";
+import { collectedNames, diagnose, structureDiagnostics } from "./diagnostics";
 import { buildInput, canonicalPath, isLorePath, pathWithin, repositoryRoot } from "./files";
-import { externalName, governs, markOver, marksOf, rulesInput, type Mark } from "./marks";
+import { externalName, governs, markOver, marksOf, repoKey, rulesInput, type Mark } from "./marks";
+import { debounced } from "./schedule";
 
 const DEBOUNCE_MS = 150;
 const LORE_FOLDER = ".lore";
+const LORE_EXTENSION = ".lore";
 const CONFIG_NAME = ".loreconfig";
 
 interface OpenLoreFile { uri: string; path: string }
@@ -19,8 +21,8 @@ const documents = new TextDocuments(TextDocument);
 let workspaceFolders: string[] = [];
 let configurationSupport = false;
 let pushedSettings: unknown;
-let timer: ReturnType<typeof setTimeout> | undefined;
-let queue: Promise<void> = Promise.resolve();
+const warnedFolders = new Set<string>();
+const schedule = debounced(refresh, DEBOUNCE_MS, logFailure);
 
 connection.onInitialize(async (params) => {
   const folders = params.workspaceFolders?.map((folder) => folder.uri) ?? (params.rootUri === null ? [] : [params.rootUri]);
@@ -44,13 +46,6 @@ documents.onDidClose(({ document }) => {
 documents.listen(connection);
 connection.listen();
 
-function schedule(): void {
-  clearTimeout(timer);
-  timer = setTimeout(() => {
-    queue = queue.then(refresh).catch(logFailure);
-  }, DEBOUNCE_MS);
-}
-
 async function refresh(): Promise<void> {
   const open = new Map<string, string>();
   const loreFiles: OpenLoreFile[] = [];
@@ -72,7 +67,7 @@ async function refresh(): Promise<void> {
   const inputOf = (root: string): Promise<LoreInput> => {
     let input = inputs.get(root);
     if (input === undefined) {
-      input = externalFolders(root).then((folders) => buildInput(root, open, folders));
+      input = externalFolders(root).then((folders) => buildInput(root, open, folders, warnSkipped));
       inputs.set(root, input);
     }
     return input;
@@ -97,13 +92,21 @@ async function refresh(): Promise<void> {
           continue;
         }
         const governing = await findGoverning(governed.filter((other) => other !== root), inputOf, root, mark);
-        if (governing === undefined) add(`rules:${root}`, rulesInput(root, input.repo, marks), uri, externalName(name));
+        if (governing === undefined) add(`rules:${root}:${repoKey(mark.repo)}`, rulesInput(root, input.repo, mark), uri, externalName(name));
         else add(governing.root, governing.input, uri, externalName(name));
       }
       for (const { input: parseInput, named } of parses.values()) {
         const found = diagnose(parseInput);
+        let collected: ReadonlySet<string> | undefined;
         for (const { uri, name } of named) {
-          if (documents.get(uri) !== undefined) connection.sendDiagnostics({ uri, diagnostics: found.get(name) ?? [] });
+          const document = documents.get(uri);
+          if (document === undefined) continue;
+          let diagnostics = found.get(name) ?? [];
+          if (diagnostics.length === 0 && name.endsWith(LORE_EXTENSION)) {
+            collected ??= collectedNames(parseInput);
+            if (!collected.has(name)) diagnostics = structureDiagnostics(name, document.getText());
+          }
+          connection.sendDiagnostics({ uri, diagnostics });
         }
       }
     } catch (error) {
@@ -157,6 +160,12 @@ async function externalFolders(root: string): Promise<string[]> {
 function pathOf(uri: string): string | null {
   const parsed = URI.parse(uri);
   return parsed.scheme === "file" ? parsed.fsPath : null;
+}
+
+function warnSkipped(folder: string): void {
+  if (warnedFolders.has(folder)) return;
+  warnedFolders.add(folder);
+  connection.console.warn(`lore: lore.externalFolders entry ${folder} is not inside a git repository; it is skipped`);
 }
 
 function logFailure(error: unknown): void {

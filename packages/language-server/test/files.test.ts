@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { parse } from "@lore/parser";
@@ -51,6 +51,34 @@ describe("listFiles", () => {
 
   test("is null for a missing folder", async () => {
     expect(await listFiles(join(folder(), "gone"))).toBeNull();
+  });
+
+  test("never runs a repository's core.fsmonitor command", async () => {
+    const root = repository();
+    const marker = join(root, "marker");
+    write(root, "hook.sh", `#!/bin/sh\ntouch "${marker}"\n`);
+    chmodSync(join(root, "hook.sh"), 0o755);
+    git(root, "config", "core.fsmonitor", join(root, "hook.sh"));
+    write(root, ".lore/a.lore", RULE);
+    git(root, "add", ".lore/a.lore");
+    rmSync(marker, { force: true });
+    expect(await listFiles(root)).toContain(".lore/a.lore");
+    await buildInput(root, new Map(), [root]);
+    expect(existsSync(marker)).toBe(false);
+  });
+
+  test("ignores git variables inherited from the environment", async () => {
+    const root = repository();
+    const other = repository();
+    write(other, "elsewhere.txt", "x\n");
+    process.env.GIT_DIR = join(other, ".git");
+    process.env.GIT_WORK_TREE = other;
+    try {
+      expect(await listFiles(root)).toEqual([]);
+    } finally {
+      delete process.env.GIT_DIR;
+      delete process.env.GIT_WORK_TREE;
+    }
   });
 
   test("lists tracked and untracked files but not ignored ones", async () => {
@@ -123,6 +151,31 @@ describe("buildInput", () => {
     write(root, ".lore/a.lore", broken);
     const input = await buildInput(root, new Map(), []);
     expect(parse(input).errors.map((d) => [d.name, d.line])).toEqual([["unreadable-structure", 2]]);
+  });
+
+  test("a byte order mark and a U+FEFF at a line start are kept for the parser", async () => {
+    const root = repository();
+    write(root, ".lore/a.lore", "﻿a\n﻿b\n");
+    const input = await buildInput(root, new Map(), []);
+    expect(input.repo[0]!.content).toBe("﻿a\n﻿b\n");
+  });
+
+  test("the invalid UTF-8 path keeps a U+FEFF at a line start", async () => {
+    const root = repository();
+    const bytes = new TextEncoder().encode("﻿a\n﻿b\nc");
+    write(root, ".lore/a.lore", new Uint8Array([...bytes, 0xff, 0x0a]));
+    const input = await buildInput(root, new Map(), []);
+    expect(input.repo[0]!.content.split("\n").slice(0, 2)).toEqual(["﻿a", "﻿b"]);
+    expect(parse(input).errors.map((d) => [d.name, d.line])).toEqual([["unreadable-structure", 3]]);
+  });
+
+  test("reports an external folder outside any repository", async () => {
+    const root = repository();
+    const outside = join(folder(), "rules");
+    const skipped: string[] = [];
+    const input = await buildInput(root, new Map(), [outside], (path) => skipped.push(path));
+    expect(input.given).toEqual([]);
+    expect(skipped).toEqual([outside]);
   });
 
   test("remotes are the repository's fetch URLs, once each", async () => {

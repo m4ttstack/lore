@@ -13,12 +13,18 @@ const LINE_FEED = 0x0a;
 // The parser reads a lone surrogate as an invalid UTF-8 byte.
 const INVALID_MARK = "\uD800";
 
-const strict = new TextDecoder("utf-8", { fatal: true });
-const lenient = new TextDecoder("utf-8");
+// ignoreBOM keeps a byte order mark in the text: the parser handles it.
+const strict = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+const lenient = new TextDecoder("utf-8", { ignoreBOM: true });
+
+// A repository's own config must never make git run a command, and the editor's environment must not redirect git.
+const SAFE_CONFIG = ["-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false"];
+const REDIRECTING = /^GIT_(DIR|WORK_TREE|INDEX_FILE|CONFIG)/;
 
 function git(cwd: string, args: readonly string[]): Promise<string | null> {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !REDIRECTING.test(name)));
   return new Promise((done) => {
-    execFile("git", args, { cwd, encoding: "utf8", maxBuffer: 1 << 30, windowsHide: true }, (error, stdout) =>
+    execFile("git", [...SAFE_CONFIG, ...args], { cwd, env, encoding: "utf8", maxBuffer: 1 << 30, windowsHide: true }, (error, stdout) =>
       done(error === null ? stdout : null));
   });
 }
@@ -54,20 +60,34 @@ export function isLorePath(path: string): boolean {
   return name === CONFIG_NAME || name.endsWith(LORE_EXTENSION);
 }
 
-export async function buildInput(workspace: string, openDocuments: OpenDocuments, externalFolders: readonly string[]): Promise<LoreInput> {
+export async function buildInput(
+  workspace: string,
+  openDocuments: OpenDocuments,
+  externalFolders: readonly string[],
+  onSkipped: (folder: string) => void = () => {},
+): Promise<LoreInput> {
   const root = await canonicalPath(workspace);
   const listed = await listFiles(root);
   const repo = listed === null ? openUnder(root, openDocuments) : await readFiles(root, listed, openDocuments);
-  return { repo, given: await givenFolders(root, externalFolders, openDocuments), remotes: listed === null ? [] : await remotes(root) };
+  const given = await givenFolders(root, externalFolders, openDocuments, onSkipped);
+  return { repo, given, remotes: listed === null ? [] : await remotes(root) };
 }
 
-async function givenFolders(workspace: string, entries: readonly string[], openDocuments: OpenDocuments): Promise<GivenFolder[]> {
+async function givenFolders(
+  workspace: string,
+  entries: readonly string[],
+  openDocuments: OpenDocuments,
+  onSkipped: (folder: string) => void,
+): Promise<GivenFolder[]> {
   const repositories = new Map<string, Promise<InputFile[] | null>>();
   const given: GivenFolder[] = [];
   for (const entry of entries) {
     const folder = await canonicalPath(isAbsolute(entry) ? entry : join(workspace, entry));
     const top = await repositoryRoot(folder);
-    if (top === null) continue;
+    if (top === null) {
+      onSkipped(entry);
+      continue;
+    }
     let files = repositories.get(top);
     if (files === undefined) {
       files = listFiles(top).then((listed) => listed === null ? null : readFiles(top, listed, openDocuments));

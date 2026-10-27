@@ -1,4 +1,4 @@
-import { parse, type Diagnostic, type LoreInput } from "@lore/parser";
+import { collect, parse, parseFile, type Diagnostic, type LoreInput } from "@lore/parser";
 import { DiagnosticSeverity, type Diagnostic as LspDiagnostic } from "vscode-languageserver/node";
 import registry from "../../../spec/errors.json";
 
@@ -21,6 +21,16 @@ export function diagnose(input: LoreInput): Map<string, LspDiagnostic[]> {
   for (const error of model.errors) add(error, DiagnosticSeverity.Error);
   for (const warning of model.warnings) add(warning, DiagnosticSeverity.Warning);
   return byFile;
+}
+
+export function collectedNames(input: LoreInput): ReadonlySet<string> {
+  const collected = collect(input);
+  return new Set([...collected.files.map((file) => file.file), ...collected.configs.map((config) => config.file)]);
+}
+
+// For a .lore file the collection leaves out: its structure problems alone.
+export function structureDiagnostics(name: string, content: string): LspDiagnostic[] {
+  return parseFile(name, content).diagnostics.map((diagnostic) => toLsp(diagnostic, DiagnosticSeverity.Error));
 }
 
 function toLsp(diagnostic: Diagnostic, severity: DiagnosticSeverity): LspDiagnostic {
