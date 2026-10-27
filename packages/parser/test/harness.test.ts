@@ -9,12 +9,24 @@ function example(over: Partial<Example>): Example {
 test("toInput puts external: files in one given folder with the prefix stripped and folder \"\"", () => {
   const input = toInput(example({
     files: [
-      { path: ".lore/a.lore", external: false, content: "a" },
-      { path: "external:shop/.loreconfig", external: true, content: "b" },
+      { path: ".lore/a.lore", place: "repo", content: "a" },
+      { path: "external:shop/.loreconfig", place: "external", content: "b" },
     ],
   }));
   expect(input.repo).toEqual([{ path: ".lore/a.lore", content: "a" }]);
   expect(input.given).toEqual([{ folder: "", files: [{ path: "shop/.loreconfig", content: "b" }] }]);
+});
+
+test("toInput puts rules: files in input.rules with the prefix stripped, only when there are some", () => {
+  const input = toInput(example({
+    files: [
+      { path: ".lore/a.lore", place: "repo", content: "a" },
+      { path: "rules:.lore/a.lore", place: "rules", content: "b" },
+    ],
+  }));
+  expect(input.repo).toEqual([{ path: ".lore/a.lore", content: "a" }]);
+  expect(input.rules).toEqual([{ path: ".lore/a.lore", content: "b" }]);
+  expect("rules" in toInput(example({ files: [{ path: "a", place: "repo", content: "a" }] }))).toBe(false);
 });
 
 test("toInput uses https://github.com/acme/shop when the example has no remote", () => {

@@ -16,8 +16,8 @@ const brief = (diagnostics: { name: string; file: string; entry: string | null; 
 describe("parse", () => {
   const inputs = examples.flatMap((example) =>
     example.files.map((file) => ({
-      external: file.external,
-      path: file.external ? file.path.slice("external:".length) : file.path,
+      external: file.place === "external",
+      path: file.place === "repo" ? file.path : file.path.slice(file.path.indexOf(":") + 1),
       content: file.content,
     })),
   );

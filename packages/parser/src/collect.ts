@@ -47,6 +47,7 @@ interface Source { repository: Repository; prefix: string; files: InputFile[]; f
 const LORE_FOLDER = ".lore";
 const CONFIG_NAME = ".loreconfig";
 export const EXTERNAL = "external:";
+export const RULES = "rules:";
 const ROOT = "";
 const NO_CONFIGS: Configs = new Map();
 
@@ -55,7 +56,10 @@ export function collect(input: LoreInput): Collected {
   const collected: Collected = {
     files: [], configs: [], diagnostics: [], trees: [], repositoryFiles: given.map(({ files }) => files), configsByRepository: new Map(),
   };
-  collectSource({ repository: "repo", prefix: "", files: input.repo, folders: null }, input.remotes, collected);
+  const governed = input.rules === undefined
+    ? { prefix: "", files: input.repo }
+    : { prefix: RULES, files: input.rules };
+  collectSource({ repository: "repo", ...governed, folders: null }, input.remotes, collected);
   given.forEach(({ files, folders }, repository) => {
     collectSource({ repository, prefix: EXTERNAL, files, folders }, input.remotes, collected);
   });

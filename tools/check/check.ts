@@ -62,6 +62,7 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
       continue;
     }
     if (ex.files.length === 0) report("inputs", "no input file");
+    if (ex.kind === "parse" && ex.files.some((f) => f.place === "rules")) report("sections", "a parse example takes no rules: section");
     for (const r of ex.requires) if (!CAPABILITIES.has(r)) report("requires", `unknown capability "${r}"`);
     if (ex.kind === "eligibility" && ex.requires.length === 0 && ex.files.some((f) => CHECK_TAG.test(f.content))) {
       report("requires", "an eligibility example whose inputs hold a <check> needs a requires line");

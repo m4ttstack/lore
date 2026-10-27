@@ -91,6 +91,10 @@ test("inputs: an example needs an input file", () => {
   expect(rules(swap('=== lore/a.lore\n<rule id="a-rule">\n', ""))).toContain("inputs");
 });
 
+test("sections: a parse example takes no rules: section", () => {
+  expect(rules(swap("=== expect\n" + parseExpect, "=== rules:lore/a.lore\nx\n=== expect\n" + parseExpect))).toContain("sections");
+});
+
 test("requires a diff exactly for eligibility examples", () => {
   expect(rules(swap("=== diff\nM src/x.ts\n+2 two\n", ""))).toContain("diff");
   expect(rules(swap("=== expect\n" + parseExpect, "=== diff\nA lore/a.lore\n=== expect\n" + parseExpect))).toContain("diff");

@@ -253,3 +253,23 @@ describe("coveringEntries", () => {
     expect(ids("apps/web/src/legacy/Price.tsx", copy)).toEqual(["price-from-quote", "tsx-only"]);
   });
 });
+
+test("with rules given, a src target counts only when the rules revision tracks it", async () => {
+  const context = `<context id="guide" src="docs/guide.md">\nRead it.\n</context>\n`;
+  const input = {
+    repo: [{ path: "docs/guide.md", content: "" }],
+    rules: [{ path: ".lore/a.lore", content: context }],
+    given: [], remotes: ["https://github.com/acme/shop"],
+  };
+  const result = await select(input, { files: [{ kind: "M", path: "x.ts", added: [] }] });
+  expect(result.warnings.map((w) => [w.name, w.file])).toEqual([["missing-src-target", "rules:.lore/a.lore"]]);
+});
+
+test("a file-relative src in a rules file resolves to a plain governed path", () => {
+  const context = `<context id="guide" src="./guide.md">\nRead it.\n</context>\n`;
+  const model = parse({
+    repo: [], given: [], remotes: ["https://github.com/acme/shop"],
+    rules: [{ path: "docs/.lore/a.lore", content: context }, { path: "docs/.lore/guide.md", content: "" }],
+  });
+  expect(model.entries[0]!.src).toBe("docs/.lore/guide.md");
+});

@@ -205,7 +205,7 @@ export function missingSrcTargets(input: LoreInput, model: DocumentModel): Diagn
   return srcTargetsMissing(parsed.model, parsed.placeOf, parsed.collected, input, []);
 }
 
-// A target counts when the governed repo, as the change leaves it, or the context's own repository tracks it.
+// A target counts when the governed repo, as the change leaves it (or the rules revision, when given), or the context's own repository tracks it.
 function srcTargetsMissing(
   model: DocumentModel,
   placeOf: WeakMap<Entry, EntryPlace>,
@@ -213,8 +213,8 @@ function srcTargetsMissing(
   input: LoreInput,
   changed: readonly Changed[],
 ): Diagnostic[] {
-  const governed = new Set(input.repo.map((file) => file.path));
-  for (const { newPath } of changed) if (newPath !== null) governed.add(newPath);
+  const governed = new Set((input.rules ?? input.repo).map((file) => file.path));
+  if (input.rules === undefined) for (const { newPath } of changed) if (newPath !== null) governed.add(newPath);
   const external = new Map<Tree, Set<string>>();
   const externalPaths = (tree: Tree) => {
     let paths = external.get(tree);

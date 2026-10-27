@@ -123,6 +123,7 @@ of the example:
 |---|---|
 | `=== <path>` | An input file at `<path>` in the governed repo: the section's lines, joined with line feeds. |
 | `=== external:<path>` | An input file at `<path>` in the external repository described below. |
+| `=== rules:<path>` | Eligibility only. A file of the governed repo as it is at the rules revision (see [Collecting files](#collecting-files)). With at least one such section, the tool is given a rules revision. |
 | `=== remote` | Eligibility only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, and in every parse example, the remote is `https://github.com/acme/shop`. |
 | `=== diff` | Eligibility only, required. The change, in the format below. |
 | `=== expect` | The expected output, as JSON. |
@@ -148,7 +149,10 @@ the `=== <path>` input files and every path the diff adds, modifies or
 renames to, and all of them are tracked by version control. A changed
 file that is not also an input file has unknown content apart from its
 added lines. When a changed file is also an input file, each of its
-`+<n> <text>` lines equals line `<n>` of that input.
+`+<n> <text>` lines equals line `<n>` of that input. With `=== rules:<path>`
+sections, the Lore files, `.loreconfig` files and `src` targets of the
+governed repo are read from them only, and the plain input files are
+still the governed repo as the change leaves it.
 This document is UTF-8 text with line feeds, so an input file can hold
 neither a carriage return nor a byte that is not valid UTF-8. The rules
 for those bytes have no conformance examples.
@@ -169,8 +173,8 @@ item by item in order (see Order below), and objects compare regardless
 of the order of their members. In both kinds:
 
 - **Paths.** Every `file` field is a path exactly as written in the
-  example: after `=== ` for an input file, keeping the `external:`
-  prefix, or in the diff for a changed file.
+  example: after `=== ` for an input file, keeping the `external:` or
+  `rules:` prefix, or in the diff for a changed file.
 - **Scopes.** Globs in an entry's `scopes` are resolved to paths from the
   governed repo's root: a glob `g` in a file whose base is `b` appears as
   `b/g`, and a glob in a file whose base is the repo root appears as `g`.
@@ -4404,8 +4408,10 @@ Every changed file has one or two **paths**:
 
 A Lore file or a `.loreconfig` in the change is a changed file like any
 other, and counts for every entry whose scope holds it. The entries
-themselves are read from the files as the change leaves them, so an
-entry the change adds can be eligible for that same change.
+themselves are read from the files as the change leaves them, unless the
+tool was given a rules revision (see
+[Collecting files](#collecting-files)), so an entry the change adds can
+be eligible for that same change.
 
 An entry with no `<scope>` and no `<when>`, in a file with no
 `<scope>`, has the whole of its base as its scope. Unless it is
@@ -4549,6 +4555,45 @@ M apps/web/src/checkout/.lore/checkout.lore
 +7 </rule>
 === expect
 { "eligible": ["lore-rules-owned", "price-from-quote", "quote-expiry-shown"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+Given a rules revision, the same change is judged by the rules of that
+revision, which do not yet hold `quote-expiry-shown`, so it is not eligible:
+
+``````example eligibility
+=== .lore/lore.lore
+<rule id="lore-rules-owned" category="documentation">
+<scope>
+files: ["**/.lore/**/*.lore"]
+</scope>
+Every new rule records its owner in its `<meta>`.
+</rule>
+=== apps/web/src/checkout/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>
+=== rules:.lore/lore.lore
+<rule id="lore-rules-owned" category="documentation">
+<scope>
+files: ["**/.lore/**/*.lore"]
+</scope>
+Every new rule records its owner in its `<meta>`.
+</rule>
+=== rules:apps/web/src/checkout/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== diff
+M apps/web/src/checkout/.lore/checkout.lore
++5 <rule id="quote-expiry-shown" category="functional_correctness">
++6 A checkout page that shows a quoted price also shows when the quote expires.
++7 </rule>
+=== expect
+{ "eligible": ["lore-rules-owned", "price-from-quote"], "hits": [], "excluded": [], "warnings": [] }
 ``````
 
 ## Error reach
@@ -5480,6 +5525,13 @@ scratch folder cannot add rules to a review.
   collected, and one it adds is. (So a change can delete a rule, or
   switch it off with `disable`, for its own review: the rule's absence
   is part of the change a reviewer sees.)
+
+  **Rules revision.** A tool MAY let its caller name a revision of the
+  governed repo to read Lore files, `.loreconfig` files and `src` targets
+  from, instead of the revision the change leaves. The change itself, its
+  files and added lines, is unaffected. Without one, a tool reads as
+  above. A change that is judged by its own rules can delete or loosen
+  the rule in its way.
 - **A given folder.** A tool reads the files tracked in the working
   copy that holds it. It reads every `.loreconfig` of that repository in
   the given folder, below it or above it, and collects the Lore files of
@@ -5563,7 +5615,8 @@ Each array is in the order that [Conformance examples](#conformance-examples)
 gives under Order, and every `file` field follows Paths there.
 
 **Paths.** A `file` is a path from the root of the repository that holds
-the file. A file of the governed repo has its plain path. A file of a
+the file. A file of the governed repo has its plain path, except that a
+file read from a rules revision has `rules:` before it. A file of a
 given folder's repository has `external:` before its path, so that it is
 never mistaken for a file of the governed repo. The prefix does not say
 which repository the file is in, so a tool given folders of two

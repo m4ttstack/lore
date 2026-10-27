@@ -45,7 +45,7 @@ test("splits files, diff and expect", () => {
       F,
     ),
   )[0]!;
-  expect(ex.files).toEqual([{ path: "src/a.ts", external: false, content: "one\ntwo" }]);
+  expect(ex.files).toEqual([{ path: "src/a.ts", place: "repo", content: "one\ntwo" }]);
   expect(ex.remote).toBe("git@example.com:acme/shop.git");
   expect(ex.diff).toBe("+x");
   expect(ex.expect).toBe("ok");
@@ -56,9 +56,16 @@ test("marks external: paths", () => {
     doc(F + "example eligibility", "=== external:../shared/r.lore", "z", "=== in.lore", "w", F),
   )[0]!;
   expect(ex.files).toEqual([
-    { path: "external:../shared/r.lore", external: true, content: "z" },
-    { path: "in.lore", external: false, content: "w" },
+    { path: "external:../shared/r.lore", place: "external", content: "z" },
+    { path: "in.lore", place: "repo", content: "w" },
   ]);
+});
+
+test("marks rules: and loose: paths", () => {
+  const ex = extractExamples(
+    doc(F + "example eligibility", "=== rules:.lore/a.lore", "z", "=== loose:a.lore", "y", F),
+  )[0]!;
+  expect(ex.files.map((f) => f.place)).toEqual(["rules", "loose"]);
 });
 
 test("reads requires lines", () => {
@@ -66,7 +73,7 @@ test("reads requires lines", () => {
     doc(F + "example eligibility", "requires: git", "requires: network", "=== a", "b", F),
   )[0]!;
   expect(ex.requires).toEqual(["git", "network"]);
-  expect(ex.files).toEqual([{ path: "a", external: false, content: "b" }]);
+  expect(ex.files).toEqual([{ path: "a", place: "repo", content: "b" }]);
 });
 
 test("extracts an example whose input contains a triple-backtick fence", () => {

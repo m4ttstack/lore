@@ -9,7 +9,7 @@ const { join, literalline } = builders;
 export const ANY_CATEGORY = { has: () => true } as unknown as ReadonlySet<string>;
 
 export const CONTEXT: FileContext = {
-  base: "", prefix: "", loreRoot: "", categories: ANY_CATEGORY,
+  base: "", filePrefix: "", prefix: "", loreRoot: "", categories: ANY_CATEGORY,
   defaults: {}, scope: { files: ["**"], ignores: [] },
 };
 

@@ -1,16 +1,11 @@
 <scope>
-files: ["src/**/*.tsx"]
+files: ["apps/web/src/checkout/**"]
 </scope>
 
-<rule id="checkout-prices-from-quote" category="functional_correctness">
-<scope>
-files: ["src/checkout/**"]
-</scope>
-A price the checkout displays comes from the quote that produced it.
+<rule id="price-source-recorded" category="data_provenance">
+Every price the checkout stores records the quote it came from.
 </rule>
 
-<context id="web-architecture" src="docs/architecture.md">
-</context>
-
-<context id="review-handbook" src="../../../../handbook.md">
+<context id="review-handbook" src="./../../handbook.md">
+Read for the organization's review conventions.
 </context>

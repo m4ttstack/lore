@@ -6,19 +6,22 @@ import type { Example } from "../../../tools/check/extract";
 import type { Change, ChangedFile, InputFile, LoreInput } from "../src/types";
 
 const DEFAULT_REMOTE = "https://github.com/acme/shop";
-const EXTERNAL = "external:";
 
 export function toInput(example: Example): LoreInput {
   const repo: InputFile[] = [];
   const external: InputFile[] = [];
+  const rules: InputFile[] = [];
   for (const file of example.files) {
-    if (file.external) external.push({ path: file.path.slice(EXTERNAL.length), content: file.content });
-    else repo.push({ path: file.path, content: file.content });
+    const path = file.path.slice(file.path.indexOf(":") + 1);
+    if (file.place === "external") external.push({ path, content: file.content });
+    else if (file.place === "rules") rules.push({ path, content: file.content });
+    else if (file.place === "repo") repo.push({ path: file.path, content: file.content });
   }
   return {
     repo,
     given: external.length > 0 ? [{ folder: "", files: external }] : [],
     remotes: [example.remote ?? DEFAULT_REMOTE],
+    ...(rules.length > 0 ? { rules } : {}),
   };
 }
 

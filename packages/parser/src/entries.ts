@@ -11,6 +11,9 @@ export type Severity = "blocking" | "advisory";
 
 export interface FileContext {
   base: string;
+  // Stripped from the Lore file name to get its path.
+  filePrefix: string;
+  // Put in front of a resolved src: only an external tree has one.
   prefix: string;
   loreRoot: string;
   categories: ReadonlySet<string>;
@@ -197,7 +200,7 @@ function resolveSrc(value: string | null, lorePath: string, file: FileContext): 
   if (named.length === 0 || segments.includes("") || named.includes(".") || named.includes("..")) return invalid;
   if (dots === 0) return { path: fromBase(file.base, value) };
 
-  const directory = lorePath.slice(file.prefix.length).split("/").slice(0, -1);
+  const directory = lorePath.slice(file.filePrefix.length).split("/").slice(0, -1);
   const rootDepth = file.loreRoot === "" ? 0 : file.loreRoot.split("/").length;
   for (const segment of segments.slice(0, dots)) {
     if (segment === ".") continue;

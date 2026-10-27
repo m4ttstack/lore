@@ -1,0 +1,3 @@
+<rule id="legacy-prices-from-quote" category="functional_correctness">
+Legacy pages take their prices from the quote too.
+</rule>

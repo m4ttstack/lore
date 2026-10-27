@@ -1,5 +1,6 @@
 export type ExampleKind = "parse" | "eligibility";
-export interface ExampleFile { path: string; external: boolean; content: string }
+export type Place = "repo" | "external" | "rules" | "loose";
+export interface ExampleFile { path: string; place: Place; content: string }
 export interface Example {
   number: number;          // 1-based, document order
   kind: string;            // raw; the checker validates it
@@ -62,6 +63,11 @@ export function extractExamples(markdown: string): Example[] {
   return examples;
 }
 
+function placeOf(name: string): Place {
+  for (const place of ["external", "rules", "loose"] as const) if (name.startsWith(`${place}:`)) return place;
+  return "repo";
+}
+
 function build(number: number, kind: string, section: string, line: number, body: string[]): Example {
   const requires: string[] = [];
   let at = 0;
@@ -92,7 +98,7 @@ function build(number: number, kind: string, section: string, line: number, body
     if (s.name === "remote" || s.name === "diff" || s.name === "expect") {
       if (example[s.name] !== null) throw new Error(`duplicate "${s.name}" section in example at line ${line}`);
       example[s.name] = content;
-    } else example.files.push({ path: s.name, external: s.name.startsWith("external:"), content });
+    } else example.files.push({ path: s.name, place: placeOf(s.name), content });
   }
   return example;
 }

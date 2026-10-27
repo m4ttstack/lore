@@ -1,15 +1,7 @@
-<rule id="checkout-render-budget" category="web_vitals">
-The checkout page shows its first price within the page's time budget.
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
 </rule>
 
-<rule id="web-prices-recorded" category="data_provenance">
-Every price the web app stores records the quote it came from.
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
 </rule>
-
-<context id="web-readme" src="./../README.md">
-Read for how the web app is built.
-</context>
-
-<context id="shop-readme" src="./../../README.md">
-Read for how the shop is built and deployed.
-</context>
