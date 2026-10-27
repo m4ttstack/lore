@@ -23,16 +23,19 @@ export function renderText(selection: Selection): string {
   else {
     sections.push(PREAMBLE);
     for (const rule of selection.rules) {
-      const lines = [`## Rule \`${rule.id}\` (${rule.severity}, ${rule.category ?? "no category"})`, "", rule.prose];
+      const lines = [`## Rule ${span(rule.id)} (${rule.severity}, ${rule.category ?? "no category"})`, "", rule.prose];
       if (rule.hits.length > 0) {
         lines.push("", "Flagged lines:", "");
-        for (const hit of rule.hits) lines.push(`- \`${hit.file}:${hit.line}\` \`${hit.text}\``);
+        for (const hit of rule.hits) lines.push(`- ${span(`${hit.file}:${hit.line}`)} ${span(hit.text)}`);
       }
       sections.push(lines.join("\n"));
     }
     for (const context of selection.context) {
-      const lines = [`## Context \`${context.id}\``, "", context.prose];
-      if (context.srcText !== null) lines.push("", `From \`${context.src}\`:`, "", "````", context.srcText.replace(/\n$/, ""), "````");
+      const lines = [`## Context ${span(context.id)}`, "", context.prose];
+      if (context.src !== null && context.srcText !== null) {
+        const fence = "`".repeat(Math.max(4, longestRun(context.srcText) + 1));
+        lines.push("", `From ${span(context.src)}:`, "", fence, context.srcText.replace(/\n$/, ""), fence);
+      }
       sections.push(lines.join("\n"));
     }
   }
@@ -41,6 +44,17 @@ export function renderText(selection: Selection): string {
 }
 
 function warningLine(warning: Diagnostic): string {
-  const entry = warning.entry === null ? "" : ` (entry \`${warning.entry}\`)`;
-  return `- \`${warning.name}\` in \`${warning.file}\` line ${warning.line}${entry}`;
+  const entry = warning.entry === null ? "" : ` (entry ${span(warning.entry)})`;
+  return `- ${span(warning.name)} in ${span(warning.file)} line ${warning.line}${entry}`;
+}
+
+function longestRun(text: string): number {
+  return Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+}
+
+// A code span whose backtick run is longer than any inside the text; CommonMark strips one padding space per side, so edge backticks, edge spaces and empty text get one.
+function span(text: string): string {
+  const ticks = "`".repeat(longestRun(text) + 1);
+  const pad = text === "" || text.startsWith("`") || text.endsWith("`") || (text.startsWith(" ") && text.endsWith(" ")) ? " " : "";
+  return `${ticks}${pad}${text}${pad}${ticks}`;
 }
