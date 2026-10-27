@@ -36,7 +36,7 @@ Output:
   --capabilities <list>  Checks to run, default regex,ast-grep
   --strict            Exit 1 when the rules have errors that excluded entries
 
-Exit codes: 0 selection ran, 1 --strict and entries were excluded, 2 usage or input error.
+Exit codes: 0 selection ran, 1 --strict and entries were excluded, 2 usage or input error, 70 internal error.
 `;
 
 export async function run(argv: string[], io: IO): Promise<number> {
@@ -116,7 +116,13 @@ if (require.main === module) {
     stdout: (text) => void process.stdout.write(text),
     stderr: (text) => void process.stderr.write(text),
     isTTY: process.stdout.isTTY === true,
-  }).then((code) => {
-    process.exitCode = code;
-  });
+  }).then(
+    (code) => {
+      process.exitCode = code;
+    },
+    (error: unknown) => {
+      process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
+      process.exitCode = 70;
+    },
+  );
 }

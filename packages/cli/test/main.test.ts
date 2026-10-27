@@ -118,6 +118,16 @@ describe("lore select", () => {
     expect(err).not.toContain("    at ");
   });
 
+  test("a pattern the regex engine refuses is an input error with a short message", async () => {
+    const pattern = "(a|b)".repeat(200_000);
+    const huge = `<rule id="huge" category="security">\n<when>\naddedMatches: ['${pattern}']\n</when>\nProse.\n</rule>\n`;
+    const { root, diff } = project({ ".lore/huge.lore": huge });
+    const { code, out, err } = await lore(["select", "--repo", root, "--diff", diff, "--format", "json"]);
+    expect(code).toBe(2);
+    expect(out).toBe("");
+    expect(err.length).toBeLessThan(400);
+  });
+
   test("an unreadable diff is an input error", async () => {
     const { root } = project();
     const { code, err } = await lore(["select", "--repo", root, "--diff", join(root, "missing.diff")]);
@@ -198,6 +208,8 @@ describe("usage errors", () => {
     ["a flag without its value", ["select", "--diff"], "--diff"],
     ["a bad format", ["select", "--diff", "-", "--format", "yaml"], "--format"],
     ["a bad capability", ["select", "--diff", "-", "--capabilities", "regex,magic"], "magic"],
+    ["--strict with a value", ["select", "--diff", "-", "--strict=false"], "--strict"],
+    ["--no-repo with a value", ["select", "--diff", "-", "--no-repo=yes"], "--no-repo"],
     ["an unknown command", ["frobnicate"], "frobnicate"],
     ["no command", [], "command"],
   ])("%s exits 2 with a one-line message", async (_name, argv, mention) => {

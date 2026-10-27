@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "../src/model";
-import { RegexLimitError, toRegExp, validateDialect, validateRegex } from "../src/regex";
+import { RegexLimitError, engineReason, toRegExp, validateDialect, validateRegex } from "../src/regex";
 
 const OUTSIDE = "regex-outside-dialect";
 
@@ -248,6 +248,19 @@ describe("toRegExp", () => {
 
   test("an engine failure to compile is rethrown as RegexLimitError", () => {
     expect(() => toRegExp("(a|b)".repeat(200_000))).toThrow(RegexLimitError);
+  });
+
+  test("an engine failure never puts the pattern in the message", () => {
+    let message = "";
+    try { toRegExp("(a|b)".repeat(200_000)); } catch (error) { message = (error as Error).message; }
+    expect(message.length).toBeLessThan(400);
+  });
+
+  test("engineReason keeps the reason of a V8-shaped message and drops the quoted source", () => {
+    const source = "a{1000}".repeat(50_000);
+    const reason = engineReason(`Invalid regular expression: /${source}/su: Stack overflow`, source);
+    expect(reason).toBe("Invalid regular expression: /<pattern>/su: Stack overflow");
+    expect(engineReason(`Invalid regular expression: ${"x".repeat(500)}`, source).length).toBeLessThan(110);
   });
 
   test("throws on a pattern outside the dialect", () => {

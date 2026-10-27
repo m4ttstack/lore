@@ -44,6 +44,7 @@ function parseSelect(args: string[]): Command {
     if (flag === "--help") return { name: "help" };
     if (NOT_YET.includes(flag)) throw new UsageError(`${flag} is not available yet`);
     if (flag === "--no-repo" || flag === "--strict") {
+      if (eq !== -1) throw new UsageError(`${flag} takes no value`);
       flags.add(flag);
       continue;
     }

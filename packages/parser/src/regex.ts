@@ -48,13 +48,18 @@ export function toRegExp(pattern: string): RegExp {
     return regex;
   } catch (error) {
     if (error instanceof SyntaxError || error instanceof RangeError) {
-      throw new RegexLimitError(`the regular expression engine cannot compile this pattern (${error.message}): ${shown(pattern)}`);
+      throw new RegexLimitError(`the regular expression engine cannot compile this pattern (${engineReason(error.message, scan.source)}): ${shown(pattern)}`);
     }
     throw error;
   }
 }
 
 const SHOWN_CODE_POINTS = 100;
+
+// V8 quotes the whole translated source in its message; keep only the reason, capped.
+export function engineReason(message: string, source: string): string {
+  return shown(message.split(source).join("<pattern>"));
+}
 
 function shown(pattern: string): string {
   const chars = Array.from(pattern);
