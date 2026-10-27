@@ -217,7 +217,7 @@ describe("entries", () => {
   });
 
   test("a fence opens when its info string holds a lone CR, U+2028 or U+2029", () => {
-    for (const odd of ["\r", " ", " "]) {
+    for (const odd of ["\r", "\u2028", "\u2029"]) {
       const [ticks] = entries(`<rule id="a">\nA.\n\`\`\`js${odd}x\n</rule>\n\`\`\`\n</rule>\n`);
       expect(ticks!.closeLine).toBe(6);
       const [tildes] = entries(`<rule id="a">\nA.\n~~~${odd}x\n</rule>\n~~~\n</rule>\n`);

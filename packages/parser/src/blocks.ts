@@ -6,7 +6,6 @@ const CATEGORY = /^[a-z][a-z0-9_]*$/;
 const SEVERITIES = ["blocking", "advisory"];
 const CONDITIONS = ["addedContains", "addedMatches", "changed", "unchanged"] as const;
 
-// Hooks: Task 5 makes checkGlob report glob errors and Task 6 makes checkRegex report pattern errors.
 function checkGlob(_glob: string, _place: GlobPlace): string | null {
   return null;
 }

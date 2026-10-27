@@ -25,14 +25,13 @@ const OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
   prettyErrors: false,
 };
 
-const BLANK_OR_COMMENT = /^[ \t]*(#.*)?$/;
+const BLANK_OR_COMMENT = /^[ \t]*(#[^\n]*)?$/;
+const NOT_INVALID = new Set(["DUPLICATE_KEY", "TAG_RESOLVE_FAILED"]);
 const FEATURE_TOKENS = new Set(["anchor", "alias", "tag", "directive"]);
 
 // lines: the block's contents after indentation removal; firstLine: the file line of lines[0];
 // incompleteLine: where a document that ends before it is complete is reported.
 export function readBlock(lines: string[], firstLine: number, incompleteLine: number): ReadBlock {
-  if (lines.every((line) => BLANK_OR_COMMENT.test(line))) return { value: {}, diagnostic: null };
-
   const source = lines.join("\n");
   const lineAt = (offset: number) => firstLine + countLineFeeds(source, offset);
   const fail = (name: string, line: number): ReadBlock => ({ value: undefined, diagnostic: { name, line } });
@@ -45,7 +44,7 @@ export function readBlock(lines: string[], firstLine: number, incompleteLine: nu
     .filter((alias) => !anchors.some((a) => a.offset < alias.offset && a.source.slice(1) === alias.source.slice(1)))
     .map((alias) => alias.offset);
   const invalid = earliest([
-    ...doc.errors.filter((e) => e.code !== "DUPLICATE_KEY").map((e) => e.pos[0]),
+    ...invalidOffsets(doc.errors),
     ...undefinedAliases,
   ]);
   if (invalid !== null) {
@@ -60,7 +59,17 @@ export function readBlock(lines: string[], firstLine: number, incompleteLine: nu
   if (duplicate !== null && (feature === null || duplicate < feature)) return fail("duplicate-key", lineAt(duplicate));
   if (feature !== null) return fail("yaml-feature-not-allowed", lineAt(feature));
 
-  return { value: doc.toJS(), diagnostic: null };
+  return { value: doc.contents === null ? {} : doc.toJS(), diagnostic: null };
+}
+
+// A multi-line implicit key breaks at its end, where yaml's paired BLOCK_AS_IMPLICIT_KEY reports its start.
+// An unresolved tag is a tag, which the feature check reports.
+function invalidOffsets(errors: { code: string; pos: [number, number] }[]): number[] {
+  const multiline = errors.filter((e) => e.code === "MULTILINE_IMPLICIT_KEY");
+  return errors
+    .filter((e) => !NOT_INVALID.has(e.code))
+    .filter((e) => e.code !== "BLOCK_AS_IMPLICIT_KEY" || !multiline.some((m) => m.pos[0] === e.pos[0]))
+    .map((e) => (e.code === "MULTILINE_IMPLICIT_KEY" ? e.pos[1] : e.pos[0]));
 }
 
 // Offsets of keys that are not strings and of numbers JSON cannot hold.

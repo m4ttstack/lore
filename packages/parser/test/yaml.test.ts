@@ -31,6 +31,12 @@ describe("values", () => {
     expect(value("# owner to be decided\n\n  # later")).toEqual({});
   });
 
+  test("a comment holding a CR, U+2028 or U+2029 still leaves an empty mapping", () => {
+    expect(value("# owner\rlater")).toEqual({});
+    expect(value("# owner\u2028later\n# x\u2029y")).toEqual({});
+    expect(value("# owner\r")).toEqual({});
+  });
+
   test("an explicit null stays null", () => {
     expect(value("~")).toBeNull();
     expect(value("null")).toBeNull();
@@ -91,6 +97,11 @@ describe("invalid-yaml", () => {
     expect(readBlock(["{ a: 1", "# trailing"], 3, 7).diagnostic).toEqual({ name: "invalid-yaml", line: 7 });
   });
 
+  test("a multi-line implicit key is reported where the document breaks, not at the key", () => {
+    expect(problem("owner: checkout\n  team: pricing")).toEqual({ name: "invalid-yaml", line: 3 });
+    expect(problem("a: 1\n b: 2\nc: 3")).toEqual({ name: "invalid-yaml", line: 3 });
+  });
+
   test("a second document is invalid at its start", () => {
     expect(problem("a: 1\n---\nb: 2")).toEqual({ name: "invalid-yaml", line: 3 });
   });
@@ -105,6 +116,8 @@ describe("yaml-feature-not-allowed", () => {
     expect(problem("a: 1\nb: !!str 2")).toEqual({ name: "yaml-feature-not-allowed", line: 3 });
     expect(problem("a: !money 1")).toEqual({ name: "yaml-feature-not-allowed", line: 2 });
     expect(problem("a: ! x")).toEqual({ name: "yaml-feature-not-allowed", line: 2 });
+    expect(problem("a: 1\nb: !!timestamp x")).toEqual({ name: "yaml-feature-not-allowed", line: 3 });
+    expect(problem("a: !e!foo x")).toEqual({ name: "yaml-feature-not-allowed", line: 2 });
     expect(problem("a:\n  - [x, !!str y]")).toEqual({ name: "yaml-feature-not-allowed", line: 3 });
   });
 

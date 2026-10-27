@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { checkDefaults, checkMeta, checkScope, checkWhen } from "../src/blocks";
 import { parse } from "../src/model";
+import { readBlock } from "../src/yaml";
 
 const LINE = 7;
 
@@ -63,6 +64,10 @@ describe("checkWhen", () => {
 
   test("a mapping with no keys is empty-when", () => {
     expect(checkWhen({}, LINE)).toEqual({ name: "empty-when", line: LINE });
+  });
+
+  test("a comment-only block with a U+2028 in its comment is empty-when", () => {
+    expect(checkWhen(readBlock(["# owner\u2028later"], 2, 3).value, LINE)).toEqual({ name: "empty-when", line: LINE });
   });
 
   test("an unknown key is unknown-condition, before any value check", () => {
