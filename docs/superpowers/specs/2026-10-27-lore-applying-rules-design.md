@@ -120,7 +120,40 @@ lore verdicts --selection <file> [<verdicts-file> | -]
 | `--remote <host/path>` | The governed repo's remote, for matching `repo`. Default: read from `git remote -v` in `--repo`. Repeatable. |
 
 With `--base`/`--head` (below) and no `--rules-ref`, the rules are read at
-`--base`.
+`--base`. With any other change input and no `--rules-ref`, they are read
+from the working tree as it stands; making it match a branch is the
+caller's business.
+
+**The spec gains a rules revision.** Today the spec reads the governed
+repo "as the change leaves it", so a rule a change adds is eligible for
+that same change (an Eligibility example expects exactly this). A team
+that lets a change judge itself by its own rules lets a change delete or
+loosen the rule in its way. The spec therefore gains, in Collecting
+files, an optional **rules revision**: a tool MAY let its caller name a
+revision of the governed repo to read Lore files, `.loreconfig` files
+and `src` targets from, instead of the revision the change leaves. The
+change itself (its files and added lines) is unaffected. Without one, a
+tool reads as today, so every existing example keeps its meaning, and
+the command's tests compare against the examples with no rules revision
+given. One new example shows the difference: a change that adds a rule
+and breaks it, eligible as the change leaves the repo and not eligible
+with the rules revision at the base. `--rules-ref`, and `--base` when
+`--rules-ref` is absent, set it.
+
+**Given folders outside a working copy.** The spec collects only files
+tracked by version control. A given folder that is in no git working
+copy (an installed plugin, an unpacked release, a CI artifact) would
+therefore collect nothing. The spec gains: a given folder in no working
+copy counts every file under it as tracked, ignoring dot-folders other
+than `.lore`. One example covers it.
+
+**No governed repo.** `--repo` may point nowhere a reviewer can reach: a
+review that reads only a diff can run outside any checkout. With
+`--no-repo`, the governed repo is taken to hold no Lore files and no
+`src` targets; rules come only from `--given` folders, and `--remote` is
+then required, since there is no git to read it from. Without `--no-repo`
+and with no git root found, the command exits 2 and says to pass
+`--repo` or `--no-repo`.
 
 ### Change
 
@@ -166,12 +199,15 @@ warning, not a spec one), and the rule stays eligible.
   ],
   "context": [{ "id": "...", "file": "...", "summary": "...", "prose": "...", "src": "...", "srcText": "..." }],
   "conditional": [],
+  "change": [{ "kind": "M", "path": "...", "oldPath": null, "added": [12, 13] }],
   "excluded": [ /* the eligibility result's excluded diagnostics */ ],
   "warnings": [ /* eligibility warnings, then command warnings */ ]
 }
 ```
 
-Rules come in the order of the eligibility result. `srcText` is the
+Rules come in the order of the eligibility result. `change` lists the
+change's files with their added line numbers (not their text), so a
+verdict checker has everything it needs from this one document. `srcText` is the
 content of the file a context's `src` names, read at the same ref as the
 rules, or null when it has none.
 
@@ -191,8 +227,12 @@ or input error (unreadable diff, unknown ref).
 ## Verdicts
 
 A new spec section, **Verdicts**, normative, with conformance examples
-of a new kind, `verdicts`, which give an eligibility result and a set of
-verdicts and expect the problems a checker reports.
+of a new kind, `verdicts`. Each gives a **selection** (the `lore select`
+JSON shape above, trimmed to `rules`, `context` and `change`; the spec
+defines this shape, so it is not a command detail) and a verdict set,
+and expects the problems a checker reports. Rules and contexts are
+separate lists in the selection, so a checker never has to tell them
+apart from ids alone.
 
 A verdict answers one eligible rule:
 
@@ -217,15 +257,23 @@ A verdict answers one eligible rule:
 - Each hit is a pointer, not a verdict: a rule with hits can pass, and a
   rule without hits can fail. A `fail` whose evidence includes a hit
   location is the common case.
+- An evidence location has `side`, `new` (the default) or `old`. A `new`
+  location names a changed file by its new path, not a deleted one, and
+  a line in the file as the change leaves it. An `old` location names a
+  changed file by its old path (a deleted, modified or renamed file) and
+  a line in the file before the change: the way to point at a guard the
+  change removed. `text` is optional on both. A checker can confirm the
+  file is part of the change but not that the line exists, since the
+  selection carries added line numbers, not file lengths.
 
 A **verdict set** is `{ "lore": "1", "verdicts": [...] }`. It is
 **complete** for an eligibility result when it holds exactly one verdict
 for each eligible rule and none for any other id. Contexts get no
 verdict. A checker reports these problems, each naming the rule:
 `missing-verdict`, `duplicate-verdict`, `unselected-verdict`,
-`fail-without-evidence`, `evidence-outside-change` (a location in no
-changed file, or past its end where the checker knows it), and
-`missing-note`.
+`fail-without-evidence`, `evidence-outside-change` (a `new` location in
+no changed file that still exists, or an `old` location in no changed
+file's old path), and `missing-note`.
 
 Severity stays the rule's: a `fail` of a `blocking` rule is a blocking
 problem and a `fail` of an `advisory` rule is advice. How a caller maps
@@ -245,23 +293,29 @@ The first adopter builds this end to end on a thin slice before widening
 it, so real numbers arrive early and spec gaps surface while they are
 cheap. In this repo the slice is:
 
-1. `lore select` with `--repo`, `--rules-ref`, `--given`, `--diff` and
-   `--format text|json`, plus the two small step 2 gates and the
-   path-listing change to collection.
-2. The bundled file attached to a GitHub release.
+1. `lore select` with `--repo`, `--no-repo`, `--remote`, `--rules-ref`,
+   `--given`, `--diff` and `--format text|json`; the two spec additions
+   (rules revision, given folders outside a working copy) with their
+   examples; the two small step 2 gates and the path-listing change to
+   collection.
+2. `lore verdicts`, checking the draft verdict format above. The
+   adopter's review engine checks verdicts mechanically from its first
+   run, so the checker ships in the slice.
+3. The bundled file attached to a GitHub release.
 
 The rest follows once the slice is running for the adopter:
 
-3. `--paths` (with `conditional`), `--change`, `--base`/`--head`, and
+4. `--paths` (with `conditional`), `--change`, `--base`/`--head`, and
    ast-grep with whole files.
-4. The Verdicts spec section with its examples, `lore verdicts`, and the
-   `AGENT.md` update.
-5. README: "How tools use Lore" gains the command, and the roadmap moves
+5. The Verdicts spec section with its examples, made normative from the
+   draft and what the slice's reviews taught, and the `AGENT.md` update.
+6. README: "How tools use Lore" gains the command, and the roadmap moves
    the playground to a later step.
 
-The verdict format is drafted alongside the slice (the adopter's reviewer
-answers in it from the start), but it only becomes normative in 4, after
-real reviews have used it.
+The verdict format is a draft in the slice: `lore verdicts` implements
+it and the adopter's reviewer answers in it, but it only enters the spec
+in 5, after real reviews have used it. A change to the draft in 5 is a
+change to `lore verdicts` too.
 
 ## Testing
 
