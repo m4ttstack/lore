@@ -2,7 +2,7 @@ import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { EXTERNAL, LOOSE, type InputFile, type LoreInput } from "@lore/parser";
 import { InputError } from "./errors";
-import { GitMissingError, gitRoot, readContained, readFileAt, remoteUrls, trackedPaths } from "./git";
+import { GitMissingError, gitRoot, readFileAt, readTracked, remoteUrls, trackedPaths } from "./git";
 
 export interface RuleSources {
   repo: string | null;
@@ -11,6 +11,7 @@ export interface RuleSources {
   remotes: string[];
 }
 export interface BuiltInput { input: LoreInput; readSrc(file: string): string | null }
+interface Place { root: string; listed: Set<string>; files: InputFile[] }
 
 const LORE_FOLDER = ".lore";
 const CONFIG_NAME = ".loreconfig";
@@ -24,28 +25,39 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
   const remotes = sources.remotes.length > 0 ? sources.remotes : repo === null ? [] : remoteUrls(repo);
   if (repo === null && remotes.length === 0) throw new InputError("--no-repo needs --remote");
 
-  const governed = repo === null ? [] : readFiles(repo, rulesRef, trackedPaths(repo, rulesRef));
+  const governedPaths = repo === null ? [] : trackedPaths(repo, rulesRef);
+  const governedTracked = new Set(governedPaths);
+  const governed = repo === null ? [] : readFiles(repo, rulesRef, governedPaths);
   const input: LoreInput = rulesRef === null ? { repo: governed, given: [], remotes } : { repo: [], rules: governed, given: [], remotes };
 
-  const repositories = new Map<string, InputFile[]>();
-  const looseFolders = new Map<string, InputFile[]>();
+  const repositories = new Map<string, Place>();
+  const looseFolders = new Map<string, Place>();
+  const seen = new Set<string>();
   for (const typed of sources.given) {
     const dir = realFolder(typed);
+    if (seen.has(dir)) continue;
+    seen.add(dir);
     const root = workingCopyOf(dir);
     if (root === null) {
-      if (!looseFolders.has(dir)) looseFolders.set(dir, readLoose(dir));
-      input.given.push({ folder: "", loose: true, files: looseFolders.get(dir)! });
+      const place = placeOf(dir, walkLoose(dir));
+      looseFolders.set(dir, place);
+      input.given.push({ folder: "", loose: true, files: place.files });
       continue;
     }
-    if (!repositories.has(root)) repositories.set(root, readFiles(root, null, trackedPaths(root, null)));
-    input.given.push({ folder: relative(root, dir).split(sep).join("/"), repository: root, files: repositories.get(root)! });
+    if (!repositories.has(root)) repositories.set(root, placeOf(root, trackedPaths(root, null)));
+    const place = repositories.get(root)!;
+    const folder = relative(root, dir).split(sep).join("/");
+    if (![...place.listed].some((path) => folder === "" || path.startsWith(`${folder}/`))) {
+      throw new InputError(`given folder ${typed} is inside the working copy at ${root}, but git tracks none of its files`);
+    }
+    input.given.push({ folder, repository: root, files: place.files });
   }
 
   const readSrc = (file: string): string | null => {
-    if (file.startsWith(EXTERNAL)) return readFirst(repositories, file.slice(EXTERNAL.length));
-    if (file.startsWith(LOOSE)) return readFirst(looseFolders, file.slice(LOOSE.length));
+    if (file.startsWith(EXTERNAL)) return readOnly(repositories, file.slice(EXTERNAL.length));
+    if (file.startsWith(LOOSE)) return readOnly(looseFolders, file.slice(LOOSE.length));
     if (repo === null) return null;
-    if (rulesRef === null) return readContained(repo, file);
+    if (rulesRef === null) return readTracked(repo, file, governedTracked);
     try {
       return readFileAt(repo, rulesRef, file);
     } catch {
@@ -84,22 +96,27 @@ function wantsContent(path: string): boolean {
   return name === CONFIG_NAME && !folders.includes(LORE_FOLDER);
 }
 
-// A working-tree Lore or .loreconfig file that does not resolve to a readable file inside root
-// (an escaping or dangling symlink, a directory, a skipped sparse-checkout file) is left out of the input.
+// A working-tree Lore or .loreconfig file that does not resolve to a readable listed file
+// (a symlink out of the listed paths, a dangling one, a skipped sparse-checkout file) is left out of the input.
 function readFiles(root: string, ref: string | null, paths: string[]): InputFile[] {
+  const listed = new Set(paths);
   const files: InputFile[] = [];
   for (const path of paths) {
     if (!wantsContent(path)) files.push({ path, content: "" });
     else if (ref !== null) files.push({ path, content: readFileAt(root, ref, path) });
     else {
-      const content = readContained(root, path);
+      const content = readTracked(root, path, listed);
       if (content !== null) files.push({ path, content });
     }
   }
   return files;
 }
 
-function readLoose(dir: string): InputFile[] {
+function placeOf(root: string, paths: string[]): Place {
+  return { root, listed: new Set(paths), files: readFiles(root, null, paths) };
+}
+
+function walkLoose(dir: string): string[] {
   const paths: string[] = [];
   const walk = (at: string, prefix: string): void => {
     const entries = readdirSync(at, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
@@ -111,15 +128,11 @@ function readLoose(dir: string): InputFile[] {
     }
   };
   walk(dir, "");
-  return readFiles(dir, null, paths);
+  return paths;
 }
 
-// Only a place whose own file list holds the path is read, so an untracked file in one repository cannot shadow a tracked one in another.
-function readFirst(places: Map<string, InputFile[]>, path: string): string | null {
-  for (const [root, files] of places) {
-    if (!files.some((file) => file.path === path)) continue;
-    const content = readContained(root, path);
-    if (content !== null) return content;
-  }
-  return null;
+// A path listed by more than one place is ambiguous, so it is read from none rather than from whichever came first.
+function readOnly(places: Map<string, Place>, path: string): string | null {
+  const holders = [...places.values()].filter((place) => place.listed.has(path));
+  return holders.length === 1 ? readTracked(holders[0]!.root, path, holders[0]!.listed) : null;
 }

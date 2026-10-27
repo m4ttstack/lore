@@ -23,19 +23,22 @@ function git(root: string, args: string[]): string {
   }
 }
 
+// Only git's "no repository here" answer means no working copy; any other refusal (dubious
+// ownership in a CI container, a broken .git file) would otherwise turn a tracked folder loose.
 export function gitRoot(dir: string): string | null {
   try {
     return realpathSync(git(dir, ["rev-parse", "--show-toplevel"]).trim());
   } catch (error) {
-    if (error instanceof GitMissingError) throw error;
-    return null;
+    if (!(error instanceof GitMissingError) && error instanceof InputError && /not a git repository \(or any /.test(error.message)) return null;
+    throw error;
   }
 }
 
 export function trackedPaths(root: string, ref: string | null): string[] {
   if (ref === null) {
     const gone = new Set(git(root, ["ls-files", "-z", "--deleted"]).split("\0"));
-    return git(root, ["ls-files", "-z"]).split("\0").filter((path) => path !== "" && !gone.has(path));
+    const listed = git(root, ["ls-files", "-z"]).split("\0").filter((path) => path !== "" && !gone.has(path));
+    return [...new Set(listed)];
   }
   if (ref.startsWith("-")) throw new InputError(`not a git ref: ${ref}`);
   return git(root, ["ls-tree", "-r", "-z", "--name-only", ref]).split("\0").filter((path) => path !== "");
@@ -47,6 +50,20 @@ export function readContained(root: string, path: string): string | null {
     const real = realpathSync(resolve(root, path));
     const from = relative(realpathSync(root), real);
     if (from === ".." || from.startsWith(`..${sep}`) || !statSync(real).isFile()) return null;
+    return readFileSync(real, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+// Null unless both the path and the file it resolves to through any symlinks are in tracked, so an
+// ignored or untracked file (a token in .npmrc, say) never reaches the output by name or by link.
+export function readTracked(root: string, path: string, tracked: ReadonlySet<string>): string | null {
+  if (!tracked.has(path)) return null;
+  try {
+    const real = realpathSync(resolve(root, path));
+    const from = relative(realpathSync(root), real).split(sep).join("/");
+    if (!tracked.has(from) || !statSync(real).isFile()) return null;
     return readFileSync(real, "utf8");
   } catch {
     return null;

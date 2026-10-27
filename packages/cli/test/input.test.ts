@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { InputError } from "../src/errors";
-import { readFileAt } from "../src/git";
+import { readFileAt, trackedPaths } from "../src/git";
 import { buildInput } from "../src/input";
 
 const made: string[] = [];
@@ -135,6 +135,24 @@ describe("buildInput", () => {
     ]);
   });
 
+  test("a given folder inside a working copy that tracks none of its files is an input error", async () => {
+    const other = repoWith({ ".gitignore": "node_modules/\n", "README.md": "hi\n" });
+    write(other, { "node_modules/@acme/rules/.lore/a.lore": rule("a") });
+    const typed = join(other, "node_modules/@acme/rules");
+    const attempt = buildInput({ repo: null, rulesRef: null, given: [typed], remotes: ["github.com/acme/shop"] });
+    await expect(attempt).rejects.toThrow(InputError);
+    await expect(attempt).rejects.toThrow(`given folder ${typed} is inside the working copy at ${other}, but git tracks none of its files`);
+  });
+
+  test("the same given folder named twice is read once", async () => {
+    const loose = tempDir();
+    write(loose, { ".lore/x.lore": rule("x") });
+    const other = repoWith({ "rules/.lore/shared.lore": rule("shared") });
+    const given = [loose, `${loose}/`, join(other, "rules"), `${join(other, "rules")}/`];
+    const { input } = await buildInput({ repo: null, rulesRef: null, given, remotes: ["github.com/acme/shop"] });
+    expect(input.given.map((folder) => folder.folder)).toEqual(["", "rules"]);
+  });
+
   test("a missing given folder is an input error", async () => {
     const root = repoWith({ ".lore/a.lore": rule("a") });
     await expect(buildInput({ repo: root, rulesRef: null, given: [join(root, "absent")], remotes: ["github.com/acme/shop"] })).rejects.toThrow(
@@ -201,6 +219,23 @@ describe("readSrc with several given places", () => {
     expect(readSrc("external:docs/guide.md")).toBe("tracked\n");
   });
 
+  test("external: is null when more than one given repository tracks the path", async () => {
+    const first = repoWith({ "rules/.lore/a.lore": rule("a"), "docs/guide.md": "first\n" });
+    const second = repoWith({ "rules/.lore/b.lore": rule("b"), "docs/guide.md": "second\n" });
+    const root = repoWith({ ".lore/r.lore": rule("r") });
+    const { readSrc } = await buildInput({ repo: root, rulesRef: null, given: [join(first, "rules"), join(second, "rules")], remotes: ["github.com/acme/shop"] });
+    expect(readSrc("external:docs/guide.md")).toBeNull();
+  });
+
+  test("loose: is null when more than one loose folder holds the path", async () => {
+    const first = tempDir();
+    write(first, { "docs/guide.md": "first\n" });
+    const second = tempDir();
+    write(second, { "docs/guide.md": "second\n" });
+    const { readSrc } = await buildInput({ repo: null, rulesRef: null, given: [first, second], remotes: ["github.com/acme/shop"] });
+    expect(readSrc("loose:docs/guide.md")).toBeNull();
+  });
+
   test("loose: reads the folder whose walked files hold the path", async () => {
     const first = tempDir();
     write(first, { ".cache/docs/guide.md": "skipped\n", "x.md": "x\n" });
@@ -229,6 +264,49 @@ describe("reads that leave the folder or fail", () => {
     expect(input.repo.map(({ path }) => path)).toEqual([".lore/a.lore", "src/leak"]);
   });
 
+  test("an untracked src target is not read from the working tree", async () => {
+    const root = repoWith({ ".gitignore": ".npmrc\n", ".lore/a.lore": rule("a") });
+    write(root, { ".npmrc": "token\n", "docs/new.md": "untracked\n" });
+    const { readSrc } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    expect(readSrc(".npmrc")).toBeNull();
+    expect(readSrc("docs/new.md")).toBeNull();
+  });
+
+  test("a tracked in-repo symlink is read only when its target is tracked", async () => {
+    const root = tempDir();
+    git(root, "init", "-q", "-b", "main");
+    write(root, { ".gitignore": ".npmrc\nnotes/\n", ".npmrc": "token\n", "docs/real.md": "real\n", "notes/x.lore": rule("x"), ".lore/a.lore": rule("a") });
+    symlinkSync("../.npmrc", join(root, "docs/guide.md"));
+    symlinkSync("real.md", join(root, "docs/alias.md"));
+    symlinkSync("../notes/x.lore", join(root, ".lore/x.lore"));
+    symlinkSync("a.lore", join(root, ".lore/same.lore"));
+    git(root, "add", ".");
+    git(root, "commit", "-q", "-m", "first");
+    const { input, readSrc } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    expect(readSrc("docs/guide.md")).toBeNull();
+    expect(readSrc("docs/alias.md")).toBe("real\n");
+    const lore = input.repo.filter(({ path }) => path.startsWith(".lore/"));
+    expect(lore).toEqual([
+      { path: ".lore/a.lore", content: rule("a") },
+      { path: ".lore/same.lore", content: rule("a") },
+    ]);
+  });
+
+  test("a given repository's symlink to an untracked file is not read", async () => {
+    const other = tempDir();
+    git(other, "init", "-q", "-b", "main");
+    write(other, { ".gitignore": ".npmrc\n", ".npmrc": "token\n", "rules/.lore/a.lore": rule("a") });
+    mkdirSync(join(other, "docs"));
+    symlinkSync("../.npmrc", join(other, "docs/guide.md"));
+    git(other, "add", ".");
+    git(other, "commit", "-q", "-m", "first");
+    write(other, { "docs/loose.md": "untracked\n" });
+    const root = repoWith({ ".lore/r.lore": rule("r") });
+    const { readSrc } = await buildInput({ repo: root, rulesRef: null, given: [join(other, "rules")], remotes: ["github.com/acme/shop"] });
+    expect(readSrc("external:docs/guide.md")).toBeNull();
+    expect(readSrc("external:docs/loose.md")).toBeNull();
+  });
+
   test("a dangling tracked Lore symlink is left out instead of throwing", async () => {
     const root = tempDir();
     git(root, "init", "-q", "-b", "main");
@@ -238,6 +316,27 @@ describe("reads that leave the folder or fail", () => {
     git(root, "commit", "-q", "-m", "first");
     const { input } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
     expect(input.repo.map(({ path }) => path)).toEqual([".lore/a.lore"]);
+  });
+
+  test("a path conflicted in a merge is listed once", () => {
+    const root = repoWith({ "a.txt": "base\n" });
+    git(root, "checkout", "-q", "-b", "side");
+    write(root, { "a.txt": "side\n" });
+    git(root, "commit", "-q", "-am", "side");
+    git(root, "checkout", "-q", "main");
+    write(root, { "a.txt": "main\n" });
+    git(root, "commit", "-q", "-am", "main");
+    expect(() => git(root, "merge", "-q", "side")).toThrow();
+    expect(trackedPaths(root, null)).toEqual(["a.txt"]);
+  });
+
+  test("a git failure other than no working copy is an input error naming git's reason", async () => {
+    const broken = tempDir();
+    write(broken, { ".git": "garbage\n", ".lore/x.lore": rule("x") });
+    const attempt = buildInput({ repo: null, rulesRef: null, given: [broken], remotes: ["github.com/acme/shop"] });
+    await expect(attempt).rejects.toThrow(InputError);
+    await expect(attempt).rejects.toThrow(/invalid gitfile format/);
+    await expect(attempt).rejects.not.toThrow(/\n/);
   });
 
   test("readFileAt on the working tree names the path when it cannot be read", () => {
