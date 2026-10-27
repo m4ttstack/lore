@@ -50,7 +50,7 @@ export interface TagLine {
 
 const NAME = /^[A-Za-z][A-Za-z0-9-]*/;
 const BLANK = /^[ \t]*$/;
-const FENCE = /^[ \t]*(`{3,}|~{3,})(.*)$/;
+const FENCE = /^[ \t]*(`{3,}|~{3,})/;
 const COMMENT_OPEN = "<!--";
 const COMMENT_CLOSE = "-->";
 
@@ -299,7 +299,7 @@ function opensFence(line: string): { char: string; length: number } | null {
   const match = FENCE.exec(line);
   if (match === null) return null;
   const run = match[1]!;
-  if (run[0] === "`" && match[2]!.includes("`")) return null;
+  if (run[0] === "`" && line.includes("`", match[0].length)) return null;
   return { char: run[0]!, length: run.length };
 }
 

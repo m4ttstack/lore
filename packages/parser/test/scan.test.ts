@@ -216,6 +216,15 @@ describe("entries", () => {
     expect(entry!.closeLine).toBe(4);
   });
 
+  test("a fence opens when its info string holds a lone CR, U+2028 or U+2029", () => {
+    for (const odd of ["\r", " ", " "]) {
+      const [ticks] = entries(`<rule id="a">\nA.\n\`\`\`js${odd}x\n</rule>\n\`\`\`\n</rule>\n`);
+      expect(ticks!.closeLine).toBe(6);
+      const [tildes] = entries(`<rule id="a">\nA.\n~~~${odd}x\n</rule>\n~~~\n</rule>\n`);
+      expect(tildes!.closeLine).toBe(6);
+    }
+  });
+
   test("a fence that never closes runs to the end of the file", () => {
     expect(only("<rule id=\"a\">\nA.\n```\n</rule>\n")).toEqual({ name: "unreadable-structure", line: 1 });
   });

@@ -1,6 +1,8 @@
-import { dedentEntry } from "./indent";
-import { parseFile, readAttributes, type EntryNode, type LoreFile } from "./scan";
+import { checkDefaults, checkScope } from "./blocks";
+import { dedent, dedentEntry } from "./indent";
+import { parseFile, readAttributes, type BlockNode, type EntryNode, type LoreFile } from "./scan";
 import type { Diagnostic, DocumentModel, Entry, LoreInput } from "./types";
+import { readBlock } from "./yaml";
 
 // Minimal assembly so the Parsing sections' examples can run; Task 4 replaces this module.
 
@@ -18,8 +20,9 @@ export function parse(input: LoreInput): DocumentModel {
 
   for (const { file, base } of files) {
     const lore = parseFile(file.path, file.content);
-    if (lore.diagnostics.length > 0) {
-      errors.push(lore.diagnostics[0]!);
+    const fileError = firstBlockError(lore) ?? lore.diagnostics[0];
+    if (fileError !== undefined) {
+      errors.push(fileError);
       continue;
     }
     for (const node of lore.nodes) {
@@ -43,6 +46,24 @@ function baseOf(path: string): string | null {
   const folder = segments.indexOf(LORE_FOLDER);
   if (folder === -1 || folder === segments.length - 1) return null;
   return segments.slice(0, folder).join("/");
+}
+
+// The scan keeps only the elements before its own error, so any block error comes first.
+function firstBlockError(lore: LoreFile): Diagnostic | undefined {
+  for (const node of lore.nodes) {
+    if (node.kind !== "block") continue;
+    const problem = blockProblem(node);
+    if (problem !== null) return diagnostic(problem.name, lore, null, problem.line);
+  }
+  return undefined;
+}
+
+function blockProblem(node: BlockNode): { name: string; line: number } | null {
+  const contents = dedent(node.body);
+  if (contents.error !== null) return { name: contents.error, line: node.openLine };
+  const read = readBlock(contents.lines, node.openLine + 1, node.closeLine);
+  if (read.diagnostic !== null) return read.diagnostic;
+  return node.name === "defaults" ? checkDefaults(read.value, node.openLine) : checkScope(read.value, node.openLine);
 }
 
 function readEntry(lore: LoreFile, node: EntryNode, base: string): { entry: Entry } | { error: Diagnostic } {
