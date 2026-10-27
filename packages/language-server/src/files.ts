@@ -19,7 +19,7 @@ const lenient = new TextDecoder("utf-8", { ignoreBOM: true });
 
 // A repository's own config must never make git run a command, and the editor's environment must not redirect git.
 const SAFE_CONFIG = ["-c", "core.fsmonitor=false", "-c", "core.untrackedCache=false"];
-const REDIRECTING = /^GIT_(DIR|WORK_TREE|INDEX_FILE|CONFIG)/;
+const REDIRECTING = /^GIT_(DIR|WORK_TREE|INDEX_FILE|CONFIG|COMMON_DIR|OBJECT_DIRECTORY)/;
 
 function git(cwd: string, args: readonly string[]): Promise<string | null> {
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !REDIRECTING.test(name)));

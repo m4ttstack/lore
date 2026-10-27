@@ -6,7 +6,8 @@ export type {
 export { closesFence, opensFence, parseFile, readAttributes } from "./scan";
 export { dedent, dedentEntry } from "./indent";
 export { readEntry, type EntryResult, type FileContext } from "./entries";
-export { parse, readFileBlocks, type FileBlocks } from "./model";
+export { parse, parseWithContext, readFileBlocks, type FileBlocks } from "./model";
+export { FIXED_CATEGORIES } from "./blocks";
 export { collect, disabledFor, type Collected, type CollectedFile, type ConfigFile, type Tree, type TreeInfo } from "./collect";
 export { namesRepo, normalizeRemote, readLoreconfig, type ConfigRead, type DisableItem, type LoreConfig } from "./loreconfig";
 export { disjoint, matchFromBase, matchGlob, resolveGlob, validateGlob, type GlobPlace } from "./glob";

@@ -45,9 +45,9 @@ function uri(path: string): string {
   return pathToFileURL(path).href;
 }
 
-interface StartOptions { env?: Record<string, string>; folders?: string[]; externalFolders?: string[] }
+interface StartOptions { env?: Record<string, string>; folders?: string[]; externalFolders?: string[]; logs?: string[] }
 
-async function start(workspace: string, { env = {}, folders = [], externalFolders = [] }: StartOptions = {}): Promise<Client> {
+async function start(workspace: string, { env = {}, folders = [], externalFolders = [], logs = [] }: StartOptions = {}): Promise<Client> {
   const child = spawn(NODE, [BIN, "--stdio"], { env: { ...process.env, ...env }, stdio: ["pipe", "pipe", "inherit"] });
   const connection = createMessageConnection(new StreamMessageReader(child.stdout!), new StreamMessageWriter(child.stdin!));
   const latest = new Map<string, PublishedDiagnostic[]>();
@@ -59,6 +59,7 @@ async function start(workspace: string, { env = {}, folders = [], externalFolder
       wait.done(params.diagnostics);
     }
   });
+  connection.onNotification("window/logMessage", (params: { message: string }) => logs.push(params.message));
   connection.onRequest("workspace/configuration", (params: { items: { section?: string }[] }) =>
     params.items.map(() => ({ externalFolders })));
   connection.listen();
@@ -245,6 +246,69 @@ describe("rules repository", () => {
   });
 });
 
+describe("completion, hover and the could-apply lens over stdio", () => {
+  const RULE = "<rule id=\"price-from-quote\" category=\"functional_correctness\">\n  <scope>\n  files: [\"src/**\"]\n  </scope>\nText.\n</rule>\n";
+
+  test("a source file gets a lens whose command opens the entry at its opening tag", async () => {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    write(root, ".lore/checkout.lore", `<!-- pricing -->\n\n${RULE}`);
+    write(root, "src/app.ts", "export {};\n");
+    const lore = join(root, ".lore/checkout.lore");
+    const source = join(root, "src/app.ts");
+    const readme = join(root, "README.md");
+    const client = await start(root);
+    const shown: unknown[] = [];
+    client.connection.onRequest("window/showDocument", (params: unknown) => {
+      shown.push(params);
+      return { success: true };
+    });
+    client.open(source, "export {};\n");
+    client.open(readme, "# Shop\n");
+    const lenses = await client.connection.sendRequest("textDocument/codeLens", { textDocument: { uri: uri(source) } });
+    expect(lenses).toEqual([{
+      range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+      command: { title: "Lore: could apply: price-from-quote", command: "lore.openEntry", arguments: [uri(lore), 2] },
+    }]);
+    expect(await client.connection.sendRequest("textDocument/codeLens", { textDocument: { uri: uri(readme) } })).toEqual([]);
+    await client.connection.sendRequest("workspace/executeCommand", { command: "lore.openEntry", arguments: [uri(lore), 2] });
+    expect(shown).toEqual([{
+      uri: uri(lore),
+      selection: { start: { line: 2, character: 0 }, end: { line: 2, character: 0 } },
+      takeFocus: true,
+    }]);
+  });
+
+  test("completion offers the file's categories and hover describes a diagnostic", async () => {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    write(root, ".loreconfig", "lore: 1\ncategories: [data_provenance]\n");
+    const lore = join(root, ".lore/checkout.lore");
+    const client = await start(root);
+    client.open(lore, "<rule id=\"a\" category=\"made_up\">\nText.\n</rule>\n");
+    const completion = await client.connection.sendRequest("textDocument/completion", {
+      textDocument: { uri: uri(lore) }, position: { line: 0, character: 23 },
+    }) as { label: string }[];
+    expect(completion.map((item) => item.label)).toContain("data_provenance");
+    await client.published(lore, (d) => d.length > 0);
+    const hover = await client.connection.sendRequest("textDocument/hover", {
+      textDocument: { uri: uri(lore) }, position: { line: 0, character: 26 },
+    }) as { contents: { value: string } };
+    expect(hover.contents.value).toContain("unknown-category");
+  });
+
+  test("an external folder outside any repository is reported as missing or not inside one", async () => {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    const logs: string[] = [];
+    const lore = join(root, ".lore/checkout.lore");
+    const client = await start(root, { externalFolders: [join(root, "..", "nowhere-lore")], logs });
+    client.open(lore, RULE);
+    await client.published(lore);
+    expect(logs.some((log) => log.includes("is missing or not inside a git repository; it is skipped"))).toBe(true);
+  });
+});
+
 describe("diagnose", () => {
   test("parses a 2,000-entry file in under 200 ms", () => {
     const entries = Array.from({ length: 2000 }, (_, n) => [
@@ -262,7 +326,7 @@ describe("diagnose", () => {
     const input = { repo: [{ path: ".lore/big.lore", content: entries }], given: [], remotes: [] };
     diagnose(input);
     const started = performance.now();
-    const found = diagnose(input);
+    const found = diagnose(input).byFile;
     const elapsed = performance.now() - started;
     expect([...found.values()].flat()).toEqual([]);
     expect(elapsed).toBeLessThan(200);

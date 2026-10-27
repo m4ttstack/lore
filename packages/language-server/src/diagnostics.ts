@@ -1,4 +1,4 @@
-import { collect, parse, parseFile, type Diagnostic, type LoreInput } from "@lore/parser";
+import { parseFile, parseWithContext, type Collected, type Diagnostic, type DocumentModel, type LoreInput } from "@lore/parser";
 import { DiagnosticSeverity, type Diagnostic as LspDiagnostic } from "vscode-languageserver/node";
 import registry from "../../../spec/errors.json";
 
@@ -9,9 +9,16 @@ export function registryDescription(name: string): string {
   return DESCRIPTIONS.get(name) ?? name;
 }
 
-// Keyed by the parser's file name: a repository path, or `external:` and a path for a given folder's file.
-export function diagnose(input: LoreInput): Map<string, LspDiagnostic[]> {
-  const model = parse(input);
+export interface Analysis {
+  input: LoreInput;
+  model: DocumentModel;
+  collected: Collected;
+  // Keyed by the parser's file name: a repository path, or `external:` and a path for a given folder's file.
+  byFile: ReadonlyMap<string, LspDiagnostic[]>;
+}
+
+export function diagnose(input: LoreInput): Analysis {
+  const { model, collected } = parseWithContext(input);
   const byFile = new Map<string, LspDiagnostic[]>();
   const add = (diagnostic: Diagnostic, severity: DiagnosticSeverity) => {
     const list = byFile.get(diagnostic.file) ?? [];
@@ -20,11 +27,10 @@ export function diagnose(input: LoreInput): Map<string, LspDiagnostic[]> {
   };
   for (const error of model.errors) add(error, DiagnosticSeverity.Error);
   for (const warning of model.warnings) add(warning, DiagnosticSeverity.Warning);
-  return byFile;
+  return { input, model, collected, byFile };
 }
 
-export function collectedNames(input: LoreInput): ReadonlySet<string> {
-  const collected = collect(input);
+export function collectedNames(collected: Collected): ReadonlySet<string> {
   return new Set([...collected.files.map((file) => file.file), ...collected.configs.map((config) => config.file)]);
 }
 

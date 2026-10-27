@@ -81,6 +81,20 @@ describe("listFiles", () => {
     }
   });
 
+  test("ignores an inherited common or object directory", async () => {
+    const root = repository();
+    write(root, "here.txt", "x\n");
+    const gone = join(folder(), "gone");
+    for (const name of ["GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY"]) {
+      process.env[name] = gone;
+      try {
+        expect(await listFiles(root)).toEqual(["here.txt"]);
+      } finally {
+        delete process.env[name];
+      }
+    }
+  });
+
   test("lists tracked and untracked files but not ignored ones", async () => {
     const root = repository();
     write(root, ".gitignore", "build/\n");

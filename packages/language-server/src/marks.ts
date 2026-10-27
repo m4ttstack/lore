@@ -1,4 +1,4 @@
-import { namesRepo, readLoreconfig, type InputFile, type LoreInput } from "@lore/parser";
+import { namesRepo, normalizeRemote, readLoreconfig, type InputFile, type LoreInput } from "@lore/parser";
 
 // A directory a `.loreconfig` with a `repo` key marks: it stands for the root of the repository `repo` names.
 export interface Mark { dir: string; repo: string }
@@ -27,9 +27,9 @@ export function rulesInput(repository: string, files: InputFile[], mark: Mark): 
   return { repo: [], given: [{ folder: "", files, repository }], remotes: [`https://${mark.repo}`] };
 }
 
-// Repository names compare ignoring ASCII case, as the parser matches them.
+// Repository names compare as the parser matches them: normalized like a remote, ignoring ASCII case.
 export function repoKey(repo: string): string {
-  return repo.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+  return normalizeRemote(`https://${repo}`).replace(/[A-Z]/g, (letter) => letter.toLowerCase());
 }
 
 export function governs(input: LoreInput, repository: string, mark: Mark): boolean {

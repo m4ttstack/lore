@@ -48,4 +48,10 @@ describe("marks", () => {
     expect(governs(input, "/elsewhere", shop)).toBe(false);
     expect(repoKey("GitHub.com/Acme/Shop")).toBe(repoKey("github.com/acme/shop"));
   });
+
+  test("repository keys follow the parser's remote normalization", () => {
+    expect(repoKey("github.com/acme/shop.git")).toBe(repoKey("github.com/acme/shop"));
+    expect(repoKey("github.com/acme/shop/")).toBe(repoKey("github.com/acme/shop"));
+    expect(repoKey("github.com/acme/shop")).not.toBe(repoKey("github.com/acme/payments"));
+  });
 });
