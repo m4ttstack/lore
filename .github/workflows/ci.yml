@@ -27,6 +27,16 @@ jobs:
       - run: bun run build
       - run: bunx tsc --noEmit
       - run: bun test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Bundle runs under node and bun
+        run: |
+          smoke="--no-repo --remote https://github.com/acme/shop --given packages/cli/test/smoke --diff packages/cli/test/smoke/change.diff --format json"
+          bun run --filter @lore/cli build
+          node packages/cli/dist/lore.js select $smoke | jq -e '.rules[0].id == "smoke-rule"'
+          bun packages/cli/dist/lore.js select $smoke | jq -e '.rules[0].id == "smoke-rule"'
+          test "$(bun packages/cli/dist/lore.js --version)" = "0.1.0"
       - run: bun run check
       - run: bunx tree-sitter test
         working-directory: packages/tree-sitter-lore

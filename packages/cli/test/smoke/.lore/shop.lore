@@ -1,0 +1,6 @@
+<rule id="smoke-rule" category="functional_correctness">
+<check lang="regex">
+USD
+</check>
+Display text never hard-codes a currency code.
+</rule>

@@ -1,0 +1,23 @@
+name: release
+on:
+  push:
+    tags: ["cli-v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - name: Tag matches package version
+        run: |
+          version="$(jq -r .version packages/cli/package.json)"
+          test "$GITHUB_REF_NAME" = "cli-v$version" || { echo "tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+      - run: bun install --frozen-lockfile
+      - run: bun run --filter @lore/cli build
+      - run: gh release create "$GITHUB_REF_NAME" packages/cli/dist/lore.js --title "lore $GITHUB_REF_NAME" --notes "Single-file build of the lore command. Run with node or bun."
+        env:
+          GH_TOKEN: ${{ github.token }}
