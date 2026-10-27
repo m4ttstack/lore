@@ -1,0 +1,377 @@
+================================================================================
+Children then prose
+================================================================================
+
+<rule id="currency-from-settings" category="functional_correctness">
+
+<when>
+addedContains: ["'USD'"]
+</when>
+<check lang="regex">
+'USD'
+</check>
+<example>
+const price = quote.total
+</example>
+
+Display text never hard-codes a currency code.
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value))
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (child
+      (start_tag
+        (tag_name))
+      (yaml_body)
+      (end_tag
+        (tag_name)))
+    (child
+      (start_tag
+        (tag_name)
+        (attribute
+          (attribute_name)
+          (attribute_value)))
+      (check_body)
+      (end_tag
+        (tag_name)))
+    (child
+      (start_tag
+        (tag_name))
+      (text)
+      (end_tag
+        (tag_name)))
+    (prose)
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Indented children and prose
+================================================================================
+
+<rule id="money-in-minor-units" category="functional_correctness">
+  <scope>
+    files: ["**/*.ts"]
+  </scope>
+  <meta>
+    owner: payments
+  </meta>
+  Amounts are integers in minor units (cents).
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value))
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (child
+      (start_tag
+        (tag_name))
+      (yaml_body)
+      (end_tag
+        (tag_name)))
+    (child
+      (start_tag
+        (tag_name))
+      (yaml_body)
+      (end_tag
+        (tag_name)))
+    (prose)
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Entry with no prose
+================================================================================
+
+<rule id="currency-from-settings">
+<when>
+addedContains: ["'USD'"]
+</when>
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (child
+      (start_tag
+        (tag_name))
+      (yaml_body)
+      (end_tag
+        (tag_name)))
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Closing tag inside a fenced block in prose
+================================================================================
+
+<rule id="lore-samples-fenced" category="documentation">
+Lore syntax shown in a rule's prose sits in a fenced code block.
+
+```
+<rule id="price-from-quote">
+A displayed price must come from the quote that produced it.
+</rule>
+```
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value))
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (prose)
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Closing tag inside a tilde fence with a shorter inner fence
+================================================================================
+
+<rule id="lore-samples-tilde-fenced" category="documentation">
+A tilde fence works as well as a backtick fence.
+
+~~~~
+~~~
+</rule>
+~~~~
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value))
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (prose)
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Indented closing tag and tag-shaped lines are prose
+================================================================================
+
+<rule id="closing-tags-at-column-zero" category="documentation">
+An indented closing tag, like the next line, is prose:
+
+  </rule>
+
+<when>
+addedContains: ["'USD'"]
+</when>
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value))
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (prose)
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Comment among the children starts the prose
+================================================================================
+
+<rule id="currency-from-settings" category="functional_correctness">
+<!-- Check new code only. -->
+<when>
+addedContains: ["'USD'"]
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value))
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (prose)
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Unquoted and empty attribute values
+================================================================================
+
+<rule id="refunds-logged" category=observability>
+<check lang="">
+toLocaleDateString\(\)
+</check>
+Every refund is logged with the order it refunds.
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value))
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (child
+      (start_tag
+        (tag_name)
+        (attribute
+          (attribute_name)
+          (attribute_value)))
+      (check_body)
+      (end_tag
+        (tag_name)))
+    (prose)
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Missing closing tag takes in the next rule as prose
+================================================================================
+
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value))
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (prose)
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Closing tag that closes no child
+================================================================================
+
+<rule id="currency-from-settings">
+<when>
+addedContains: ["'USD'"]
+</when>
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (child
+      (start_tag
+        (tag_name))
+      (yaml_body)
+      (end_tag
+        (tag_name)))
+    (child
+      (end_tag
+        (tag_name)))
+    (prose)
+    (end_tag
+      (tag_name))))
+
+================================================================================
+Child left open at the entry closing tag
+================================================================================
+
+<rule id="currency-from-settings">
+<when>
+addedContains: ["'USD'"]
+</rule>
+
+<rule id="dates-from-locale">
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (child
+      (start_tag
+        (tag_name))
+      (yaml_body))
+    (end_tag
+      (tag_name)))
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (prose)
+    (end_tag
+      (tag_name))))

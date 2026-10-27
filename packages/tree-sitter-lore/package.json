@@ -1,0 +1,16 @@
+{
+  "name": "tree-sitter-lore",
+  "version": "0.0.0",
+  "description": "tree-sitter grammar for Lore files.",
+  "private": true,
+  "license": "MIT",
+  "main": "grammar.js",
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test",
+    "parse-fixtures": "bun scripts/parse-fixtures.ts"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "0.27.1"
+  }
+}
