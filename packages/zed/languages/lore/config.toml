@@ -1,0 +1,4 @@
+name = "Lore"
+grammar = "lore"
+path_suffixes = ["lore"]
+tab_size = 2

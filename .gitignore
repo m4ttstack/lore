@@ -1,3 +1,7 @@
 .claude/worktrees/
 node_modules/
 dist/
+packages/zed/extension.toml
+packages/zed/extension.wasm
+packages/zed/grammars/
+packages/zed/target/

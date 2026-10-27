@@ -1,0 +1,16 @@
+id = "lore"
+name = "Lore"
+description = "Highlighting and the Lore language server for Lore files."
+version = "0.0.0"
+schema_version = 1
+authors = ["Lore contributors"]
+repository = "https://github.com/m4ttstack/lore"
+
+[grammars.lore]
+repository = "{{repository}}"
+rev = "{{rev}}"
+path = "packages/tree-sitter-lore"
+
+[language_servers.lore-language-server]
+name = "Lore language server"
+languages = ["Lore", "YAML"]
