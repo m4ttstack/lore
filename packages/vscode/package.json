@@ -1,14 +1,77 @@
 {
   "name": "lore-vscode",
+  "displayName": "Lore",
+  "description": "Highlighting, diagnostics, completion, hover and a could-apply lens for Lore files.",
   "version": "0.0.0",
+  "publisher": "lore",
   "private": true,
   "license": "MIT",
-  "type": "module",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Programming Languages", "Linters"],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "workspaceContains:**/*.lore",
+    "workspaceContains:**/.loreconfig"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "The language server runs git in the opened folder, so it starts only in a trusted workspace. Highlighting works either way."
+    }
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "lore",
+        "aliases": ["Lore", "lore"],
+        "extensions": [".lore"],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "yaml",
+        "filenames": [".loreconfig"]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "lore",
+        "scopeName": "source.lore",
+        "path": "./syntaxes/lore.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.yaml": "yaml",
+          "source.yaml": "yaml",
+          "meta.embedded.block.markdown": "markdown",
+          "text.html.markdown": "markdown"
+        }
+      }
+    ],
+    "configuration": {
+      "title": "Lore",
+      "properties": {
+        "lore.externalFolders": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "markdownDescription": "Folders holding Lore for this repository, kept in another repository. Each entry is absolute or relative to the repository root."
+        }
+      }
+    }
+  },
   "scripts": {
-    "build": "true"
+    "build": "bun scripts/build.ts",
+    "package": "bun scripts/package.ts",
+    "smoke": "bun scripts/smoke.ts"
   },
   "devDependencies": {
+    "@lore/language-server": "workspace:*",
     "@lore/parser": "workspace:*",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "^2",
+    "@vscode/vsce": "^3",
+    "esbuild": "^0.25.0",
+    "vscode-languageclient": "^9.0.1",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2"
   }
