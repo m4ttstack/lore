@@ -1,4 +1,5 @@
-import { workspace, type ExtensionContext } from "vscode";
+import { basename } from "node:path";
+import { workspace, type ExtensionContext, type TextDocument } from "vscode";
 import { LanguageClient, TransportKind, type LanguageClientOptions, type ServerOptions } from "vscode-languageclient/node";
 
 let client: LanguageClient | undefined;
@@ -14,6 +15,11 @@ export async function deactivate(): Promise<void> {
   client = undefined;
 }
 
+// Other files are sent to the server only for the could-apply lens.
+function isLoreDocument(document: TextDocument): boolean {
+  return document.languageId === "lore" || basename(document.uri.fsPath) === ".loreconfig";
+}
+
 function start(context: ExtensionContext): void {
   if (client !== undefined) return;
   const module = context.asAbsolutePath("dist/server.js");
@@ -24,8 +30,16 @@ function start(context: ExtensionContext): void {
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ language: "lore" }, { pattern: "**/.loreconfig" }, { scheme: "file" }],
     synchronize: { configurationSection: "lore" },
+    middleware: {
+      provideCompletionItem: (document, position, completion, token, next) =>
+        isLoreDocument(document) ? next(document, position, completion, token) : undefined,
+      provideHover: (document, position, token, next) =>
+        isLoreDocument(document) ? next(document, position, token) : undefined,
+    },
   };
-  client = new LanguageClient("lore", "Lore", serverOptions, clientOptions);
-  context.subscriptions.push(client);
-  void client.start();
+  const started = new LanguageClient("lore", "Lore", serverOptions, clientOptions);
+  client = started;
+  started.start().catch((error: unknown) => {
+    started.outputChannel.appendLine(`Lore language server failed to start: ${String(error)}`);
+  });
 }

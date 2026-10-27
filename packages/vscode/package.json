@@ -6,6 +6,10 @@
   "publisher": "lore",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/m4ttstack/lore"
+  },
   "engines": {
     "vscode": "^1.90.0"
   },

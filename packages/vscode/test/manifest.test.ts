@@ -26,6 +26,12 @@ describe("manifest", () => {
     });
     expect(manifest.contributes.configuration.properties["lore.externalFolders"]).toMatchObject({ type: "array", items: { type: "string" } });
     expect(manifest.capabilities.untrustedWorkspaces.supported).toBe("limited");
+    expect(manifest.repository).toEqual({ type: "git", url: "https://github.com/m4ttstack/lore" });
+  });
+
+  test("manifest activates in a workspace holding Lore files or a .loreconfig", () => {
+    // **/*.lore also covers .lore/*.lore and Lore files kept beside the code they govern.
+    expect(manifest.activationEvents).toEqual(["workspaceContains:**/*.lore", "workspaceContains:**/.loreconfig"]);
   });
 
   test("package script produces a .vsix containing the server and grammar", () => {
@@ -38,6 +44,7 @@ describe("manifest", () => {
       "extension/syntaxes/lore.tmLanguage.json",
       "extension/language-configuration.json",
       "extension/readme.md",
+      "extension/LICENSE.txt",
     ]));
     expect(listing.some((entry) => entry.includes("node_modules/"))).toBe(false);
     expect(listing.some((entry) => entry.startsWith("extension/test/"))).toBe(false);

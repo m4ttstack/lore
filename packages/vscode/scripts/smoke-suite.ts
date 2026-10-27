@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import * as vscode from "vscode";
 
@@ -23,6 +24,8 @@ export async function run(): Promise<void> {
   }, "diagnostics on broken.lore");
   report("diagnostics", diagnostics.map((d) => `${d.range.start.line + 1}:${d.range.start.character + 1} ${d.code ?? ""} ${d.message}`));
   assert.ok(diagnostics.some((d) => d.code === "top-level-text"));
+  report("server processes", serverProcesses());
+  assert.equal(serverProcesses(), 1);
 
   const completion = await waitFor(async () => {
     const list = await vscode.commands.executeCommand<vscode.CompletionList>(
@@ -64,6 +67,14 @@ async function waitFor<T>(probe: () => T | undefined | Promise<T | undefined>, w
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   throw new Error(`timed out waiting for ${what}`);
+}
+
+function serverProcesses(): number {
+  const server = process.env.LORE_SMOKE_SERVER;
+  assert.ok(server, "LORE_SMOKE_SERVER is not set");
+  return execFileSync("ps", ["-A", "-o", "command="], { encoding: "utf8" })
+    .split("\n")
+    .filter((line) => line.includes(server)).length;
 }
 
 function report(name: string, value: unknown): void {
