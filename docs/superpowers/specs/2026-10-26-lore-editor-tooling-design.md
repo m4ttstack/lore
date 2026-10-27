@@ -158,20 +158,40 @@ spec's Conformance examples section describes.
   element: two spaces, or one tab when Prettier's `useTabs` is set.
 - Top-level tags stay at column 0. One blank line between top-level
   elements.
-- YAML is printed by Prettier's own YAML printer, prose by its Markdown
-  printer with `proseWrap: preserve`. The Markdown printer restyles prose
-  as it does in `.md` files (`*em*` to `_em_`, `*` bullets to `-`, list
-  numbering, table padding); that is accepted. A `<check>` body is never
-  reformatted: its text is a pattern, so it is only re-indented.
+- YAML is printed by Prettier's own YAML printer. (It keeps single
+  quotes on a scalar holding a backslash, so regex patterns such as
+  `'\.'` survive.)
+- Prose is split at its first blank line outside a fenced code block
+  (using the spec's fence rule for entries). The first part holds the
+  summary, which the spec finds by lines (a list directly under the
+  first sentence belongs to it), so it is only re-indented, otherwise
+  kept exactly as written (trailing spaces included, since two of them
+  are a Markdown hard break), and never passed to the Markdown printer:
+  the printer
+  would insert a blank line before such a list and change the summary.
+  The rest of the prose goes through Prettier's Markdown printer with
+  `proseWrap: preserve`, which restyles it as it does in `.md` files
+  (`*em*` to `_em_`, `*` bullets to `-`, list numbering, table padding,
+  `~~~` fences to backticks); that is accepted.
+- Order of operations: the Markdown printer runs on the dedented prose,
+  and the result is then re-indented. Prose is never emitted flush-left,
+  which matters because the printer dedents a ` </rule>` line inside
+  prose to column 0, where it would close the entry.
+- A `<check>` body is never reformatted: its text is a pattern, so it is
+  only re-indented.
+- Top-level `<!-- -->` comments are kept where they are, at column 0,
+  byte for byte. The round-trip test cannot see comments (the model drops
+  them), so a separate test checks that every comment survives.
 - Attributes in a fixed order: `id`, `category`, `severity`, `src`,
   `lang`, `disabled` (my call).
 - A file with a file-level error is returned unchanged; an entry with an
   entry-level error is left as written, the rest of the file formatted.
 - Formatting is idempotent and never changes meaning. Test: for every
   conformance input that parses without file-level errors, the formatted
-  text parses to the same model, comparing every field exactly except
-  `prose` and `summary` (compared after running both through Prettier's
-  Markdown printer) and diagnostic lines (which formatting may move); and
+  text parses to the same model, comparing every field exactly (the
+  `summary` included) except `prose`, whose part after the first blank
+  line is compared after running both through Prettier's Markdown
+  printer, and diagnostic lines, which formatting may move; and
   formatting it again changes nothing.
 
 ### Language server
@@ -207,8 +227,9 @@ Which files the editor sees (my call):
   `.lore` or `.loreconfig` file therefore takes effect at once. The
   parser's collection takes the file list and contents from its abstract
   file source, so the editor and step 3's strict tools differ only in the
-  source they pass in. This difference is stated in the extension's
-  README.
+  source they pass in. Diagnostics, completion and the "could apply" lens
+  all use this same relaxed file list. This difference is stated in the
+  extension's README.
 
 External folders (Matt's pick: an editor setting):
 
@@ -236,7 +257,8 @@ External folders (Matt's pick: an editor setting):
    `spec/SPEC.md`, in CI.
 2. The formatter's round-trip test passes in CI.
 3. The grammars' fixture tests pass in CI.
-4. In Cursor and in Zed, a `.lore` file shows highlighting, live
+4. In VS Code or Cursor (one extension serves both; checking one is
+   enough) and in Zed, a `.lore` file shows highlighting, live
    diagnostics, completion and hover.
 5. With `lore.externalFolders` pointing at a rules repository, opening a
    source file in the governed repository shows the "could apply" lens
@@ -253,3 +275,9 @@ External folders (Matt's pick: an editor setting):
   the spec.
 - Whether the language server re-parses on every keystroke or debounces.
 - The `.vsix` build tooling.
+- How the Zed extension reaches the grammar. Zed's `extension.toml`
+  names a grammar by git repository URL and commit, with an optional
+  path inside it, so a local dev setup means a `file://` URL to this
+  repository, `path = "packages/tree-sitter-lore"`, and a commit that is
+  bumped after each grammar change. A helper script for the bump is
+  welcome.
