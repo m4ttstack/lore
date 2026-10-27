@@ -60,13 +60,14 @@ describe("lines and tags", () => {
         { name: "category", value: "", offset: 18 },
       ],
       malformedAt: null,
+      unfinished: null,
     });
-    expect(readAttributes(" id=a")).toEqual({ attributes: [], malformedAt: 4 });
+    expect(readAttributes(" id=a")).toEqual({ attributes: [], malformedAt: 4, unfinished: { name: "id", value: null, offset: 1 } });
     expect(readAttributes(" id=\"a\" category=b")).toMatchObject({ attributes: [{ name: "id" }], malformedAt: 17 });
-    expect(readAttributes(" id=\"a\"x")).toMatchObject({ malformedAt: 7 });
-    expect(readAttributes(" id=\"a")).toMatchObject({ attributes: [], malformedAt: 6 });
+    expect(readAttributes(" id=\"a\"x")).toMatchObject({ malformedAt: 7, unfinished: null });
+    expect(readAttributes(" id=\"a")).toMatchObject({ attributes: [], malformedAt: 6, unfinished: { name: "id" } });
     expect(readAttributes(" 1d=\"a\"")).toMatchObject({ malformedAt: 1 });
-    expect(readAttributes("")).toEqual({ attributes: [], malformedAt: null });
+    expect(readAttributes("")).toEqual({ attributes: [], malformedAt: null, unfinished: null });
   });
 
   test("a closing tag at the top level is unreadable-structure", () => {

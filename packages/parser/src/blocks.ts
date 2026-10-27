@@ -2,15 +2,15 @@ import type { BlockProblem } from "./yaml";
 
 export type GlobPlace = "files" | "ignores" | "changed" | "unchanged";
 
-const CATEGORY = /^[a-z][a-z0-9_]*$/;
-const SEVERITIES = ["blocking", "advisory"];
+export const CATEGORY = /^[a-z][a-z0-9_]*$/;
+export const SEVERITIES = ["blocking", "advisory"];
 const CONDITIONS = ["addedContains", "addedMatches", "changed", "unchanged"] as const;
 
 function checkGlob(_glob: string, _place: GlobPlace): string | null {
   return null;
 }
 
-function checkRegex(_pattern: string): string | null {
+export function checkRegex(_pattern: string): string | null {
   return null;
 }
 
