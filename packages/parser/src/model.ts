@@ -98,12 +98,12 @@ function unknownDisabledIds(collected: Collected, read: readonly ReadEntry[]): D
   return found;
 }
 
-type FileBlocks =
+export type FileBlocks =
   | { error: Diagnostic }
   | { defaults: FileContext["defaults"]; scope: { files?: string[]; ignores?: string[] } };
 
 // The scan keeps only the elements before its own error, so any block error comes first.
-function readFileBlocks(lore: LoreFile, categories: ReadonlySet<string>): FileBlocks {
+export function readFileBlocks(lore: LoreFile, categories: ReadonlySet<string>): FileBlocks {
   const values: Record<string, unknown> = {};
   for (const node of lore.nodes) {
     if (node.kind !== "block") continue;

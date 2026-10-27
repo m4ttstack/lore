@@ -295,7 +295,7 @@ class Scanner {
   }
 }
 
-function opensFence(line: string): { char: string; length: number } | null {
+export function opensFence(line: string): { char: string; length: number } | null {
   const match = FENCE.exec(line);
   if (match === null) return null;
   const run = match[1]!;
@@ -303,7 +303,7 @@ function opensFence(line: string): { char: string; length: number } | null {
   return { char: run[0]!, length: run.length };
 }
 
-function closesFence(line: string, fence: { char: string; length: number }): boolean {
+export function closesFence(line: string, fence: { char: string; length: number }): boolean {
   const { start, end } = trimSpaces(line);
   if (end - start < fence.length) return false;
   for (let i = start; i < end; i++) if (line[i] !== fence.char) return false;
