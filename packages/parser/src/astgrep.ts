@@ -38,7 +38,10 @@ const LANGUAGE_OF: ReadonlyMap<string, string> = new Map(
   Object.entries(LANGUAGES).flatMap(([language, extensions]) => extensions.map((extension) => [extension, language] as const)),
 );
 
+// A file that times out yields no hits, which looks the same as a file with no matches.
 const TIMEOUT_MS = 10_000;
+// The spec follows this release's matches, so any other version counts as no binary.
+const PINNED_VERSION = "ast-grep 0.51.0";
 const NO_MATCH_EXIT = 1;
 
 interface Run { code: number | null; stdout: string }
@@ -53,7 +56,7 @@ export function astGrepLanguage(path: string): string | null {
 
 export async function astGrepAvailable(binary: string): Promise<boolean> {
   const run = await execute(binary, ["--version"], "");
-  return run !== null && run.code === 0 && run.stdout.startsWith("ast-grep ");
+  return run !== null && run.code === 0 && run.stdout.trim() === PINNED_VERSION;
 }
 
 // Lines count from 1. A spawn failure, a timeout or an exit ast-grep uses for errors finds nothing.

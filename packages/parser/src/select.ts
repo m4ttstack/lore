@@ -20,14 +20,14 @@ const AST_GREP_RUNS_AT_ONCE = 8;
 export async function select(input: LoreInput, change: Change, options: SelectOptions = {}): Promise<EligibilityResult> {
   const { model, collected, placeOf } = parseWithContext(input);
   const capabilities = new Set(options.capabilities ?? []);
-  const regexes = compileRegexes(model, capabilities.has("regex"));
+  const candidates = model.entries.filter((entry) => !neverEligible(entry, placeOf.get(entry)!));
+  const regexes = compileRegexes(candidates, capabilities.has("regex"));
   const changed = change.files.map(toChanged);
   const everyPath = changed.flatMap((file) => file.paths);
 
   const selected: Selected[] = [];
-  for (const entry of model.entries) {
+  for (const entry of candidates) {
     const place = placeOf.get(entry)!;
-    if (entry.disabled || place.emptyScope) continue;
     const counted = changed.filter((file) => counts(collected, entry, place, file.paths));
     if (counted.length === 0) continue;
     if (entry.when !== null && !conditionsHold(entry.when, place.base, counted, everyPath, regexes)) continue;
@@ -62,6 +62,10 @@ export function coveringEntries(input: LoreInput, model: DocumentModel, path: st
     const place = placeOf(entry);
     return place !== undefined && inScope(entry, place.base, path) && !disabledFor(collected, entry.id, path, place.tree);
   });
+}
+
+function neverEligible(entry: Entry, place: EntryPlace): boolean {
+  return entry.disabled || place.emptyScope;
 }
 
 function toChanged(file: ChangedFile): Changed {
@@ -113,15 +117,16 @@ function conditionsHold(
   });
 }
 
-// Every pattern compiles before selection, so a pattern past the engine's limits fails each run, not only some.
-function compileRegexes(model: DocumentModel, regexChecks: boolean): Regexes {
+// Each pattern of an entry that can be eligible compiles before selection, so one past the engine's limits
+// fails every run, not only some.
+function compileRegexes(entries: readonly Entry[], regexChecks: boolean): Regexes {
   const compiled = new Map<string, RegExp>();
   const compile = (pattern: string): RegExp => {
     let regex = compiled.get(pattern);
     if (regex === undefined) compiled.set(pattern, (regex = toRegExp(pattern)));
     return regex;
   };
-  for (const entry of model.entries) {
+  for (const entry of entries) {
     for (const pattern of entry.when?.addedMatches ?? []) compile(pattern);
     if (regexChecks) for (const check of entry.checks) if (check.lang === "regex") compile(check.body);
   }

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { astGrepAvailable, astGrepLanguage, astGrepSpans } from "../src/astgrep";
-import { astGrepBinary } from "./harness";
+import { astGrepBinary, stubAstGrep } from "./harness";
 
 const binary = astGrepBinary();
 const CART = [
@@ -45,6 +45,17 @@ describe("astGrepAvailable", () => {
   test("is true for the pinned binary and false for a missing one", async () => {
     expect(await astGrepAvailable(binary)).toBe(true);
     expect(await astGrepAvailable("/nonexistent/lore-test/ast-grep")).toBe(false);
+  });
+
+  test("is false for any release other than 0.51.0", async () => {
+    for (const version of ["ast-grep 0.40.0", "ast-grep 0.51.1", "ast-grep 0.51.0-beta"]) {
+      const stub = stubAstGrep(version);
+      try {
+        expect(await astGrepAvailable(stub.binary)).toBe(false);
+      } finally {
+        stub.remove();
+      }
+    }
   });
 });
 

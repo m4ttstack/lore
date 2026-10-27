@@ -1,4 +1,6 @@
-import { existsSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Example } from "../../../tools/check/extract";
 import type { Change, ChangedFile, InputFile, LoreInput } from "../src/types";
@@ -50,4 +52,13 @@ export function astGrepBinary(): string {
     if (existsSync(path)) return path;
   }
   throw new Error("the @ast-grep/cli devDependency is not installed; run bun install");
+}
+
+// A stand-in binary that only answers --version with the given line.
+export function stubAstGrep(version: string): { binary: string; remove(): void } {
+  const dir = mkdtempSync(join(tmpdir(), "lore-astgrep-stub-"));
+  const stub = join(dir, "ast-grep");
+  writeFileSync(stub, `#!/bin/sh\necho "${version}"\n`);
+  chmodSync(stub, 0o755);
+  return { binary: stub, remove: () => rmSync(dir, { recursive: true, force: true }) };
 }

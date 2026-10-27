@@ -4,7 +4,7 @@ import { extractExamples } from "../../../tools/check/extract";
 import { coveringEntries, parse, select } from "../src/index";
 import { RegexLimitError } from "../src/regex";
 import type { Change, Diagnostic, LoreInput, SelectOptions } from "../src/types";
-import { astGrepBinary, toChange, toInput } from "./harness";
+import { astGrepBinary, stubAstGrep, toChange, toInput } from "./harness";
 
 const examples = extractExamples(readFileSync(new URL("../../../spec/SPEC.md", import.meta.url), "utf8"));
 const REMOTE = "https://github.com/acme/shop";
@@ -47,6 +47,16 @@ describe("select: ast-grep availability", () => {
       capabilities: ["ast-grep"], astGrepBinary: "/nonexistent/lore-test/ast-grep",
     });
     expect({ ...result, warnings: brief(result.warnings) }).toEqual(skipped);
+  });
+
+  test("a binary of another release counts as no binary", async () => {
+    const stub = stubAstGrep("ast-grep 0.40.0");
+    try {
+      const result = await select(toInput(totals), toChange(totals.diff!), { capabilities: ["ast-grep"], astGrepBinary: stub.binary });
+      expect({ ...result, warnings: brief(result.warnings) }).toEqual(skipped);
+    } finally {
+      stub.remove();
+    }
   });
 
   test("without the ast-grep capability, the binary is not used", async () => {
@@ -119,6 +129,18 @@ describe("select: checks", () => {
     const input = repo({ ".lore/a.lore": rule("deep-pattern", `<when>\naddedMatches: ['${pattern}']\n</when>\n`) });
     expect(parse(input).errors).toEqual([]);
     await expect(select(input, change("M a.ts", "+1 a"), ALL)).rejects.toBeInstanceOf(RegexLimitError);
+  });
+
+  test("a pattern past the engine's limits in a rule that can never be eligible does not fail the run", async () => {
+    const deep = `<when>\naddedMatches: ['${"(".repeat(1001)}a${")".repeat(1001)}']\n</when>\n`;
+    const input = repo({
+      ".lore/a.lore": rule("deep-disabled", deep, " disabled"),
+      "web/.lore/b.lore": '<scope>\nfiles: ["**/*.ts"]\n</scope>\n' +
+        rule("deep-empty-in-ts", `<scope>\nfiles: ["**/*.md"]\n</scope>\n${deep}`),
+    });
+    expect(parse(input).warnings.map((w) => w.entry)).toEqual(["deep-empty-in-ts"]);
+    const result = await select(input, change("M web/a.ts", "+1 a"), ALL);
+    expect(result.eligible).toEqual([]);
   });
 });
 

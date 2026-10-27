@@ -154,7 +154,7 @@ describe("matchGlob", () => {
       () => matchGlob(`${"*a".repeat(12)}*b`, a(60)),
       () => matchGlob(`${"{*,a}".repeat(12)}b`, a(60)),
       () => matchGlob(`${"{a,a}".repeat(24)}b`, a(24)),
-      () => matchGlob(`${"{*,}".repeat(4000)}a`, `${a(60)}b`),
+      () => matchGlob(`${"{*,}".repeat(40_000)}a`, `${a(10)}b`),
     ]) {
       const { result, ms } = timed(run);
       expect(result).toBe(false);
@@ -162,7 +162,7 @@ describe("matchGlob", () => {
     }
     expect(matchGlob(`${"*a".repeat(12)}*b`, `${a(60)}b`)).toBe(true);
     expect(matchGlob(`${"{*,a}".repeat(12)}b`, `${a(60)}b`)).toBe(true);
-    expect(matchGlob(`${"{*,}".repeat(4000)}a`, a(60))).toBe(true);
+    expect(matchGlob(`${"{*,}".repeat(40_000)}a`, a(10))).toBe(true);
   });
 
   test("an invalid glob matches nothing", () => {
