@@ -34,25 +34,43 @@ describe("checkVerdicts", () => {
     expect(checkVerdicts(selection, { ...set({ ...pass("alpha"), extra: 1 }, pass("beta")), more: true })).toEqual([]);
   });
 
-  test("a set that is not an object with lore 1 and a verdicts array is invalid", () => {
-    for (const bad of [null, [], "x", { verdicts: [] }, { lore: "2", verdicts: [] }, { lore: "1" }, { lore: "1", verdicts: {} }]) {
-      expect(checkVerdicts(selection, bad)).toEqual([
-        { name: "invalid-verdict-set", rule: null, detail: expect.any(String) },
-      ]);
+  test("a set that is not an object with lore 1 and a verdicts array is invalid, naming the failing field", () => {
+    const cases: [unknown, string][] = [
+      [null, "The verdict set is not a JSON object."],
+      [[], "The verdict set is not a JSON object."],
+      ["x", "The verdict set is not a JSON object."],
+      [{ verdicts: [] }, 'The verdict set\'s "lore" must be "1".'],
+      [{ lore: "2", verdicts: [] }, 'The verdict set\'s "lore" must be "1".'],
+      [{ lore: "1" }, 'The verdict set\'s "verdicts" must be an array.'],
+      [{ lore: "1", verdicts: {} }, 'The verdict set\'s "verdicts" must be an array.'],
+    ];
+    for (const [bad, detail] of cases) {
+      expect(checkVerdicts(selection, bad)).toEqual([{ name: "invalid-verdict-set", rule: null, detail }]);
     }
   });
 
-  test("each malformed verdict is one problem and the rest are still checked", () => {
+  test("each malformed verdict is one problem naming its field and its rule, and the rest are still checked", () => {
     const problems = checkVerdicts(selection, set(
       "nope",
       { rule: 3, verdict: "pass" },
       { rule: "alpha", verdict: "maybe" },
       { rule: "alpha", verdict: "pass", evidence: [{ file: "src/mod.ts", line: 0 }] },
-      { rule: "alpha", verdict: "pass", evidence: [{ file: "src/mod.ts", line: 1, side: "both" }] },
+      { rule: "alpha", verdict: "pass", evidence: [{ file: "src/mod.ts", line: 1 }, { file: "src/mod.ts", line: 1, side: "both" }] },
       { rule: "alpha", verdict: "pass", evidence: "x" },
+      { rule: "alpha", verdict: "pass", evidence: [7] },
+      { rule: "alpha", verdict: "pass", evidence: [{ line: 2 }] },
       pass("beta"),
     ));
-    expect(problems.filter((p) => p.name === "invalid-verdict-set")).toHaveLength(6);
+    expect(problems.filter((p) => p.name === "invalid-verdict-set")).toEqual([
+      { name: "invalid-verdict-set", rule: null, detail: "Verdict 1 is not an object." },
+      { name: "invalid-verdict-set", rule: null, detail: 'Verdict 2 has no string "rule".' },
+      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 3 for "alpha": "verdict" must be pass, fail or not-applicable.' },
+      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 4 for "alpha": evidence 1 "line" must be a whole number of 1 or more.' },
+      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 5 for "alpha": evidence 2 "side" must be new or old.' },
+      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 6 for "alpha": "evidence" must be an array.' },
+      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 7 for "alpha": evidence 1 is not an object.' },
+      { name: "invalid-verdict-set", rule: "alpha", detail: 'Verdict 8 for "alpha": evidence 1 "file" must be a string.' },
+    ]);
     expect(problems.map((p) => p.name)).toContain("missing-verdict");
   });
 
@@ -85,6 +103,21 @@ describe("checkVerdicts", () => {
     for (const file of ["src/mod.ts", "src/new.ts"]) {
       expect(names(set(evidence(file, "new"), pass("beta")))).toEqual([]);
     }
+  });
+
+  test("evidence-outside-change names every offending location", () => {
+    const evidence = [
+      { file: "src/other.ts", line: 1 },
+      { file: "src/mod.ts", line: 2 },
+      { file: "src/new.ts", line: 4, side: "old" },
+    ];
+    expect(checkVerdicts(selection, set({ rule: "alpha", verdict: "pass", evidence }, pass("beta")))).toEqual([
+      {
+        name: "evidence-outside-change",
+        rule: "alpha",
+        detail: "Evidence names no changed file on its side: src/other.ts line 1 (new side), src/new.ts line 4 (old side).",
+      },
+    ]);
   });
 
   test("old locations may name a deleted, modified or renamed file's old path", () => {

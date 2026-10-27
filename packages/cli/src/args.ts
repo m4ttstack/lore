@@ -94,6 +94,7 @@ function parseVerdicts(args: string[]): Command {
   const positional: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
+    if (arg === "--help") return { name: "help" };
     if (arg === "--selection") {
       if (i + 1 >= args.length) throw new UsageError("--selection needs a value");
       selection = args[++i]!;
@@ -103,5 +104,7 @@ function parseVerdicts(args: string[]): Command {
   }
   if (selection === null) throw new UsageError("give the selection: --selection <file>");
   if (positional.length > 1) throw new UsageError("give at most one verdicts file");
-  return { name: "verdicts", selection, verdicts: positional[0] ?? "-" };
+  const verdicts = positional[0] ?? "-";
+  if (selection === "-" && verdicts === "-") throw new UsageError("stdin can supply only one of the selection and the verdicts");
+  return { name: "verdicts", selection, verdicts };
 }

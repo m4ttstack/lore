@@ -22,7 +22,7 @@ Rules:
 
 Change:
 
-- `--diff <file|->`: a unified diff, or `-` for stdin.
+- `--diff <file|->`: a unified diff, or `-` for stdin. Its paths must carry the `a/` and `b/` prefixes; when `diff.mnemonicPrefix` or `diff.noprefix` is set, make one with `git diff --src-prefix=a/ --dst-prefix=b/`.
 
 Output:
 
@@ -31,6 +31,8 @@ Output:
 - `--strict`: exit 1 when errors in the rules excluded entries.
 
 `--paths`, `--change`, `--base` and `--head` are not available yet.
+
+ast-grep checks are skipped in this version: each one reports the warning `check-needs-file`, and its rule stays eligible.
 
 ## lore verdicts
 

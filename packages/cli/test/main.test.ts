@@ -250,6 +250,8 @@ describe("usage errors", () => {
     ["--strict with a value", ["select", "--diff", "-", "--strict=false"], "--strict"],
     ["--no-repo with a value", ["select", "--diff", "-", "--no-repo=yes"], "--no-repo"],
     ["an unknown command", ["frobnicate"], "frobnicate"],
+    ["selection and verdicts both from stdin", ["verdicts", "--selection", "-"], "stdin can supply only one of the selection and the verdicts"],
+    ["selection and an explicit - both from stdin", ["verdicts", "--selection=-", "-"], "stdin can supply only one of the selection and the verdicts"],
     ["no command", [], "command"],
   ])("%s exits 2 with a one-line message", async (_name, argv, mention) => {
     const { code, out, err } = await lore(argv);
@@ -272,6 +274,7 @@ describe("help and version", () => {
     expect(out).toContain("lore verdicts");
     expect(out).toContain("--diff");
     expect(await lore(["select", "--help"])).toEqual({ code: 0, out, err: "" });
+    expect(await lore(["verdicts", "--help"])).toEqual({ code: 0, out, err: "" });
   });
 });
 
