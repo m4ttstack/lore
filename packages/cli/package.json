@@ -1,0 +1,22 @@
+{
+  "name": "@lore/cli",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "lore": "dist/lore.js"
+  },
+  "files": ["dist"],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node20 --format=cjs --banner:js=\"#!/usr/bin/env node\" --outfile=dist/lore.js"
+  },
+  "dependencies": {
+    "@lore/parser": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
