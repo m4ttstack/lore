@@ -229,14 +229,22 @@ file.
 
 1. **Specification** for `.lore` and `.loreconfig`, with conformance
    examples and schemas.
-2. **Editor support:** a reference parser, a Prettier plugin, a language
-   server and syntax highlighting.
+2. **Editor support:** done: reference parser, Prettier plugin, language
+   server, VS Code/Cursor and Zed extensions (not yet published).
 3. **Applying rules:** guidance for turning selected rules into a result
    per rule, and an online playground.
 4. **Integrations** with code review tools and AI agents.
 
-Until editor support exists, this line in `.gitattributes` highlights
-`.lore` files as Markdown on GitHub and GitLab:
+### Editor support
+
+The repository holds a reference parser, a [Prettier
+plugin](packages/prettier-plugin/README.md), a language server, and
+extensions for [VS Code and Cursor](packages/vscode/README.md) and
+[Zed](packages/zed/README.md). None are published yet, so install them from
+a checkout using each README.
+
+On GitHub and GitLab, this line in `.gitattributes` highlights `.lore` files
+as Markdown:
 
 ```
 *.lore linguist-language=Markdown gitlab-language=markdown

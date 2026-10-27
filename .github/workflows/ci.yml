@@ -10,9 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
       - run: bun install --frozen-lockfile
       - run: bun run build
       - run: bunx tsc --noEmit
       - run: bun test
       - run: bun run check
+      - run: bunx tree-sitter test
+        working-directory: packages/tree-sitter-lore
+      - run: bun run parse-fixtures
+        working-directory: packages/tree-sitter-lore
+      - run: bun scripts/zed-grammar-rev.ts
+      - run: cargo build --target wasm32-wasip1
+        working-directory: packages/zed
+      - run: bun run --filter lore-vscode package
