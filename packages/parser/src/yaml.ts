@@ -126,7 +126,7 @@ function earliest(offsets: number[]): number | null {
   return offsets.length === 0 ? null : Math.min(...offsets);
 }
 
-function countLineFeeds(source: string, offset: number): number {
+export function countLineFeeds(source: string, offset: number): number {
   let count = 0;
   const end = Math.min(offset, source.length);
   for (let i = 0; i < end; i++) if (source.charCodeAt(i) === 10) count++;

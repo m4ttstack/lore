@@ -1,5 +1,6 @@
 export interface InputFile { path: string; content: string }
-export interface GivenFolder { folder: string; files: InputFile[] }
+// Given folders with the same `repository` key are one repository; without keys on both, equal file lists are.
+export interface GivenFolder { folder: string; files: InputFile[]; repository?: string }
 export interface LoreInput { repo: InputFile[]; given: GivenFolder[]; remotes: string[] }
 export interface Position { line: number; character: number }
 export interface Range { start: Position; end: Position }

@@ -1,9 +1,10 @@
-import { CATEGORY, SEVERITIES, checkMeta, checkScope, checkWhen } from "./blocks";
+import { CATEGORY, ID, SEVERITIES, checkMeta, checkScope, checkWhen } from "./blocks";
 import { resolveGlob } from "./glob";
 import { dedentEntry } from "./indent";
 import { validateDialect } from "./regex";
 import { readAttributes, type AttributeList, type ChildNode, type EntryNode, type LoreFile } from "./scan";
-import type { Check, Diagnostic, Entry, Range, Scope } from "./types";
+import { lineRange } from "./text";
+import type { Check, Diagnostic, Entry, Scope } from "./types";
 import { readBlock, type BlockProblem } from "./yaml";
 
 export type Severity = "blocking" | "advisory";
@@ -25,7 +26,6 @@ export interface WrittenScope { files: readonly string[]; line: number }
 
 type ValueRule = (value: string | null) => string | null;
 
-export const ID = /^[a-z][a-z0-9-]*$/;
 const SINGLE_CHILDREN = new Set(["meta", "scope", "when"]);
 const RULE_CHILDREN = new Set([...SINGLE_CHILDREN, "check"]);
 const DEFAULT_LANG = "regex";
@@ -88,13 +88,6 @@ export function resolveScope(base: string, value: { files?: string[]; ignores?: 
 
 export function lineDiagnostic(name: string, lore: LoreFile, entry: string | null, line: number): Diagnostic {
   return { name, file: lore.path, entry, line, range: lineRange(lore.text.lines, line) };
-}
-
-export function lineRange(lines: readonly string[], line: number): Range {
-  const content = lines[line - 1] ?? "";
-  const start = /^[ \t]*/.exec(content)![0].length;
-  const end = content.replace(/[ \t]+$/, "").length;
-  return { start: { line: line - 1, character: start }, end: { line: line - 1, character: Math.max(start, end) } };
 }
 
 function fromBase(base: string, glob: string): string {

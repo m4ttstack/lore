@@ -65,6 +65,39 @@ describe("collect", () => {
     ]);
   });
 
+  test("given folders with the same repository key are one repository, whatever their file lists hold", () => {
+    const files: InputFile[] = [
+      { path: "lore/shop/.loreconfig", content: "repo: github.com/acme/shop\n" },
+      { path: "lore/shop/.lore/checkout.lore", content: RULE },
+      { path: "lore/notes.md", content: "one" },
+    ];
+    const edited = files.map((f) => (f.path === "lore/notes.md" ? { ...f, content: "two" } : f));
+    const input: LoreInput = {
+      repo: [],
+      given: [{ folder: "lore", files, repository: "/work/team" }, { folder: "lore/shop", files: edited, repository: "/work/team" }],
+      remotes: [REMOTE],
+    };
+    expect(collect(input).files.map((f) => f.file)).toEqual(["external:lore/shop/.lore/checkout.lore"]);
+    expect(parse(input).errors).toEqual([]);
+  });
+
+  test("given folders with different repository keys are two repositories, even with identical files", () => {
+    const files: InputFile[] = [
+      { path: ".loreconfig", content: "repo: github.com/acme/shop\n" },
+      { path: ".lore/a.lore", content: RULE },
+    ];
+    const input: LoreInput = {
+      repo: [],
+      given: [{ folder: "", files, repository: "/work/a" }, { folder: "", files, repository: "/work/b" }],
+      remotes: [REMOTE],
+    };
+    expect(collect(input).files.map((f) => [f.file, f.tree])).toEqual([
+      ["external:.lore/a.lore", 0],
+      ["external:.lore/a.lore", 1],
+    ]);
+    expect(brief(parse(input).errors).map((d) => d.name)).toEqual(["duplicate-id", "duplicate-id"]);
+  });
+
   test("an external file's base is the directory it stands for, its Lore root is in its own repository", () => {
     const collected = collect(toInput(example(89)));
     expect(collected.files).toEqual([

@@ -1,4 +1,4 @@
-import type { Position } from "./types";
+import type { Position, Range } from "./types";
 
 export interface DecodedText {
   lines: string[];
@@ -67,4 +67,11 @@ export function compareCodePoints(a: string, b: string): number {
     if (diff !== 0) return diff;
   }
   return left.length - right.length;
+}
+
+export function lineRange(lines: readonly string[], line: number): Range {
+  const content = lines[line - 1] ?? "";
+  const start = /^[ \t]*/.exec(content)![0].length;
+  const end = content.replace(/[ \t]+$/, "").length;
+  return { start: { line: line - 1, character: start }, end: { line: line - 1, character: Math.max(start, end) } };
 }

@@ -3,6 +3,7 @@ import { validateRegex } from "./regex";
 import type { BlockProblem } from "./yaml";
 
 export const CATEGORY = /^[a-z][a-z0-9_]*$/;
+export const ID = /^[a-z][a-z0-9-]*$/;
 export const SEVERITIES = ["blocking", "advisory"];
 export const FIXED_CATEGORIES: ReadonlySet<string> = new Set([
   "functional_correctness", "test_coverage", "security", "performance", "accessibility",

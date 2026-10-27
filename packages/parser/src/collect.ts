@@ -1,7 +1,6 @@
 import { FIXED_CATEGORIES } from "./blocks";
-import { lineRange } from "./entries";
 import { namesRepo, readLoreconfig, type DisableItem } from "./loreconfig";
-import { compareCodePoints } from "./text";
+import { compareCodePoints, lineRange } from "./text";
 import type { Diagnostic, GivenFolder, InputFile, LoreInput } from "./types";
 
 // "repo" is the governed repo; a number indexes Collected.trees (one per external folder).
@@ -35,6 +34,7 @@ export interface Collected {
   configs: ConfigFile[];
   diagnostics: Diagnostic[];
   trees: TreeInfo[];
+  configsByRepository: ReadonlyMap<Repository, ReadonlyMap<string, ConfigFile>>;
 }
 
 type Config = Omit<ConfigFile, "trees">;
@@ -46,15 +46,21 @@ const LORE_FOLDER = ".lore";
 const CONFIG_NAME = ".loreconfig";
 export const EXTERNAL = "external:";
 const ROOT = "";
+const NO_CONFIGS: Configs = new Map();
 
 export function collect(input: LoreInput): Collected {
-  const collected: Collected = { files: [], configs: [], diagnostics: [], trees: [] };
+  const collected: Collected = { files: [], configs: [], diagnostics: [], trees: [], configsByRepository: new Map() };
   collectSource({ repository: "repo", prefix: "", files: input.repo, folders: null }, input.remotes, collected);
   repositories(input.given).forEach(({ files, folders }, repository) => {
     collectSource({ repository, prefix: EXTERNAL, files, folders }, input.remotes, collected);
   });
   collected.files.sort((a, b) => compareCodePoints(a.file, b.file));
-  return collected;
+  const byRepository = new Map<Repository, Map<string, ConfigFile>>();
+  for (const config of collected.configs) {
+    const configs = byRepository.get(config.repository) ?? new Map<string, ConfigFile>();
+    byRepository.set(config.repository, configs.set(config.dir, config));
+  }
+  return { ...collected, configsByRepository: byRepository };
 }
 
 export function disabledFor(collected: Collected, entryId: string, path: string, tree: Tree): boolean {
@@ -140,16 +146,21 @@ function readConfigs(
   return { configs, excluded, marks };
 }
 
-// Given folders of one repository share one file list; a file they both reach is read once.
+// Given folders of one repository are read together, so a file they both reach is read once.
 function repositories(given: readonly GivenFolder[]): { files: InputFile[]; folders: string[] }[] {
-  const groups: { files: InputFile[]; folders: string[] }[] = [];
-  for (const { folder, files } of given) {
-    const trimmed = folder.replace(/\/+$/, "");
-    const group = groups.find((g) => sameFiles(g.files, files));
-    if (group === undefined) groups.push({ files, folders: [trimmed] });
+  const groups: { first: GivenFolder; files: InputFile[]; folders: string[] }[] = [];
+  for (const folder of given) {
+    const trimmed = folder.folder.replace(/\/+$/, "");
+    const group = groups.find((g) => sameRepository(g.first, folder));
+    if (group === undefined) groups.push({ first: folder, files: folder.files, folders: [trimmed] });
     else group.folders.push(trimmed);
   }
-  return groups;
+  return groups.map(({ files, folders }) => ({ files, folders }));
+}
+
+function sameRepository(a: GivenFolder, b: GivenFolder): boolean {
+  if (a.repository !== undefined && b.repository !== undefined) return a.repository === b.repository;
+  return sameFiles(a.files, b.files);
 }
 
 function sameFiles(a: readonly InputFile[], b: readonly InputFile[]): boolean {
@@ -192,7 +203,7 @@ function applying(configs: Configs, dir: string, loreRoot: string): Config[] {
 }
 
 function configsOf(collected: Collected, repository: Repository): Configs {
-  return new Map(collected.configs.filter((c) => c.repository === repository).map((c) => [c.dir, c]));
+  return collected.configsByRepository.get(repository) ?? NO_CONFIGS;
 }
 
 function listsId(configs: Config[], id: string): boolean {

@@ -1,9 +1,8 @@
 import { isMap, isScalar, type Pair, type YAMLSeq } from "yaml";
-import { CATEGORY } from "./blocks";
-import { ID, lineRange } from "./entries";
-import { decode, firstInvalidLine } from "./text";
+import { CATEGORY, ID } from "./blocks";
+import { decode, firstInvalidLine, lineRange } from "./text";
 import type { Range } from "./types";
-import { readBlock } from "./yaml";
+import { countLineFeeds, readBlock } from "./yaml";
 
 export interface DisableItem { id: string; line: number; range: Range }
 
@@ -114,10 +113,4 @@ function itemOffsets(sequence: YAMLSeq): number[] {
     }
     return isScalar(item) && item.range ? item.range[0] : 0;
   });
-}
-
-function countLineFeeds(source: string, offset: number): number {
-  let count = 0;
-  for (let i = 0; i < Math.min(offset, source.length); i++) if (source.charCodeAt(i) === 10) count++;
-  return count;
 }
