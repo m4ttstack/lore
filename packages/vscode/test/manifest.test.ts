@@ -29,9 +29,14 @@ describe("manifest", () => {
     expect(manifest.repository).toEqual({ type: "git", url: "https://github.com/m4ttstack/lore" });
   });
 
-  test("manifest activates in a workspace holding Lore files or a .loreconfig", () => {
-    // **/*.lore also covers .lore/*.lore and Lore files kept beside the code they govern.
-    expect(manifest.activationEvents).toEqual(["workspaceContains:**/*.lore", "workspaceContains:**/.loreconfig"]);
+  test("manifest activates early in a workspace holding Lore files, and after startup everywhere else", () => {
+    // **/*.lore also covers .lore/*.lore and Lore files kept beside the code they govern. A governed repository whose
+    // Lore lives only in external folders has no Lore file, so onStartupFinished lets activate read lore.externalFolders.
+    expect(manifest.activationEvents).toEqual([
+      "workspaceContains:**/*.lore",
+      "workspaceContains:**/.loreconfig",
+      "onStartupFinished",
+    ]);
   });
 
   test("package script produces a .vsix containing the server and grammar", () => {

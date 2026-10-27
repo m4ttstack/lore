@@ -11,6 +11,25 @@ export async function run(): Promise<void> {
   assert.ok(folder, "LORE_SMOKE_WORKSPACE is not set");
   const extension = vscode.extensions.getExtension("lore.lore-vscode");
   assert.ok(extension, "lore.lore-vscode is not loaded");
+  if (process.env.LORE_SMOKE_MODE === "external") await external(folder, extension);
+  else await local(folder, extension);
+}
+
+// A governed repository with no Lore files activates on its own and shows lenses from lore.externalFolders.
+async function external(folder: string, extension: vscode.Extension<unknown>): Promise<void> {
+  await waitFor(() => (extension.isActive ? true : undefined), "activation without local Lore");
+  report("external activated", extension.isActive);
+  const source = await open(join(folder, "src/app.ts"));
+  const lenses = await waitFor(async () => {
+    const found = await vscode.commands.executeCommand<vscode.CodeLens[]>("vscode.executeCodeLensProvider", source.uri);
+    return found.length > 0 ? found : undefined;
+  }, "could-apply lens from an external folder");
+  const titles = lenses.map((lens) => lens.command?.title ?? "(unresolved)");
+  report("external lens", titles);
+  assert.ok(titles.some((title) => title.includes("external-rule")));
+}
+
+async function local(folder: string, extension: vscode.Extension<unknown>): Promise<void> {
   await extension.activate();
 
   const good = await open(join(folder, ".lore/checkout.lore"));

@@ -2,12 +2,24 @@ import { basename } from "node:path";
 import { workspace, type ExtensionContext, type TextDocument } from "vscode";
 import { LanguageClient, TransportKind, type LanguageClientOptions, type ServerOptions } from "vscode-languageclient/node";
 
+const LORE_FILES = "**/{*.lore,.loreconfig}";
+const SKIPPED = "**/node_modules/**";
+
 let client: LanguageClient | undefined;
 
+// The extension activates in every workspace, so the server starts only where Lore is in play.
 export function activate(context: ExtensionContext): void {
-  // The server runs git in the opened folder, so it waits for the workspace to be trusted.
-  if (workspace.isTrusted) start(context);
-  else context.subscriptions.push(workspace.onDidGrantWorkspaceTrust(() => start(context)));
+  const consider = () => void startIfWanted(context);
+  context.subscriptions.push(
+    workspace.onDidGrantWorkspaceTrust(consider),
+    workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("lore.externalFolders")) consider();
+    }),
+    workspace.onDidOpenTextDocument((document) => {
+      if (isLoreDocument(document)) consider();
+    }),
+  );
+  consider();
 }
 
 export async function deactivate(): Promise<void> {
@@ -18,6 +30,20 @@ export async function deactivate(): Promise<void> {
 // Other files are sent to the server only for the could-apply lens.
 function isLoreDocument(document: TextDocument): boolean {
   return document.languageId === "lore" || basename(document.uri.fsPath) === ".loreconfig";
+}
+
+// The server runs git in the opened folder, so it waits for the workspace to be trusted.
+async function startIfWanted(context: ExtensionContext): Promise<void> {
+  if (client !== undefined || !workspace.isTrusted) return;
+  const wanted = hasExternalFolders()
+    || workspace.textDocuments.some(isLoreDocument)
+    || (await workspace.findFiles(LORE_FILES, SKIPPED, 1)).length > 0;
+  if (wanted) start(context);
+}
+
+function hasExternalFolders(): boolean {
+  const scopes = [undefined, ...(workspace.workspaceFolders ?? []).map((folder) => folder.uri)];
+  return scopes.some((scope) => (workspace.getConfiguration("lore", scope).get<unknown[]>("externalFolders") ?? []).length > 0);
 }
 
 function start(context: ExtensionContext): void {

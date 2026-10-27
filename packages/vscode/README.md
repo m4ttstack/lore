@@ -39,7 +39,7 @@ The language server runs git in the opened folder, so it starts only once the wo
 
 ## Limits
 
-- The extension starts when the workspace contains a `.lore` or `.loreconfig` file, or when a `.lore` file is opened. A repository whose Lore lives only in external folders gets its lens once a `.lore` file is opened.
+- The extension loads in every workspace once the editor has started, but starts the language server only when the workspace contains a `.lore` or `.loreconfig` file (outside `node_modules`), when `lore.externalFolders` is set, or when a Lore file is opened. Setting `lore.externalFolders` later starts it without a reload.
 - A lone carriage return (one not followed by a line feed) stays inside its line, as the spec says, but editors treat it as a line break, so positions on later lines can be off.
 - Without git, or outside a repository, only open buffers count: a `.loreconfig` on disk that is not open is not read, so its categories and `disable` lists are unknown until it is opened.
 - The lens shows one lens per id, so VS Code joins them with ` | `: `Lore: could apply: a | b`. Clicking an id opens its entry.
