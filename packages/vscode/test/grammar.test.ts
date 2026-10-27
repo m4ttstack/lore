@@ -13,6 +13,12 @@ const grammarFiles: Record<string, URL> = {
   "text.html.markdown": new URL("./grammars/markdown.tmLanguage.json", import.meta.url),
 };
 
+// Stands in for the editor's grammar of a language named on a fence. vscode-textmate drops a rule whose
+// included grammar is missing, so without these the fence rules would not run at all.
+function blockCommentGrammar(scopeName: string) {
+  return { scopeName, patterns: [{ begin: "/\\*", end: "\\*/", name: "comment.block.embedded" }] };
+}
+
 let grammar: IGrammar;
 
 beforeAll(async () => {
@@ -25,7 +31,8 @@ beforeAll(async () => {
     }),
     loadGrammar: async (scopeName) => {
       const file = grammarFiles[scopeName];
-      return file === undefined ? null : parseRawGrammar(readFileSync(file, "utf8"), file.pathname);
+      if (file === undefined) return parseRawGrammar(JSON.stringify(blockCommentGrammar(scopeName)), `${scopeName}.json`);
+      return parseRawGrammar(readFileSync(file, "utf8"), file.pathname);
     },
   });
   const loaded = await registry.loadGrammar("source.lore");
@@ -203,6 +210,36 @@ describe("scopes", () => {
     const fenced = tokenize(["<rule id=\"a\">", "Shown:", "```", "</rule>", "```", "</rule>"].join("\n"));
     expect(lineHas(fenced, 4, "entity.name.tag.lore")).toBe(false);
     expect(lineHas(fenced, 6, "entity.name.tag.lore")).toBe(true);
+  });
+
+  test("a fence with a known language embeds that language's grammar", () => {
+    const fenced = tokenize(["<rule id=\"a\">", "  Shown:", "  ```ts", "  const price = quote.total", "  ```", "  ~~~TSX title", "  <Price />", "  ~~~", "</rule>"].join("\n"));
+    expect(tokenScopes(fenced, 4, "price")).toContain("meta.embedded.block.typescript");
+    expect(tokenScopes(fenced, 7, "Price")).toContain("meta.embedded.block.typescriptreact");
+    expect(lineHas(fenced, 9, "entity.name.tag.lore")).toBe(true);
+  });
+
+  test("a fence with an unknown language or a longer info word embeds nothing", () => {
+    const fenced = tokenize(["<rule id=\"a\">", "```tsql", "SELECT 1", "```", "```cobol", "MOVE A TO B", "```", "</rule>"].join("\n"));
+    const embedsCode = (line: number) =>
+      [...scopesOf(fenced[line - 1]!)].some((scope) => scope.startsWith("meta.embedded.block.") && scope !== "meta.embedded.block.markdown");
+    expect(lineHas(fenced, 3, "markup.fenced_code.block.markdown")).toBe(true);
+    expect(embedsCode(3)).toBe(false);
+    expect(embedsCode(6)).toBe(false);
+  });
+
+  test("an embedded construct left open ends at the closing fence", () => {
+    const fenced = tokenize(["<rule id=\"a\">", "```ts", "/* never closed", "```", "</rule>", "<rule id=\"b\">", "Text.", "</rule>"].join("\n"));
+    expect(lineHas(fenced, 3, "comment.block.embedded")).toBe(true);
+    expect(lineHas(fenced, 4, "comment.block.embedded")).toBe(false);
+    expect(lineHas(fenced, 5, "entity.name.tag.lore")).toBe(true);
+    expect(lineHas(fenced, 6, "entity.name.tag.lore")).toBe(true);
+  });
+
+  test("a closing fence must use the opening fence's character", () => {
+    const fenced = tokenize(["<rule id=\"a\">", "```ts", "x", "~~~", "y", "```", "</rule>"].join("\n"));
+    expect(lineHas(fenced, 5, "markup.fenced_code.block.markdown")).toBe(true);
+    expect(lineHas(fenced, 7, "entity.name.tag.lore")).toBe(true);
   });
 
   test("a </context> line in a rule's prose is prose", () => {

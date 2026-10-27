@@ -48,7 +48,22 @@
           "meta.embedded.block.yaml": "yaml",
           "source.yaml": "yaml",
           "meta.embedded.block.markdown": "markdown",
-          "text.html.markdown": "markdown"
+          "text.html.markdown": "markdown",
+          "meta.embedded.block.typescript": "typescript",
+          "meta.embedded.block.typescriptreact": "typescriptreact",
+          "meta.embedded.block.javascript": "javascript",
+          "meta.embedded.block.javascriptreact": "javascriptreact",
+          "meta.embedded.block.json": "json",
+          "meta.embedded.block.python": "python",
+          "meta.embedded.block.shellscript": "shellscript",
+          "meta.embedded.block.sql": "sql",
+          "meta.embedded.block.go": "go",
+          "meta.embedded.block.rust": "rust",
+          "meta.embedded.block.java": "java",
+          "meta.embedded.block.ruby": "ruby",
+          "meta.embedded.block.css": "css",
+          "meta.embedded.block.html": "html",
+          "meta.embedded.block.diff": "diff"
         }
       }
     ],

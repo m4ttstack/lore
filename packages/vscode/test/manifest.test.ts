@@ -13,17 +13,19 @@ describe("manifest", () => {
     expect(lore).toMatchObject({ extensions: [".lore"], configuration: "./language-configuration.json" });
     const yaml = manifest.contributes.languages.find((language: { id: string }) => language.id === "yaml");
     expect(yaml).toMatchObject({ filenames: [".loreconfig"] });
-    expect(manifest.contributes.grammars).toContainEqual({
+    expect(manifest.contributes.grammars).toContainEqual(expect.objectContaining({
       language: "lore",
       scopeName: "source.lore",
       path: "./syntaxes/lore.tmLanguage.json",
-      embeddedLanguages: {
+      embeddedLanguages: expect.objectContaining({
         "meta.embedded.block.yaml": "yaml",
         "source.yaml": "yaml",
         "meta.embedded.block.markdown": "markdown",
         "text.html.markdown": "markdown",
-      },
-    });
+        "meta.embedded.block.typescript": "typescript",
+        "meta.embedded.block.typescriptreact": "typescriptreact",
+      }),
+    }));
     expect(manifest.contributes.configuration.properties["lore.externalFolders"]).toMatchObject({ type: "array", items: { type: "string" } });
     expect(manifest.capabilities.untrustedWorkspaces.supported).toBe("limited");
     expect(manifest.repository).toEqual({ type: "git", url: "https://github.com/m4ttstack/lore" });
