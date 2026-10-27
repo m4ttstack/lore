@@ -38,10 +38,10 @@ async function comparable(model: DocumentModel) {
   return { entries, errors: withoutLines(model.errors), warnings: withoutLines(model.warnings) };
 }
 
-async function formatInput(input: LoreInput): Promise<LoreInput> {
+async function formatInput(input: LoreInput, options: prettier.Options = {}): Promise<LoreInput> {
   const formatFiles = (files: InputFile[]) =>
     Promise.all(files.map(async (file) =>
-      file.path.endsWith(".lore") ? { ...file, content: await format(file.content, { filepath: file.path }) } : file));
+      file.path.endsWith(".lore") ? { ...file, content: await format(file.content, { ...options, filepath: file.path }) } : file));
   return {
     ...input,
     repo: await formatFiles(input.repo),
@@ -67,14 +67,17 @@ describe("prettier plugin", () => {
   });
 
   test("round-trips every conformance input", async () => {
-    for (const example of examples) {
-      const input = toInput(example);
-      const formatted = await formatInput(input);
-      const label = `example ${example.number}`;
-      expect({ label, model: await comparable(parse(formatted)) })
-        .toEqual({ label, model: await comparable(parse(input)) });
-      const again = await formatInput(formatted);
-      expect({ label, files: loreFiles(again) }).toEqual({ label, files: loreFiles(formatted) });
+    for (const embedded of ["auto", "off"] as const) {
+      const options = { embeddedLanguageFormatting: embedded };
+      for (const example of examples) {
+        const input = toInput(example);
+        const formatted = await formatInput(input, options);
+        const label = `example ${example.number}, embedded ${embedded}`;
+        expect({ label, model: await comparable(parse(formatted)) })
+          .toEqual({ label, model: await comparable(parse(input)) });
+        const again = await formatInput(formatted, options);
+        expect({ label, files: loreFiles(again) }).toEqual({ label, files: loreFiles(formatted) });
+      }
     }
   });
 
@@ -207,6 +210,49 @@ describe("prettier plugin", () => {
       "  - *one*",
       "",
       "    continues the *item*.",
+      "</rule>",
+      "",
+    ].join("\n"));
+  });
+
+  test("lays out the file when embeddedLanguageFormatting is off", async () => {
+    const sample = firstReadmeSample();
+    const misordered = flushLeft(sample).replace(
+      "<rule id=\"price-from-quote\" category=\"functional_correctness\" severity=\"blocking\">",
+      "<rule severity=\"blocking\" category=\"functional_correctness\" id=\"price-from-quote\">",
+    );
+    expect(misordered).not.toBe(flushLeft(sample));
+    expect(await format(misordered, { embeddedLanguageFormatting: "off" })).toBe(sample);
+
+    const written = [
+      "<scope>",
+      "files:   [ \"src/**\" ]",
+      "</scope>",
+      "<rule category=\"security\" id=\"no-eval\">",
+      "<meta>",
+      "owner: {team: 'web'}",
+      "list:",
+      "  - a",
+      "</meta>",
+      "Code never calls `eval`.",
+      "",
+      "Use *Function* instead.",
+      "</rule>",
+    ].join("\n");
+    expect(await format(written, { embeddedLanguageFormatting: "off" })).toBe([
+      "<scope>",
+      "  files:   [ \"src/**\" ]",
+      "</scope>",
+      "",
+      "<rule id=\"no-eval\" category=\"security\">",
+      "  <meta>",
+      "    owner: {team: 'web'}",
+      "    list:",
+      "      - a",
+      "  </meta>",
+      "  Code never calls `eval`.",
+      "",
+      "  Use *Function* instead.",
       "</rule>",
       "",
     ].join("\n"));

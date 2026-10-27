@@ -34,6 +34,7 @@ Prettier then formats every `.lore` file with the `lore` parser.
 - Prose up to its first blank line outside a fenced code block holds the summary and is only re-indented. The rest goes through Prettier's Markdown printer with `proseWrap: "preserve"`, leaving the code in fenced blocks as written. A rest whose first line is indented continues the summary's Markdown, so it is only re-indented.
 - `<check>` bodies and top-level comments are kept as written.
 - A file with a file-level error is returned unchanged, and an entry with an entry-level error is left as written.
+- With `embeddedLanguageFormatting: "off"`, Prettier runs no YAML or Markdown printer, so the plugin only lays the file out: indentation, attribute order and blank lines.
 - Every formatted block and entry is parsed again. If the parser would read it differently, the prose is kept as written; if that still differs, the whole element is.
 
 ## Limits

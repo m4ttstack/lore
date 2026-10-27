@@ -128,23 +128,49 @@ function sameBlock(node: BlockElement, lines: string[]): boolean {
   return !("error" in read) && JSON.stringify(read[node.name]) === JSON.stringify(node.value);
 }
 
-// The design's comparison: every field equal, except the prose after its first blank line, compared once printed.
-async function sameEntry(node: EntryElement, lines: string[], markdown: (lines: string[]) => Promise<string[]>): Promise<boolean> {
+function reread(node: EntryElement, lines: string[]): Entry | null {
   const lore = parseFile(node.path, lines.join("\n"));
   const only = lore.nodes[0];
-  if (lore.diagnostics.length > 0 || lore.nodes.length !== 1 || only?.kind !== "entry") return false;
+  if (lore.diagnostics.length > 0 || lore.nodes.length !== 1 || only?.kind !== "entry") return null;
   const read = readEntry(lore, only, CONTEXT);
-  if ("error" in read) return false;
-  const after = splitProse(read.entry.prose.split("\n"));
+  return "error" in read ? null : read.entry;
+}
+
+// The design's comparison: every field equal, except the prose after its first blank line, compared once printed.
+async function sameEntry(node: EntryElement, lines: string[], markdown: (lines: string[]) => Promise<string[]>): Promise<boolean> {
+  const entry = reread(node, lines);
+  if (entry === null) return false;
+  const after = splitProse(entry.prose.split("\n"));
   const before = splitProse(node.model.prose.split("\n"));
-  if (JSON.stringify({ ...read.entry, prose: after.first }) !== JSON.stringify({ ...node.model, prose: before.first })) return false;
+  if (JSON.stringify({ ...entry, prose: after.first }) !== JSON.stringify({ ...node.model, prose: before.first })) return false;
   if (after.rest === null || before.rest === null) return after.rest === before.rest;
   return (await markdown(after.rest)).join("\n") === (await markdown(before.rest)).join("\n");
 }
 
+function withoutBlankEdges(lines: string[]): string[] {
+  let start = 0;
+  let end = lines.length;
+  while (start < end && lines[start] === "") start++;
+  while (end > start && lines[end - 1] === "") end--;
+  return lines.slice(start, end);
+}
+
+// Layout alone: indentation, attribute order and blank lines, with YAML and prose kept as written.
+function layoutBlock(node: BlockElement, options: Options): string[] {
+  const lines = blockLines(node, withoutBlankEdges(node.lines), unit(options));
+  return sameBlock(node, lines) ? lines : node.written;
+}
+
+function layoutEntry(node: EntryElement, options: Options): string[] {
+  const bodies = node.children.map((child) => (child.yaml ? withoutBlankEdges(child.lines) : child.lines));
+  const lines = entryLines(node, bodies, node.rest, unit(options));
+  const entry = reread(node, lines);
+  return entry !== null && JSON.stringify(entry) === JSON.stringify(node.model) ? lines : node.written;
+}
+
 async function formatBlock(node: BlockElement, textToDoc: TextToDoc, options: Options): Promise<Doc> {
   const lines = blockLines(node, await yamlLines(node.lines, textToDoc, options, 1), unit(options));
-  return linesDoc(sameBlock(node, lines) ? lines : node.written);
+  return linesDoc(sameBlock(node, lines) ? lines : layoutBlock(node, options));
 }
 
 async function formatEntry(node: EntryElement, textToDoc: TextToDoc, options: Options): Promise<Doc> {
@@ -162,10 +188,11 @@ async function formatEntry(node: EntryElement, textToDoc: TextToDoc, options: Op
     const lines = entryLines(node, bodies, rest, unit(options));
     if (await sameEntry(node, lines, markdown)) return linesDoc(lines);
   }
-  return linesDoc(node.written);
+  return linesDoc(layoutEntry(node, options));
 }
 
-const print: Printer<LoreNode>["print"] = (path, _options, print) => {
+// Prettier skips embed when embeddedLanguageFormatting is off, so print must lay the file out on its own.
+const print: Printer<LoreNode>["print"] = (path, options, print) => {
   const node = path.node;
   switch (node.type) {
     case "root":
@@ -175,8 +202,9 @@ const print: Printer<LoreNode>["print"] = (path, _options, print) => {
     case "raw":
       return linesDoc(node.lines);
     case "block":
+      return linesDoc(layoutBlock(node, options));
     case "entry":
-      return linesDoc(node.written);
+      return linesDoc(layoutEntry(node, options));
   }
 };
 
