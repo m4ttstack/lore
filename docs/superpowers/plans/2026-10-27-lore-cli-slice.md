@@ -21,7 +21,7 @@
 - Selection must not read every repository file's content: list tracked paths, read only `.lore` files inside a `.lore/` folder, `.loreconfig` files, and the files a context's `src` names.
 - Exit codes for `lore select`: 0 when selection ran; 1 when `--strict` is given and `excluded` is not empty; 2 on a usage or input error. `lore verdicts`: 0 with no problems, 1 with problems, 2 on a usage or input error.
 - Every commit ends with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
-- Inserting a spec example renumbers every later one. After inserting, update numeric example references in `packages/parser/test/collect.test.ts` and `packages/parser/test/select.test.ts` (every `example N` / `example(N` with N at or after the new number goes up by one), check `scripts/smoke.ts` and `packages/zed/README.md` for fixture names past the new number, and run `bun scripts/fixtures.ts` so `test/fixtures` stays current (CI diffs it).
+- Inserting a spec example renumbers every later one. After inserting, update numeric example references in `packages/parser/test/collect.test.ts` and `packages/parser/test/select.test.ts` (every `example N` / `example(N` with N at or after the new number goes up by one), and run `bun scripts/fixtures.ts` so `test/fixtures` stays current (CI diffs it).
 - Root checks that must pass before every commit: `bunx tsc --noEmit`, `bun test`, `bun run check`.
 
 ## Review Focus
@@ -37,13 +37,13 @@
 ### Task 1: Rules revision
 
 **Files:**
-- Modify: `packages/parser/src/types.ts` (LoreInput), `packages/parser/src/collect.ts`, `packages/parser/src/select.ts` (`srcTargetsMissing`)
-- Modify: `tools/check/extract.ts`, `tools/check/check.ts`, `packages/parser/test/harness.ts`, `packages/parser/test/model.test.ts`
+- Modify: `packages/parser/src/types.ts` (LoreInput), `packages/parser/src/collect.ts`, `packages/parser/src/select.ts` (`srcTargetsMissing`), `packages/parser/src/model.ts` and `packages/parser/src/entries.ts` (file-relative `src` resolution)
+- Modify: `tools/check/extract.ts`, `tools/check/check.ts`, `packages/parser/test/harness.ts`, `packages/parser/test/model.test.ts`, `packages/parser/test/harness.test.ts`, `tests/extract.test.ts`
 - Modify: `spec/SPEC.md` (Conformance examples table, Eligibility, Collecting files, one new example)
 - Test: `packages/parser/test/collect.test.ts`, `tools/check` tests if present, conformance via `packages/parser/test/conformance.test.ts`
 
 **Interfaces:**
-- Produces: `LoreInput { repo: InputFile[]; given: GivenFolder[]; remotes: string[]; rules?: InputFile[] }`. When `rules` is given, Lore files, `.loreconfig` files and `src` targets of the governed repo come from `rules` only, their `file` names carry the prefix `rules:`, and `repo` is only the change's side.
+- Produces: `LoreInput { repo: InputFile[]; given: GivenFolder[]; remotes: string[]; rules?: InputFile[] }`. When `rules` is given, Lore files, `.loreconfig` files and `src` targets of the governed repo come from `rules` only, their `file` names carry the prefix `rules:`, and `repo` is only the change's side. An entry's `src` from a rules file is a plain governed-repo path with no prefix, for plain and file-relative (`./`, `../`) `src` alike.
 - Produces: `ExampleFile { path: string; place: "repo" | "external" | "rules" | "loose"; content: string }` (replaces `external: boolean`; `path` keeps its prefix as written).
 
 - [ ] **Step 1: Write the failing tests**
@@ -76,6 +76,15 @@ test("with rules given, a src target counts only when the rules revision tracks 
   const result = await select(input, { files: [{ kind: "M", path: "x.ts", added: [] }] });
   expect(result.warnings.map((w) => [w.name, w.file])).toEqual([["missing-src-target", "rules:.lore/a.lore"]]);
 });
+
+test("a file-relative src in a rules file resolves to a plain governed path", () => {
+  const context = `<context id="guide" src="./guide.md">\nRead it.\n</context>\n`;
+  const model = parse({
+    repo: [], given: [], remotes: ["https://github.com/acme/shop"],
+    rules: [{ path: "docs/.lore/a.lore", content: context }, { path: "docs/.lore/guide.md", content: "" }],
+  });
+  expect(model.entries[0]!.src).toBe("docs/.lore/guide.md");
+});
 ```
 
 - [ ] **Step 2: Run them to verify they fail**
@@ -85,7 +94,7 @@ Expected: the two new tests FAIL (TypeScript accepts `rules` only after Step 3; 
 
 - [ ] **Step 3: Implement the rules revision in the parser**
 
-`collect`: the governed source's files are `input.rules ?? input.repo`, and its prefix is `RULES = "rules:"` when `input.rules` is given (export the constant beside `EXTERNAL`). `srcTargetsMissing`: when `input.rules` is given, the governed set is the `rules` paths only (no changed paths added); otherwise unchanged. A one-line comment on `LoreInput.rules` states the rule from the Interfaces block.
+`collect`: the governed source's files are `input.rules ?? input.repo`, and its prefix is `RULES = "rules:"` when `input.rules` is given (export the constant beside `EXTERNAL`). `model.ts` builds a file's `prefix` for `resolveSrc` from `file.tree`; today `"repo"` gets `""` and external trees get `EXTERNAL`, and `entries.ts` both strips that prefix from the Lore path and prepends it to the result. Split the two: the prefix to strip is the file name's own prefix (`rules:`, `external:`, or none), and the prefix to prepend is `""` for the governed repo (rules revision or not) and `EXTERNAL` for an external tree. `srcTargetsMissing`: when `input.rules` is given, the governed set is the `rules` paths only (no changed paths added); otherwise unchanged. A one-line comment on `LoreInput.rules` states the rule from the Interfaces block.
 
 - [ ] **Step 4: Run them to verify they pass**
 
@@ -94,7 +103,7 @@ Expected: PASS, including every conformance example.
 
 - [ ] **Step 5: Teach the extractor, checker and harness the `rules:` section**
 
-`extract.ts`: `ExampleFile.place` from the prefix (`external:`, `rules:`, `loose:`, else `repo`). Update every former `.external` use (`packages/parser/test/harness.ts`, `packages/parser/test/model.test.ts`; find others with `grep -rn "\.external\b" tools scripts packages --include=*.ts`, ignoring `packages/zed/grammars`). `harness.ts` `toInput`: `rules:` files go to `input.rules` with the prefix stripped; `input.rules` is set only when the example has at least one. `check.ts`: report a `sections` problem for a `rules:` section in a parse example.
+`extract.ts`: `ExampleFile.place` from the prefix (`external:`, `rules:`, `loose:`, else `repo`). Update every former use, both member access and object literals: `packages/parser/test/harness.ts`, `packages/parser/test/model.test.ts`, `packages/parser/test/harness.test.ts` (literals with `external: true|false`) and `tests/extract.test.ts` (same). Confirm none is left with `grep -rn "external" tools scripts tests packages/parser --include=*.ts` and `bunx tsc --noEmit`; never search `packages/zed/grammars` (a stale clone). `harness.ts` `toInput`: `rules:` files go to `input.rules` with the prefix stripped; `input.rules` is set only when the example has at least one. `check.ts`: report a `sections` problem for a `rules:` section in a parse example.
 
 - [ ] **Step 6: Write the spec text and the example**
 
@@ -156,7 +165,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement loose folders in `collect` and `model`**
 
-`repositories()` keeps each loose folder as its own repository with prefix `LOOSE = "loose:"`; the dot-folder filter applies to directory segments only (a file named `.loreconfig` stays).
+`repositories()` keeps each loose folder as its own repository with prefix `LOOSE = "loose:"`; the dot-folder filter applies to directory segments only (a file named `.loreconfig` stays). A loose folder's `files` paths are relative to the folder itself, unlike a tracked given folder's, which are relative to its repository's root. A file-relative `src` in a loose file strips `loose:` and prepends `loose:`, the way external files do with `external:` (Task 1 split the two prefixes).
 
 - [ ] **Step 4: Run it to verify it passes**
 
@@ -166,7 +175,8 @@ Expected: PASS.
 - [ ] **Step 5: Spec, registry, checker and example**
 
 - `spec/errors.json`: `untracked-given-folder`, kind `warning`, description "A given folder in no working copy was collected whole."
-- `tools/check/check.ts`: `CAPABILITIES` gains `loose-given-folder`. `harness.ts`: `loose:` files become one given folder `{ folder: "", loose: true, files }` with the prefix stripped.
+- `tools/check/check.ts`: `CAPABILITIES` gains `loose-given-folder`; `checkReferences` accepts the file `loose:.` in a diagnostic when the example has at least one `loose:` section (it is neither an input nor a diff path, and the design fixes it). `harness.ts`: `loose:` files become one given folder `{ folder: "", loose: true, files }` with the prefix stripped, so their paths are relative to the folder.
+- `spec/SPEC.md` `## Errors and warnings` table: a row for `untracked-given-folder` at the same position it has in `errors.json` (`checkRegistryTable` compares them row by row).
 - `spec/SPEC.md`:
   - Conformance examples: the `requires:` paragraph defines `loose-given-folder` (run only by a tool that collects loose folders); the table gains `=== loose:<path>` ("A file of one given folder that is in no working copy, `<path>` relative to that folder"); **Paths** says `loose:` files keep their prefix.
   - Collecting files: qualify "MUST NOT find them by walking a file system" with "except in a given folder that is in no working copy (see External folders)".
@@ -242,7 +252,7 @@ Expected: the three new tests FAIL.
 - [ ] **Step 3: Implement**
 
 - `regex.ts`: both `RegexLimitError` messages, and the plain `Error` for a pattern outside the dialect, show the pattern through one helper that keeps the first 100 code points and appends `...` when longer.
-- `astgrep.ts`: spawn failure, timeout, a signal, an error exit or unparseable JSON return `null`; exit codes 0 and 1 with valid JSON return spans. Update the timeout comment, which now says a timeout looks like no match.
+- `astgrep.ts`: spawn failure, timeout, a signal, an error exit or unparseable JSON return `null`; exit codes 0 and 1 with valid JSON return spans. The existing `astgrep.test.ts` cases for an invalid pattern (`(((`), an unknown language, a missing binary and `a\0b` assert `[]` today and change to `null`: the code is right, update those tests. Update the timeout comment, which now says a timeout looks like no match.
 - `select.ts` `runChecks`: content comes from `options.fileContent` when given, else from the `input.repo` map as today (undefined there still skips silently, which conformance examples rely on). `null` from `astGrepSpans` adds `ast-grep-failed`.
 
 - [ ] **Step 4: Run the parser suite**
@@ -262,12 +272,12 @@ git commit -m "parser: short regex limit messages; ast-grep failures and missing
 ### Task 4: CLI package and unified diff parsing
 
 **Files:**
-- Create: `packages/cli/package.json`, `packages/cli/tsconfig.json` (copy the language server's shape), `packages/cli/src/diff.ts`
+- Create: `packages/cli/package.json`, `packages/cli/tsconfig.json` (copy `packages/parser/tsconfig.json`), `packages/cli/src/errors.ts`, `packages/cli/src/diff.ts`
 - Test: `packages/cli/test/diff.test.ts`
 
 **Interfaces:**
 - Produces: `parseUnifiedDiff(text: string): Change` in `packages/cli/src/diff.ts`, and `class InputError extends Error` in `packages/cli/src/errors.ts` (thrown for any unreadable input; the command maps it to exit 2).
-- `package.json`: name `@lore/cli`, version `0.1.0`, `private: true`, `type: "module"`, `bin: { "lore": "dist/lore.js" }`, `engines.node >= 20`, dependency `@lore/parser: workspace:*`, devDependency `esbuild` (same range as the language server), script `build`: `esbuild src/main.ts --bundle --platform=node --target=node20 --format=cjs --banner:js="#!/usr/bin/env node" --outfile=dist/lore.js`. `dist/` is gitignored.
+- `package.json`: name `@lore/cli`, version `0.1.0`, `private: true`, no `type` field (like the language server: with `type: "module"`, Node would load the CommonJS bundle as ESM and fail on `require`), `bin: { "lore": "dist/lore.js" }`, `engines.node >= 20`, dependency `@lore/parser: workspace:*`, devDependency `esbuild` (same range as the language server), script `build`: `esbuild src/main.ts --bundle --platform=node --target=node20 --format=cjs --banner:js="#!/usr/bin/env node" --outfile=dist/lore.js`. `dist/` is gitignored.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -334,7 +344,7 @@ Behaviour:
 - Working tree, no `rulesRef`: `input.repo` lists every tracked path; content is read for `.lore` files inside a `.lore/` folder and for `.loreconfig` files, and is `""` for every other path (selection reads no other content; Task 6 passes `fileContent`). No `input.rules`.
 - With `rulesRef`: `input.repo = []` and `input.rules` holds the ref's tracked paths, contents read the same way, at the ref.
 - `repo: null`: `input.repo = []`, no `rules`; `remotes` must be non-empty, else `InputError("--no-repo needs --remote")`.
-- Each given folder: resolve to an absolute real path. Inside a working copy: `{ folder: <path from that root, no trailing slash>, files: <that repository's tracked paths, contents read as above>, repository: <root> }`. In none: `{ folder: "", loose: true, files: <every file under it, skipping directories whose name starts with "." other than ".lore">, contents read as above }`.
+- Each given folder: resolve to an absolute real path. Note the two path conventions: a tracked given folder's `files` are relative to its repository's root, a loose folder's to the folder itself. Inside a working copy: `{ folder: <path from that root, no trailing slash>, files: <that repository's tracked paths, contents read as above>, repository: <root> }`. In none: `{ folder: "", loose: true, files: <every file under it, skipping directories whose name starts with "." other than ".lore">, contents read as above }`.
 - `readSrc(file)` returns the content of a context's `src` target: a plain path from the governed repo (at `rulesRef` when given; null with `--no-repo`); an `external:` path from that given folder's repository working tree; a `loose:` path from the loose folder on disk; null when unreadable.
 
 - [ ] **Step 1: Write the failing tests**
