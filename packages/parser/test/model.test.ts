@@ -14,22 +14,42 @@ const brief = (diagnostics: { name: string; file: string; entry: string | null; 
   diagnostics.map(({ name, file, entry, line }) => ({ name, file, entry, line }));
 
 describe("parse", () => {
+  const inputs = examples.flatMap((example) =>
+    example.files.map((file) => ({
+      external: file.external,
+      path: file.external ? file.path.slice("external:".length) : file.path,
+      content: file.content,
+    })),
+  );
+
+  function parsesEverywhere(file: InputFile, external: boolean): void {
+    const model = parse({ repo: [file], given: [], remotes: [] });
+    expect(Array.isArray(model.entries)).toBe(true);
+    if (external) parse({ repo: [], given: [{ folder: "", files: [file] }], remotes: [] });
+  }
+
   test("never throws on any prefix of an example input", () => {
     let runs = 0;
-    for (const example of examples) {
-      for (const file of example.files) {
-        const lines = file.content.split("\n");
-        const path = file.external ? file.path.slice("external:".length) : file.path;
-        for (let n = 0; n <= lines.length; n++) {
-          const prefix = { path, content: lines.slice(0, n).join("\n") };
-          const given = file.external ? [{ folder: "", files: [prefix] }] : [];
-          const model = parse({ repo: file.external ? [] : [prefix], given, remotes: [] });
-          expect(Array.isArray(model.entries)).toBe(true);
-          runs++;
-        }
+    for (const { external, path, content } of inputs) {
+      const lines = content.split("\n");
+      for (let n = 0; n <= lines.length; n++) {
+        parsesEverywhere({ path, content: lines.slice(0, n).join("\n") }, external);
+        runs++;
       }
     }
     expect(runs).toBeGreaterThan(1000);
+  });
+
+  test("never throws on any character prefix of an example .lore input", () => {
+    let runs = 0;
+    for (const { external, path, content } of inputs) {
+      if (!path.endsWith(".lore")) continue;
+      for (let n = 0; n <= content.length; n++) {
+        parsesEverywhere({ path, content: content.slice(0, n) }, external);
+        runs++;
+      }
+    }
+    expect(runs).toBeGreaterThan(10000);
   });
 
   test("only .lore files inside a .lore folder are read, and the base is that folder's parent", () => {

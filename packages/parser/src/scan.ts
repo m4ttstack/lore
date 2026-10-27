@@ -12,11 +12,9 @@ export interface Attribute {
   offset: number;
 }
 
-// unfinished: the attribute whose name was read before the list stopped being valid at its value.
 export interface AttributeList {
   attributes: Attribute[];
   malformedAt: number | null;
-  unfinished: Attribute | null;
 }
 
 export interface CommentNode { kind: "comment"; openLine: number; closeLine: number; range: Range }
@@ -89,11 +87,11 @@ export function readAttributes(text: string): AttributeList {
   const attributes: Attribute[] = [];
   let at = 0;
   while (at < text.length) {
-    if (!isSpace(text[at])) return { attributes, malformedAt: at, unfinished: null };
+    if (!isSpace(text[at])) return { attributes, malformedAt: at };
     while (isSpace(text[at])) at++;
     if (at === text.length) break;
     const name = NAME.exec(text.slice(at))?.[0];
-    if (name === undefined) return { attributes, malformedAt: at, unfinished: null };
+    if (name === undefined) return { attributes, malformedAt: at };
     const offset = at;
     at += name.length;
     if (text[at] !== "=") {
@@ -101,14 +99,13 @@ export function readAttributes(text: string): AttributeList {
       continue;
     }
     at++;
-    const unfinished = { name, value: null, offset };
-    if (text[at] !== "\"") return { attributes, malformedAt: at, unfinished };
+    if (text[at] !== "\"") return { attributes, malformedAt: at };
     const close = text.indexOf("\"", at + 1);
-    if (close === -1) return { attributes, malformedAt: text.length, unfinished };
+    if (close === -1) return { attributes, malformedAt: text.length };
     attributes.push({ name, value: text.slice(at + 1, close), offset });
     at = close + 1;
   }
-  return { attributes, malformedAt: null, unfinished: null };
+  return { attributes, malformedAt: null };
 }
 
 class Stop {

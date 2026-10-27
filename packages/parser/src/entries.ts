@@ -32,10 +32,12 @@ export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): E
   const fail = (name: string, line = node.openLine): EntryResult => ({ id, error: lineDiagnostic(name, lore, id, line) });
   const isRule = node.name === "rule";
 
-  const tagProblem = attributeProblem(list, isRule ? ruleAttributes(file) : contextAttributes(lore.path, file));
+  const resolved = { src: null as string | null };
+  const tagProblem = attributeProblem(list, isRule ? ruleAttributes(file) : contextAttributes(lore.path, file, resolved));
   if (tagProblem !== null) return fail(tagProblem);
   if (firstId === undefined) return fail("missing-id");
-  if (id === null) return fail("invalid-id");
+  // The first id passed idRule, so it is readable.
+  const readableId = firstId.value!;
 
   const contents = dedentEntry(lore.text.lines, node);
   if (contents.inconsistent) return fail("inconsistent-indentation");
@@ -50,11 +52,9 @@ export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): E
 
   const value = (name: string) => list.attributes.find((a) => a.name === name)?.value ?? undefined;
   const scope = values.get("scope") as { files?: string[]; ignores?: string[] } | undefined;
-  const srcValue = value("src");
-  const src = srcValue === undefined ? null : resolveSrc(srcValue, lore.path, file);
   const prose = dropTrailingBlank(contents.prose);
   const entry: Entry = {
-    kind: node.name, id, file: lore.path,
+    kind: node.name, id: readableId, file: lore.path,
     category: isRule ? value("category") ?? file.defaults.category ?? null : null,
     severity: isRule ? (value("severity") as Severity | undefined) ?? file.defaults.severity ?? "advisory" : null,
     disabled: list.attributes.some((a) => a.name === "disabled"),
@@ -63,9 +63,9 @@ export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): E
     checks,
     meta: (values.get("meta") as Entry["meta"] | undefined) ?? null,
     summary: summaryOf(prose), prose: prose.join("\n"),
-    src: src !== null && "path" in src ? src.path : null,
+    src: resolved.src,
   };
-  return { id, entry, diagnostic: (name) => lineDiagnostic(name, lore, id, node.openLine) };
+  return { id: readableId, entry, diagnostic: (name) => lineDiagnostic(name, lore, readableId, node.openLine) };
 }
 
 export function resolveScope(base: string, value: { files?: string[]; ignores?: string[] }): Scope {
@@ -100,12 +100,14 @@ function ruleAttributes(file: FileContext): ReadonlyMap<string, ValueRule> {
   ]);
 }
 
-function contextAttributes(lorePath: string, file: FileContext): ReadonlyMap<string, ValueRule> {
+function contextAttributes(lorePath: string, file: FileContext, resolved: { src: string | null }): ReadonlyMap<string, ValueRule> {
   return new Map<string, ValueRule>([
     ["id", idRule],
     ["src", (value) => {
-      const resolved = resolveSrc(value, lorePath, file);
-      return "problem" in resolved ? resolved.problem : null;
+      const src = resolveSrc(value, lorePath, file);
+      if ("problem" in src) return src.problem;
+      resolved.src = src.path;
+      return null;
     }],
     ["disabled", disabledRule],
   ]);
@@ -125,20 +127,15 @@ function disabledRule(value: string | null): string | null {
   return value === null ? null : "disabled-has-value";
 }
 
-// Each attribute is met at its name, so a name read before a malformed value is checked before the malformation.
+// Only completed attributes precede a malformation; an attribute whose value is malformed is the malformation.
 function attributeProblem(list: AttributeList, rules: ReadonlyMap<string, ValueRule>): string | null {
   const seen = new Set<string>();
-  const meet = (name: string) => {
-    if (seen.has(name)) return "duplicate-attribute";
-    seen.add(name);
-    return rules.has(name) ? null : "unknown-attribute";
-  };
   for (const attribute of list.attributes) {
-    const problem = meet(attribute.name) ?? rules.get(attribute.name)!(attribute.value);
-    if (problem !== null) return problem;
-  }
-  if (list.unfinished !== null) {
-    const problem = meet(list.unfinished.name);
+    if (seen.has(attribute.name)) return "duplicate-attribute";
+    seen.add(attribute.name);
+    const rule = rules.get(attribute.name);
+    if (rule === undefined) return "unknown-attribute";
+    const problem = rule(attribute.value);
     if (problem !== null) return problem;
   }
   return list.malformedAt === null ? null : "invalid-attribute-value";

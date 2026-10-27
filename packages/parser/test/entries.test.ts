@@ -71,9 +71,9 @@ describe("attribute check order", () => {
     expect(only(rule("<rule id=\"a\"category=\"security\">"))).toEqual({ name: "invalid-attribute-value", entry: "a", line: 1 });
   });
 
-  test("an attribute name read before the malformed value is checked first", () => {
-    expect(only(rule("<rule id=\"a\" owner=z>"))).toEqual({ name: "unknown-attribute", entry: "a", line: 1 });
-    expect(only(rule("<rule id=\"a\" id=z>"))).toEqual({ name: "duplicate-attribute", entry: "a", line: 1 });
+  test("an attribute with a malformed value is the malformation, whatever its name", () => {
+    expect(only(rule("<rule id=\"a\" owner=z>"))).toEqual({ name: "invalid-attribute-value", entry: "a", line: 1 });
+    expect(only(rule("<rule id=\"a\" id=z>"))).toEqual({ name: "invalid-attribute-value", entry: "a", line: 1 });
     expect(only(rule("<rule id=\"a\" category=\"security>"))).toEqual({ name: "invalid-attribute-value", entry: "a", line: 1 });
   });
 
