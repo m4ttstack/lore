@@ -127,9 +127,13 @@
     "named": true,
     "fields": {},
     "children": {
-      "multiple": false,
+      "multiple": true,
       "required": true,
       "types": [
+        {
+          "type": "invalid_attributes",
+          "named": true
+        },
         {
           "type": "tag_name",
           "named": true
@@ -240,6 +244,10 @@
           "named": true
         },
         {
+          "type": "invalid_attributes",
+          "named": true
+        },
+        {
           "type": "tag_name",
           "named": true
         }
@@ -276,6 +284,10 @@
   },
   {
     "type": "comment",
+    "named": true
+  },
+  {
+    "type": "invalid_attributes",
     "named": true
   },
   {

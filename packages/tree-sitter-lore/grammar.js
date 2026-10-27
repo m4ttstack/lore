@@ -28,6 +28,8 @@ module.exports = grammar({
     $.comment,
     $.top_level_text,
     $._stray_end,
+    $._start_tag_rest,
+    $._end_tag_rest,
     $._error_sentinel,
   ],
 
@@ -64,9 +66,17 @@ module.exports = grammar({
 
     _end: ($) => seq($._element_end, $.end_tag),
 
-    start_tag: ($) => seq("<", alias($._name, $.tag_name), repeat($.attribute), ">"),
+    start_tag: ($) =>
+      seq(
+        "<",
+        alias($._name, $.tag_name),
+        repeat($.attribute),
+        optional(alias($._start_tag_rest, $.invalid_attributes)),
+        ">",
+      ),
 
-    end_tag: ($) => seq("</", alias($._name, $.tag_name), ">"),
+    end_tag: ($) =>
+      seq("</", alias($._name, $.tag_name), optional(alias($._end_tag_rest, $.invalid_attributes)), ">"),
 
     attribute: ($) => seq(alias($._name, $.attribute_name), optional(seq("=", $.attribute_value))),
 

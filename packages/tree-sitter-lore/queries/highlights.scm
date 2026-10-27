@@ -6,7 +6,18 @@
 
 (attribute_value) @string
 
-(check_body) @string.special
+; tree-sitter-highlight gives a node the first pattern that captures it, so
+; this `lang` override comes before the default below.
+(child
+  (start_tag
+    (attribute
+      (attribute_name) @_lang
+      (attribute_value) @_value))
+  (check_body) @string
+  (#eq? @_lang "lang")
+  (#not-eq? @_value "\"regex\""))
+
+(check_body) @string.regex
 
 [
   "<"

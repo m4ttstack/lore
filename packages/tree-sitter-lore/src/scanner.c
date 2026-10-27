@@ -20,17 +20,19 @@ enum TokenType {
   COMMENT,
   TOP_LEVEL_TEXT,
   STRAY_END,
+  START_TAG_REST,
+  END_TAG_REST,
   ERROR_SENTINEL,
 };
 
 // Longer names are kept as overflowing and never match a closing tag.
-#define NAME_CAP 100
+#define NAME_CAP 400
 
 typedef enum { MODE_TOP, MODE_BLOCK_YAML, MODE_BLOCK_TEXT, MODE_ENTRY } Mode;
 
 typedef struct {
   char text[NAME_CAP];
-  uint8_t len;
+  uint16_t len;
   bool overflow;
 } Name;
 
@@ -65,7 +67,7 @@ static inline bool at_line_end(TSLexer *lexer) { return lexer->eof(lexer) || lex
 
 static inline void advance(TSLexer *lexer) { lexer->advance(lexer, false); }
 
-static void name_set(Name *name, const char *text, uint8_t len, bool overflow) {
+static void name_set(Name *name, const char *text, uint16_t len, bool overflow) {
   memcpy(name->text, text, len);
   name->len = len;
   name->overflow = overflow;
@@ -153,7 +155,7 @@ static void read_line(TSLexer *lexer, Line *line, bool allow_comment) {
     len++;
     advance(lexer);
   }
-  name_set(&line->name, text, len < NAME_CAP ? (uint8_t)len : NAME_CAP, len > NAME_CAP);
+  name_set(&line->name, text, len < NAME_CAP ? (uint16_t)len : NAME_CAP, len > NAME_CAP);
 
   int32_t after_name = lexer->lookahead;
   uint32_t visible_after_name = 0;
@@ -232,9 +234,8 @@ static void open_element(Scanner *s, const Line *line, Mode mode) {
 }
 
 static void close_element(Scanner *s) {
+  memset(s, 0, sizeof(*s));
   s->mode = MODE_TOP;
-  s->entry.len = 0;
-  s->child_open = false;
 }
 
 static bool emit(TSLexer *lexer, const bool *valid, enum TokenType token) {
@@ -285,6 +286,7 @@ static bool scan_entry(Scanner *s, TSLexer *lexer, const bool *valid, Line *line
     if (closes_child(s, line) && !closes_element(s, line)) {
       if (!emit(lexer, valid, CHILD_END)) return false;
       s->child_open = false;
+      memset(&s->child, 0, sizeof(s->child));
       return true;
     }
     if (closes_element(s, line)) {
@@ -327,45 +329,109 @@ static bool scan_block(Scanner *s, TSLexer *lexer, const bool *valid, Line *line
   return emit(lexer, valid, body);
 }
 
+// Every `>` is marked as a possible token end, so the token stops before
+// the line's final `>`, which the grammar lexes.
+static void step_in_tag(TSLexer *lexer) {
+  if (lexer->lookahead == '>') lexer->mark_end(lexer);
+  advance(lexer);
+}
+
+// Mirrors the grammar's attribute rule, so only an attribute the grammar
+// can lex is left to it. The scanner also runs between an attribute's name
+// and its `=`, so the name is optional here.
+static bool attribute_follows(TSLexer *lexer) {
+  if (!is_letter(lexer->lookahead) && lexer->lookahead != '=') return false;
+  while (is_name_char(lexer->lookahead)) step_in_tag(lexer);
+  if (lexer->lookahead == '=') {
+    step_in_tag(lexer);
+    if (lexer->lookahead == '"') {
+      step_in_tag(lexer);
+      while (lexer->lookahead != '"') {
+        if (at_line_end(lexer) || lexer->lookahead == '\r') return false;
+        step_in_tag(lexer);
+      }
+      step_in_tag(lexer);
+    } else {
+      uint32_t len = 0;
+      while (!at_line_end(lexer) && !is_space(lexer->lookahead) && lexer->lookahead != '"' &&
+             lexer->lookahead != '=' && lexer->lookahead != '>') {
+        step_in_tag(lexer);
+        len++;
+      }
+      if (len == 0) return false;
+    }
+  }
+  return lexer->lookahead == ' ' || lexer->lookahead == '\t' || lexer->lookahead == '>';
+}
+
+// Inside a tag line: the rest up to the line's final `>` becomes one
+// invalid_attributes token unless the grammar can lex what comes next.
+static bool scan_tag_rest(TSLexer *lexer, enum TokenType token) {
+  while (lexer->lookahead == ' ' || lexer->lookahead == '\t') lexer->advance(lexer, true);
+  if (lexer->lookahead == '>') {
+    step_in_tag(lexer);
+    while (is_space(lexer->lookahead)) advance(lexer);
+    if (at_line_end(lexer)) return false;
+  } else if (token == START_TAG_REST && attribute_follows(lexer)) {
+    return false;
+  }
+  while (!at_line_end(lexer)) step_in_tag(lexer);
+  lexer->result_symbol = token;
+  return true;
+}
+
 void *tree_sitter_lore_external_scanner_create(void) { return ts_calloc(1, sizeof(Scanner)); }
 
 void tree_sitter_lore_external_scanner_destroy(void *payload) { ts_free(payload); }
+
+// Two names of NAME_CAP bytes plus eight header bytes fit in
+// TREE_SITTER_SERIALIZATION_BUFFER_SIZE.
+static unsigned serialize_name(const Name *name, char *buffer) {
+  buffer[0] = (char)name->overflow;
+  buffer[1] = (char)(name->len & 0xFF);
+  buffer[2] = (char)(name->len >> 8);
+  memcpy(buffer + 3, name->text, name->len);
+  return 3 + name->len;
+}
+
+static bool deserialize_name(Name *name, const char *buffer, unsigned length, unsigned *i) {
+  if (length - *i < 3) return false;
+  name->overflow = buffer[*i] != 0;
+  uint16_t len = (uint16_t)((uint8_t)buffer[*i + 1] | ((uint8_t)buffer[*i + 2] << 8));
+  *i += 3;
+  if (len > NAME_CAP || length - *i < len) return false;
+  memcpy(name->text, buffer + *i, len);
+  name->len = len;
+  *i += len;
+  return true;
+}
 
 unsigned tree_sitter_lore_external_scanner_serialize(void *payload, char *buffer) {
   Scanner *s = (Scanner *)payload;
   unsigned size = 0;
   buffer[size++] = (char)s->mode;
   buffer[size++] = (char)s->child_open;
-  buffer[size++] = (char)s->entry.overflow;
-  buffer[size++] = (char)s->entry.len;
-  memcpy(buffer + size, s->entry.text, s->entry.len);
-  size += s->entry.len;
-  buffer[size++] = (char)s->child.overflow;
-  buffer[size++] = (char)s->child.len;
-  memcpy(buffer + size, s->child.text, s->child.len);
-  size += s->child.len;
+  size += serialize_name(&s->entry, buffer + size);
+  if (s->child_open) size += serialize_name(&s->child, buffer + size);
   return size;
 }
 
 void tree_sitter_lore_external_scanner_deserialize(void *payload, const char *buffer, unsigned length) {
   Scanner *s = (Scanner *)payload;
   memset(s, 0, sizeof(*s));
-  if (length == 0) return;
-  unsigned i = 0;
-  s->mode = (Mode)buffer[i++];
-  s->child_open = buffer[i++];
-  s->entry.overflow = buffer[i++];
-  s->entry.len = (uint8_t)buffer[i++];
-  memcpy(s->entry.text, buffer + i, s->entry.len);
-  i += s->entry.len;
-  s->child.overflow = buffer[i++];
-  s->child.len = (uint8_t)buffer[i++];
-  memcpy(s->child.text, buffer + i, s->child.len);
+  if (length < 2 || (uint8_t)buffer[0] > MODE_ENTRY) return;
+  unsigned i = 2;
+  Scanner restored = {.mode = (Mode)buffer[0], .child_open = buffer[1] != 0};
+  if (!deserialize_name(&restored.entry, buffer, length, &i)) return;
+  if (restored.child_open && !deserialize_name(&restored.child, buffer, length, &i)) return;
+  *s = restored;
 }
 
 bool tree_sitter_lore_external_scanner_scan(void *payload, TSLexer *lexer, const bool *valid) {
   Scanner *s = (Scanner *)payload;
   if (valid[ERROR_SENTINEL]) return false;
+  if (valid[START_TAG_REST]) return scan_tag_rest(lexer, START_TAG_REST);
+  if (valid[END_TAG_REST]) return scan_tag_rest(lexer, END_TAG_REST);
 
   if (lexer->get_column(lexer) != 0) {
     while (is_space(lexer->lookahead)) lexer->advance(lexer, true);

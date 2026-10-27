@@ -375,3 +375,56 @@ Displayed dates are formatted with the shop's locale.
     (prose)
     (end_tag
       (tag_name))))
+
+================================================================================
+Attribute list the grammar cannot read
+================================================================================
+
+<rule id="price-from-quote"> x >
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings">
+<check lang="regex" "oops">
+'USD'
+</check>
+</when extra>
+Display text never hard-codes a currency code.
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value))
+      (invalid_attributes))
+    (prose)
+    (end_tag
+      (tag_name)))
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (child
+      (start_tag
+        (tag_name)
+        (attribute
+          (attribute_name)
+          (attribute_value))
+        (invalid_attributes))
+      (check_body)
+      (end_tag
+        (tag_name)))
+    (child
+      (end_tag
+        (tag_name)
+        (invalid_attributes)))
+    (prose)
+    (end_tag
+      (tag_name))))
