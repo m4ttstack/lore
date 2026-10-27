@@ -230,7 +230,65 @@ describe("help and version", () => {
     const { code, out } = await lore(["--help"]);
     expect(code).toBe(0);
     expect(out).toContain("lore select");
+    expect(out).toContain("lore verdicts");
     expect(out).toContain("--diff");
     expect(await lore(["select", "--help"])).toEqual({ code: 0, out, err: "" });
+  });
+});
+
+describe("lore verdicts", () => {
+  type Files = (name: string) => string;
+  const selection = {
+    lore: "1",
+    rules: [{ id: "a" }],
+    context: [],
+    change: [{ kind: "M", path: "src/p.ts", oldPath: null, added: [2] }],
+  };
+  const files = (): Files => {
+    const root = tempDir();
+    write(root, {
+      "selection.json": JSON.stringify(selection),
+      "good.json": JSON.stringify({ lore: "1", verdicts: [{ rule: "a", verdict: "pass" }] }),
+      "bad.json": JSON.stringify({ lore: "1", verdicts: [] }),
+      "text.txt": "not json",
+      "shape.json": JSON.stringify({ lore: "1" }),
+    });
+    return (name) => join(root, name);
+  };
+
+  test("exits 0 and prints no problems for a complete set from stdin", async () => {
+    const file = files();
+    const stdin = JSON.stringify({ lore: "1", verdicts: [{ rule: "a", verdict: "pass" }] });
+    expect(await lore(["verdicts", "--selection", file("selection.json")], { stdin })).toEqual({
+      code: 0, out: '{\n  "problems": []\n}\n', err: "",
+    });
+    expect((await lore(["verdicts", "--selection", file("selection.json"), file("good.json")])).code).toBe(0);
+  });
+
+  test("exits 1 and lists the problems", async () => {
+    const file = files();
+    const { code, out } = await lore(["verdicts", "--selection", file("selection.json"), file("bad.json")]);
+    expect(code).toBe(1);
+    expect(JSON.parse(out).problems).toEqual([{ name: "missing-verdict", rule: "a", detail: expect.any(String) }]);
+  });
+
+  test.each([
+    ["an unreadable selection", (f: Files) => ["--selection", f("nope.json"), f("good.json")], "cannot read selection"],
+    ["a selection that is not JSON", (f: Files) => ["--selection", f("text.txt"), f("good.json")], "selection is not JSON"],
+    ["a selection of the wrong shape", (f: Files) => ["--selection", f("shape.json"), f("good.json")], "not a lore select selection"],
+    ["an unreadable verdicts file", (f: Files) => ["--selection", f("selection.json"), f("nope.json")], "cannot read verdicts"],
+    ["verdicts that are not JSON", (f: Files) => ["--selection", f("selection.json"), f("text.txt")], "verdicts is not JSON"],
+  ])("%s exits 2 with a one-line message", async (_name, args, mention) => {
+    const { code, out, err } = await lore(["verdicts", ...args(files())]);
+    expect(code).toBe(2);
+    expect(out).toBe("");
+    expect(err).toContain(mention);
+    expect(err.trim().split("\n")).toHaveLength(1);
+  });
+
+  test("stdin that is not JSON exits 2", async () => {
+    const { code, err } = await lore(["verdicts", "--selection", files()("selection.json")], { stdin: "nope" });
+    expect(code).toBe(2);
+    expect(err).toContain("verdicts is not JSON: stdin");
   });
 });

@@ -2,12 +2,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { RegexLimitError, parse, select } from "@lore/parser";
 import pkg from "../package.json";
-import { parseCommand, type SelectCommand } from "./args";
+import { parseCommand, type SelectCommand, type VerdictsCommand } from "./args";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
 import { buildInput, findRepoRoot } from "./input";
 import { toSelection } from "./selection";
 import { renderText } from "./text";
+import { checkVerdicts, readSelection } from "./verdicts";
 
 export interface IO {
   stdin: () => Promise<string>;
@@ -18,6 +19,7 @@ export interface IO {
 
 const HELP = `Usage:
   lore select [rules] --diff <file|-> [options]
+  lore verdicts --selection <file> [<verdicts-file> | -]
   lore --help
   lore --version
 
@@ -36,7 +38,11 @@ Output:
   --capabilities <list>  Checks to run, default regex,ast-grep
   --strict            Exit 1 when the rules have errors that excluded entries
 
-Exit codes: 0 selection ran, 1 --strict and entries were excluded, 2 usage or input error, 70 internal error.
+Verdicts:
+  --selection <file>  The JSON from lore select
+  <verdicts-file>     A verdict set, or - for stdin (default)
+
+Exit codes: 0 selection ran or verdicts have no problems, 1 --strict and entries were excluded or verdicts have problems, 2 usage or input error, 70 internal error.
 `;
 
 export async function run(argv: string[], io: IO): Promise<number> {
@@ -50,7 +56,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
         io.stdout(`${pkg.version}\n`);
         return 0;
       case "verdicts":
-        throw new UsageError("lore verdicts is not available yet");
+        return await runVerdicts(command, io);
       case "select":
         return await runSelect(command, io);
     }
@@ -81,6 +87,30 @@ async function runSelect(command: SelectCommand, io: IO): Promise<number> {
   const format = command.format ?? (io.isTTY ? "text" : "json");
   io.stdout(format === "json" ? `${JSON.stringify(selection, null, 2)}\n` : renderText(selection));
   return command.strict && selection.excluded.length > 0 ? 1 : 0;
+}
+
+async function runVerdicts(command: VerdictsCommand, io: IO): Promise<number> {
+  const selection = readSelection(await readJson(command.selection, "selection", io));
+  const problems = checkVerdicts(selection, await readJson(command.verdicts, "verdicts", io));
+  io.stdout(`${JSON.stringify({ problems }, null, 2)}\n`);
+  return problems.length === 0 ? 0 : 1;
+}
+
+async function readJson(source: string, what: string, io: IO): Promise<unknown> {
+  let text: string;
+  if (source === "-") text = await io.stdin();
+  else {
+    try {
+      text = readFileSync(source, "utf8");
+    } catch {
+      throw new InputError(`cannot read ${what}: ${source}`);
+    }
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new InputError(`${what} is not JSON: ${source === "-" ? "stdin" : source}`);
+  }
 }
 
 function governedRepo(command: SelectCommand): string | null {

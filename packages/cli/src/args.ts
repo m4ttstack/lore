@@ -13,9 +13,10 @@ export interface SelectCommand {
   capabilities: Capability[];
   strict: boolean;
 }
+export interface VerdictsCommand { name: "verdicts"; selection: string; verdicts: string }
 export type Command =
   | SelectCommand
-  | { name: "verdicts"; selection: string; verdicts: string }
+  | VerdictsCommand
   | { name: "help" }
   | { name: "version" };
 
