@@ -47,6 +47,10 @@ describe("readLoreconfig", () => {
     return read.config === null ? read.problem : null;
   };
 
+  test("nesting past the depth limit is a problem at its line", () => {
+    expect(problem(`root: true\ndisable: ${"[".repeat(10_000)}${"]".repeat(10_000)}\n`)).toBe(2);
+  });
+
   test("an empty or comment-only file sets nothing", () => {
     for (const content of ["", "# nothing here\n"]) {
       const read = readLoreconfig(content);

@@ -30,6 +30,8 @@ const OPTIONS: ParseOptions & DocumentOptions & SchemaOptions = {
 const BLANK_OR_COMMENT = /^[ \t]*(#[^\n]*)?$/;
 const NOT_INVALID = new Set(["DUPLICATE_KEY", "TAG_RESOLVE_FAILED"]);
 const FEATURE_TOKENS = new Set(["anchor", "alias", "tag", "directive"]);
+const COLLECTIONS = new Set(["block-map", "block-seq", "flow-collection"]);
+const MAX_DEPTH = 100;
 
 // lines: the block's contents after indentation removal; firstLine: the file line of lines[0];
 // incompleteLine: where a document that ends before it is complete is reported.
@@ -38,7 +40,7 @@ export function readBlock(lines: string[], firstLine: number, incompleteLine: nu
   const lineAt = (offset: number) => firstLine + countLineFeeds(source, offset);
   const fail = (name: string, line: number): ReadBlock => ({ value: undefined, diagnostic: { name, line }, document: null });
   const doc = parseDocument(source, OPTIONS);
-  const tokens = sourceTokens(source);
+  const { tokens, tooDeep } = sourceTokens(source);
 
   const anchors = tokens.filter((t) => t.type === "anchor");
   const aliases = tokens.filter((t) => t.type === "alias");
@@ -48,6 +50,7 @@ export function readBlock(lines: string[], firstLine: number, incompleteLine: nu
   const invalid = earliest([
     ...invalidOffsets(doc.errors),
     ...undefinedAliases,
+    ...tooDeep,
   ]);
   if (invalid !== null) {
     return fail("invalid-yaml", invalid >= contentEnd(lines) ? incompleteLine : lineAt(invalid));
@@ -97,22 +100,36 @@ function hasRange(node: unknown): node is { range: [number, number, number] } {
   return typeof node === "object" && node !== null && Array.isArray((node as { range?: unknown }).range);
 }
 
-function sourceTokens(source: string): SourceToken[] {
-  const found: SourceToken[] = [];
-  const walk = (token: unknown): void => {
+// tooDeep: offsets of collections nested deeper than MAX_DEPTH, which yaml's recursive composer,
+// visit and toJS could not process without exhausting the stack.
+function sourceTokens(source: string): { tokens: SourceToken[]; tooDeep: number[] } {
+  const tokens: SourceToken[] = [];
+  const tooDeep: number[] = [];
+  const pending: { token: unknown; depth: number }[] = [{ token: [...new Parser().parse(source)], depth: 0 }];
+  while (pending.length > 0) {
+    const { token, depth } = pending.pop()!;
     if (Array.isArray(token)) {
-      for (const item of token) walk(item);
-      return;
+      for (const item of token) pending.push({ token: item, depth });
+      continue;
     }
-    if (typeof token !== "object" || token === null) return;
+    if (typeof token !== "object" || token === null) continue;
     const record = token as Record<string, unknown>;
-    if (typeof record.type === "string" && typeof record.offset === "number" && typeof record.source === "string") {
-      found.push({ type: record.type, offset: record.offset, source: record.source.trimEnd() });
+    let inner = depth;
+    if (typeof record.type === "string" && typeof record.offset === "number") {
+      if (COLLECTIONS.has(record.type)) {
+        inner = depth + 1;
+        if (inner > MAX_DEPTH) {
+          tooDeep.push(record.offset);
+          continue;
+        }
+      }
+      if (typeof record.source === "string") {
+        tokens.push({ type: record.type, offset: record.offset, source: record.source.trimEnd() });
+      }
     }
-    for (const value of Object.values(record)) if (typeof value === "object") walk(value);
-  };
-  walk([...new Parser().parse(source)]);
-  return found;
+    for (const value of Object.values(record)) if (typeof value === "object") pending.push({ token: value, depth: inner });
+  }
+  return { tokens, tooDeep };
 }
 
 // Trailing comment lines are not content: a document cut short before them is still incomplete.

@@ -124,6 +124,8 @@ describe("prettier plugin", () => {
     expect(await format(written)).toBe(written);
     const badDefaults = "<defaults>\ncategory: [unclosed\n</defaults>\n\n\n<rule id=\"a\">\nText.\n</rule>\n";
     expect(await format(badDefaults)).toBe(badDefaults);
+    const deep = `<scope>\nfiles: ${"[".repeat(10_000)}${"]".repeat(10_000)}\n</scope>\n\n<rule id="a">\nText.\n</rule>\n`;
+    expect(await format(deep)).toBe(deep);
   });
 
   test("leaves an entry with an entry-level error as written", async () => {

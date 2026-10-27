@@ -180,6 +180,16 @@ describe("language server over stdio", () => {
     expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["top-level-text"]);
   });
 
+  test("a deeply nested .loreconfig on disk does not silence other diagnostics", async () => {
+    const root = folder();
+    execFileSync("git", ["init", "-q"], { cwd: root });
+    write(root, ".loreconfig", `categories: ${"[".repeat(10_000)}${"]".repeat(10_000)}\n`);
+    const lore = join(root, ".lore/checkout.lore");
+    const client = await start(root);
+    client.open(lore, "stray text\n");
+    expect(names(await client.published(lore, (d) => d.length > 0))).toEqual(["top-level-text"]);
+  });
+
   test("an untracked file on disk takes part", async () => {
     const root = folder();
     execFileSync("git", ["init", "-q"], { cwd: root });

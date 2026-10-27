@@ -81,6 +81,20 @@ describe("parse", () => {
   });
 });
 
+describe("deep YAML", () => {
+  test("a deeply nested block and .loreconfig are reported, not thrown", () => {
+    const deep = "[".repeat(10_000) + "]".repeat(10_000);
+    const result = parse(input(
+      { path: ".loreconfig", content: `categories: ${deep}\n` },
+      { path: ".lore/a.lore", content: `<scope>\nfiles: ${deep}\n</scope>\n<rule id="x" category="security">\nA.\n</rule>\n` },
+    ));
+    expect(brief(result.errors)).toEqual([
+      { name: "invalid-yaml", file: ".lore/a.lore", entry: null, line: 2 },
+      { name: "invalid-loreconfig", file: ".loreconfig", entry: null, line: 1 },
+    ]);
+  });
+});
+
 describe("duplicate-id", () => {
   const rule = (id: string, extra = "") => `<rule id="${id}" category="security"${extra}>\nA.\n</rule>\n`;
 

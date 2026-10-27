@@ -109,6 +109,18 @@ describe("invalid-yaml", () => {
   test("invalid-yaml wins over an earlier duplicate key or feature", () => {
     expect(problem("a: &x 1\na: 2\nb: [**/*.ts]")).toEqual({ name: "invalid-yaml", line: 4 });
   });
+
+  test("nesting past the depth limit is reported where it passes the limit", () => {
+    const deep = (n: number) => "[".repeat(n) + "]".repeat(n);
+    expect(problem(`files:\n  ${deep(10_000)}`)).toEqual({ name: "invalid-yaml", line: 3 });
+    expect(problem(`files:\n  ${deep(1_000)}`)).toEqual({ name: "invalid-yaml", line: 3 });
+    const block = Array.from({ length: 150 }, (_, n) => `${"  ".repeat(n)}k${n}:`).join("\n");
+    expect(problem(block)).toEqual({ name: "invalid-yaml", line: 102 });
+  });
+
+  test("nesting within the depth limit reads", () => {
+    expect(read(`files: ${"[".repeat(50)}${"]".repeat(50)}`).diagnostic).toBeNull();
+  });
 });
 
 describe("yaml-feature-not-allowed", () => {
