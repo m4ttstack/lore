@@ -1,13 +1,10 @@
 import { validateGlob, type GlobPlace } from "./glob";
+import { validateRegex } from "./regex";
 import type { BlockProblem } from "./yaml";
 
 export const CATEGORY = /^[a-z][a-z0-9_]*$/;
 export const SEVERITIES = ["blocking", "advisory"];
 const CONDITIONS = ["addedContains", "addedMatches", "changed", "unchanged"] as const;
-
-export function checkRegex(_pattern: string): string | null {
-  return null;
-}
 
 export function checkDefaults(value: unknown, line: number): BlockProblem | null {
   const invalid = { name: "invalid-defaults", line };
@@ -52,7 +49,7 @@ export function checkWhen(value: unknown, line: number): BlockProblem | null {
       return { name: "invalid-when", line };
     }
     for (const item of items) {
-      const name = condition === "addedMatches" ? checkRegex(item)
+      const name = condition === "addedMatches" ? validateRegex(item)
         : condition === "addedContains" ? null
         : validateGlob(item, condition);
       if (name !== null) return { name, line };

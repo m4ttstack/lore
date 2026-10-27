@@ -1,6 +1,7 @@
-import { CATEGORY, SEVERITIES, checkMeta, checkRegex, checkScope, checkWhen } from "./blocks";
+import { CATEGORY, SEVERITIES, checkMeta, checkScope, checkWhen } from "./blocks";
 import { resolveGlob } from "./glob";
 import { dedentEntry } from "./indent";
+import { validateDialect } from "./regex";
 import { readAttributes, type AttributeList, type ChildNode, type EntryNode, type LoreFile } from "./scan";
 import type { Check, Diagnostic, Entry, Scope } from "./types";
 import { readBlock, type BlockProblem } from "./yaml";
@@ -168,7 +169,7 @@ function readChild(
     const lang = list.attributes.find((a) => a.name === "lang")?.value ?? DEFAULT_LANG;
     const body = contents.lines.join("\n");
     if (lang === DEFAULT_LANG) {
-      const problem = contents.lines.length > 1 ? "regex-not-one-line" : checkRegex(body);
+      const problem = contents.lines.length > 1 ? "regex-not-one-line" : validateDialect(body);
       if (problem !== null) return at(problem);
     }
     return { check: { lang, body } };
