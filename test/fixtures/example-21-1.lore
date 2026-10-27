@@ -1,0 +1,7 @@
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</when>
+</when>
+Display text never hard-codes a currency code.
+</rule>

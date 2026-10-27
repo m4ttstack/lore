@@ -1,0 +1,7 @@
+<scope>
+{ "files": ["apps/web/**/*.tsx"], "ignores": ["**/*.test.tsx"] }
+</scope>
+
+<rule id="labels-from-messages" category="accessibility">
+Visible labels come from the message catalog, never from string literals.
+</rule>

@@ -1,0 +1,9 @@
+<scope>
+files: ["**/*.tsx"]
+ignores: ["**/*.test.tsx"]
+</scope>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+A checkout page that shows a quoted price also shows when the quote
+expires.
+</rule>

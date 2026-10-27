@@ -1,0 +1,1031 @@
+{
+  "example-1-1.lore": {
+    "example": 1,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-2-1.lore": {
+    "example": 2,
+    "kind": "parse",
+    "path": "apps/web/src/checkout/.lore/pricing/quotes.lore",
+    "errors": []
+  },
+  "example-3-1.lore": {
+    "example": 3,
+    "kind": "eligibility",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-3-2.lore": {
+    "example": 3,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/rules.lore",
+    "errors": []
+  },
+  "example-4-1.lore": {
+    "example": 4,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-5-1.lore": {
+    "example": 5,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "top-level-text"
+    ]
+  },
+  "example-5-2.lore": {
+    "example": 5,
+    "kind": "parse",
+    "path": ".lore/display.lore",
+    "errors": [
+      "duplicate-key"
+    ]
+  },
+  "example-6-1.lore": {
+    "example": 6,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "invalid-attribute-value",
+      "invalid-attribute-value",
+      "invalid-attribute-value"
+    ]
+  },
+  "example-7-1.lore": {
+    "example": 7,
+    "kind": "parse",
+    "path": ".lore/catalog.lore",
+    "errors": []
+  },
+  "example-8-1.lore": {
+    "example": 8,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "top-level-text"
+    ]
+  },
+  "example-9-1.lore": {
+    "example": 9,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "unknown-element"
+    ]
+  },
+  "example-10-1.lore": {
+    "example": 10,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "unreadable-structure"
+    ]
+  },
+  "example-10-2.lore": {
+    "example": 10,
+    "kind": "parse",
+    "path": ".lore/display.lore",
+    "errors": [
+      "unreadable-structure"
+    ]
+  },
+  "example-11-1.lore": {
+    "example": 11,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "duplicate-file-block"
+    ]
+  },
+  "example-12-1.lore": {
+    "example": 12,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "file-block-after-entry"
+    ]
+  },
+  "example-13-1.lore": {
+    "example": 13,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "file-block-after-entry"
+    ]
+  },
+  "example-14-1.lore": {
+    "example": 14,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-14-2.lore": {
+    "example": 14,
+    "kind": "parse",
+    "path": ".lore/display.lore",
+    "errors": [
+      "top-level-text"
+    ]
+  },
+  "example-14-3.lore": {
+    "example": 14,
+    "kind": "parse",
+    "path": ".lore/dates.lore",
+    "errors": [
+      "unreadable-structure"
+    ]
+  },
+  "example-15-1.lore": {
+    "example": 15,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-16-1.lore": {
+    "example": 16,
+    "kind": "parse",
+    "path": ".lore/docs.lore",
+    "errors": []
+  },
+  "example-17-1.lore": {
+    "example": 17,
+    "kind": "parse",
+    "path": ".lore/docs.lore",
+    "errors": []
+  },
+  "example-18-1.lore": {
+    "example": 18,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-19-1.lore": {
+    "example": 19,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-20-1.lore": {
+    "example": 20,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "unreadable-structure"
+    ]
+  },
+  "example-20-2.lore": {
+    "example": 20,
+    "kind": "parse",
+    "path": ".lore/display.lore",
+    "errors": [
+      "unreadable-structure"
+    ]
+  },
+  "example-21-1.lore": {
+    "example": 21,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "unreadable-structure"
+    ]
+  },
+  "example-22-1.lore": {
+    "example": 22,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-23-1.lore": {
+    "example": 23,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-24-1.lore": {
+    "example": 24,
+    "kind": "parse",
+    "path": ".lore/docs.lore",
+    "errors": []
+  },
+  "example-25-1.lore": {
+    "example": 25,
+    "kind": "parse",
+    "path": ".lore/flush.lore",
+    "errors": []
+  },
+  "example-25-2.lore": {
+    "example": 25,
+    "kind": "parse",
+    "path": ".lore/indented.lore",
+    "errors": []
+  },
+  "example-25-3.lore": {
+    "example": 25,
+    "kind": "parse",
+    "path": ".lore/tabs.lore",
+    "errors": []
+  },
+  "example-26-1.lore": {
+    "example": 26,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "inconsistent-indentation"
+    ]
+  },
+  "example-27-1.lore": {
+    "example": 27,
+    "kind": "parse",
+    "path": ".lore/json.lore",
+    "errors": []
+  },
+  "example-27-2.lore": {
+    "example": 27,
+    "kind": "parse",
+    "path": ".lore/yaml.lore",
+    "errors": []
+  },
+  "example-28-1.lore": {
+    "example": 28,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "yaml-feature-not-allowed"
+    ]
+  },
+  "example-29-1.lore": {
+    "example": 29,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "duplicate-key"
+    ]
+  },
+  "example-30-1.lore": {
+    "example": 30,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "invalid-yaml"
+    ]
+  },
+  "example-31-1.lore": {
+    "example": 31,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "invalid-yaml"
+    ]
+  },
+  "example-32-1.lore": {
+    "example": 32,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-33-1.lore": {
+    "example": 33,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "invalid-yaml",
+      "invalid-when"
+    ]
+  },
+  "example-34-1.lore": {
+    "example": 34,
+    "kind": "parse",
+    "path": ".lore/json.lore",
+    "errors": []
+  },
+  "example-34-2.lore": {
+    "example": 34,
+    "kind": "parse",
+    "path": ".lore/jsonc.lore",
+    "errors": [
+      "invalid-yaml"
+    ]
+  },
+  "example-34-3.lore": {
+    "example": 34,
+    "kind": "parse",
+    "path": ".lore/unclosed.lore",
+    "errors": [
+      "invalid-yaml"
+    ]
+  },
+  "example-35-1.lore": {
+    "example": 35,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-36-1.lore": {
+    "example": 36,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "yaml-feature-not-allowed"
+    ]
+  },
+  "example-37-1.lore": {
+    "example": 37,
+    "kind": "parse",
+    "path": "apps/web/src/checkout/.lore/pricing.lore",
+    "errors": []
+  },
+  "example-38-1.lore": {
+    "example": 38,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "invalid-defaults"
+    ]
+  },
+  "example-38-2.lore": {
+    "example": 38,
+    "kind": "parse",
+    "path": ".lore/display.lore",
+    "errors": [
+      "invalid-defaults"
+    ]
+  },
+  "example-39-1.lore": {
+    "example": 39,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "missing-id",
+      "invalid-id",
+      "duplicate-attribute",
+      "unknown-attribute"
+    ]
+  },
+  "example-40-1.lore": {
+    "example": 40,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "unknown-attribute",
+      "invalid-attribute-value",
+      "unknown-attribute",
+      "unknown-attribute"
+    ]
+  },
+  "example-41-1.lore": {
+    "example": 41,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "disabled-has-value"
+    ]
+  },
+  "example-42-1.lore": {
+    "example": 42,
+    "kind": "eligibility",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-43-1.lore": {
+    "example": 43,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "duplicate-id",
+      "duplicate-id",
+      "invalid-attribute-value",
+      "duplicate-id"
+    ]
+  },
+  "example-43-2.lore": {
+    "example": 43,
+    "kind": "parse",
+    "path": "apps/web/src/checkout/.lore/rules.lore",
+    "errors": [
+      "duplicate-id",
+      "duplicate-id",
+      "duplicate-id",
+      "duplicate-id"
+    ]
+  },
+  "example-43-3.lore": {
+    "example": 43,
+    "kind": "parse",
+    "path": ".lore/drafts.lore",
+    "errors": [
+      "top-level-text"
+    ]
+  },
+  "example-44-1.lore": {
+    "example": 44,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-45-1.lore": {
+    "example": 45,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "invalid-meta",
+      "invalid-meta"
+    ]
+  },
+  "example-46-1.lore": {
+    "example": 46,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-47-1.lore": {
+    "example": 47,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-48-1.lore": {
+    "example": 48,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "duplicate-child",
+      "unknown-child",
+      "unknown-child"
+    ]
+  },
+  "example-49-1.lore": {
+    "example": 49,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-50-1.lore": {
+    "example": 50,
+    "kind": "parse",
+    "path": "apps/web/src/checkout/.lore/context.lore",
+    "errors": []
+  },
+  "example-51-1.lore": {
+    "example": 51,
+    "kind": "parse",
+    "path": ".lore/context.lore",
+    "errors": [
+      "src-escapes-root",
+      "invalid-attribute-value",
+      "invalid-attribute-value"
+    ]
+  },
+  "example-52-1.lore": {
+    "example": 52,
+    "kind": "eligibility",
+    "path": ".lore/context.lore",
+    "errors": []
+  },
+  "example-53-1.lore": {
+    "example": 53,
+    "kind": "parse",
+    "path": ".lore/provenance.lore",
+    "errors": [
+      "unknown-category",
+      "invalid-attribute-value"
+    ]
+  },
+  "example-53-2.lore": {
+    "example": 53,
+    "kind": "parse",
+    "path": ".lore/lineage.lore",
+    "errors": [
+      "unknown-category"
+    ]
+  },
+  "example-54-1.lore": {
+    "example": 54,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-55-1.lore": {
+    "example": 55,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-56-1.lore": {
+    "example": 56,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/pricing.lore",
+    "errors": []
+  },
+  "example-57-1.lore": {
+    "example": 57,
+    "kind": "eligibility",
+    "path": ".lore/manifests.lore",
+    "errors": []
+  },
+  "example-57-2.lore": {
+    "example": 57,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/messages.lore",
+    "errors": []
+  },
+  "example-58-1.lore": {
+    "example": 58,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/cart.lore",
+    "errors": []
+  },
+  "example-58-2.lore": {
+    "example": 58,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/tests.lore",
+    "errors": []
+  },
+  "example-59-1.lore": {
+    "example": 59,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-59-2.lore": {
+    "example": 59,
+    "kind": "parse",
+    "path": "apps/web/src/.lore/checkout.lore",
+    "errors": []
+  },
+  "example-60-1.lore": {
+    "example": 60,
+    "kind": "parse",
+    "path": "apps/web/.lore/web.lore",
+    "errors": [
+      "invalid-scope",
+      "empty-files",
+      "leading-slash",
+      "glob-escapes-base"
+    ]
+  },
+  "example-60-2.lore": {
+    "example": 60,
+    "kind": "parse",
+    "path": "apps/web/src/cart/.lore/cart.lore",
+    "errors": [
+      "leading-slash"
+    ]
+  },
+  "example-60-3.lore": {
+    "example": 60,
+    "kind": "parse",
+    "path": "apps/web/src/checkout/.lore/checkout.lore",
+    "errors": [
+      "unknown-attribute"
+    ]
+  },
+  "example-61-1.lore": {
+    "example": 61,
+    "kind": "eligibility",
+    "path": ".lore/web.lore",
+    "errors": []
+  },
+  "example-62-1.lore": {
+    "example": 62,
+    "kind": "parse",
+    "path": "apps/web/.lore/pages.lore",
+    "errors": [
+      "invalid-glob",
+      "invalid-glob",
+      "invalid-glob",
+      "invalid-glob"
+    ]
+  },
+  "example-63-1.lore": {
+    "example": 63,
+    "kind": "eligibility",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-64-1.lore": {
+    "example": 64,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/prices.lore",
+    "errors": []
+  },
+  "example-65-1.lore": {
+    "example": 65,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/api.lore",
+    "errors": []
+  },
+  "example-66-1.lore": {
+    "example": 66,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/graphql.lore",
+    "errors": []
+  },
+  "example-67-1.lore": {
+    "example": 67,
+    "kind": "eligibility",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-68-1.lore": {
+    "example": 68,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "unknown-condition",
+      "empty-when",
+      "invalid-when",
+      "glob-escapes-base"
+    ]
+  },
+  "example-69-1.lore": {
+    "example": 69,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "regex-outside-dialect",
+      "regex-outside-dialect",
+      "regex-outside-dialect",
+      "regex-outside-dialect",
+      "regex-outside-dialect"
+    ]
+  },
+  "example-70-1.lore": {
+    "example": 70,
+    "kind": "eligibility",
+    "path": ".lore/labels.lore",
+    "errors": []
+  },
+  "example-71-1.lore": {
+    "example": 71,
+    "kind": "eligibility",
+    "path": ".lore/labels.lore",
+    "errors": []
+  },
+  "example-72-1.lore": {
+    "example": 72,
+    "kind": "eligibility",
+    "path": ".lore/tax.lore",
+    "errors": []
+  },
+  "example-73-1.lore": {
+    "example": 73,
+    "kind": "parse",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "regex-not-one-line",
+      "invalid-attribute-value",
+      "invalid-attribute-value"
+    ]
+  },
+  "example-74-1.lore": {
+    "example": 74,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/display.lore",
+    "errors": []
+  },
+  "example-75-1.lore": {
+    "example": 75,
+    "kind": "eligibility",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-76-1.lore": {
+    "example": 76,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/totals.lore",
+    "errors": []
+  },
+  "example-77-1.lore": {
+    "example": 77,
+    "kind": "eligibility",
+    "path": ".lore/shop.lore",
+    "errors": []
+  },
+  "example-77-2.lore": {
+    "example": 77,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/checkout.lore",
+    "errors": []
+  },
+  "example-77-3.lore": {
+    "example": 77,
+    "kind": "eligibility",
+    "path": "apps/api/.lore/api.lore",
+    "errors": []
+  },
+  "example-78-1.lore": {
+    "example": 78,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/checkout.lore",
+    "errors": []
+  },
+  "example-78-2.lore": {
+    "example": 78,
+    "kind": "eligibility",
+    "path": "apps/web/src/pricing/.lore/pricing.lore",
+    "errors": []
+  },
+  "example-78-3.lore": {
+    "example": 78,
+    "kind": "eligibility",
+    "path": "apps/web/src/legacy/.lore/legacy.lore",
+    "errors": []
+  },
+  "example-79-1.lore": {
+    "example": 79,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/checkout.lore",
+    "errors": []
+  },
+  "example-80-1.lore": {
+    "example": 80,
+    "kind": "eligibility",
+    "path": ".lore/lore.lore",
+    "errors": []
+  },
+  "example-80-2.lore": {
+    "example": 80,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/checkout.lore",
+    "errors": []
+  },
+  "example-81-1.lore": {
+    "example": 81,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/checkout.lore",
+    "errors": [
+      "unknown-condition"
+    ]
+  },
+  "example-82-1.lore": {
+    "example": 82,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/display.lore",
+    "errors": [
+      "invalid-glob"
+    ]
+  },
+  "example-82-2.lore": {
+    "example": 82,
+    "kind": "eligibility",
+    "path": "apps/web/src/checkout/.lore/pricing.lore",
+    "errors": []
+  },
+  "example-83-1.lore": {
+    "example": 83,
+    "kind": "eligibility",
+    "path": "apps/api/.lore/api.lore",
+    "errors": [
+      "unknown-category"
+    ]
+  },
+  "example-83-2.lore": {
+    "example": 83,
+    "kind": "eligibility",
+    "path": ".lore/provenance.lore",
+    "errors": [
+      "unknown-category"
+    ]
+  },
+  "example-83-3.lore": {
+    "example": 83,
+    "kind": "eligibility",
+    "path": "apps/web/.lore/web.lore",
+    "errors": [
+      "unknown-category"
+    ]
+  },
+  "example-84-1.lore": {
+    "example": 84,
+    "kind": "eligibility",
+    "path": ".lore/shop.lore",
+    "errors": [
+      "src-escapes-root"
+    ]
+  },
+  "example-84-2.lore": {
+    "example": 84,
+    "kind": "eligibility",
+    "path": "apps/web/.lore/web.lore",
+    "errors": [
+      "unknown-category",
+      "src-escapes-root"
+    ]
+  },
+  "example-85-1.lore": {
+    "example": 85,
+    "kind": "eligibility",
+    "path": ".lore/shop.lore",
+    "errors": [
+      "unknown-category"
+    ]
+  },
+  "example-85-2.lore": {
+    "example": 85,
+    "kind": "eligibility",
+    "path": "apps/web/.lore/web.lore",
+    "errors": []
+  },
+  "example-85-3.lore": {
+    "example": 85,
+    "kind": "eligibility",
+    "path": "apps/api/.lore/api.lore",
+    "errors": []
+  },
+  "example-86-1.lore": {
+    "example": 86,
+    "kind": "eligibility",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-86-2.lore": {
+    "example": 86,
+    "kind": "eligibility",
+    "path": "apps/web/src/legacy/.lore/legacy.lore",
+    "errors": []
+  },
+  "example-87-1.lore": {
+    "example": 87,
+    "kind": "eligibility",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "invalid-attribute-value"
+    ]
+  },
+  "example-88-1.lore": {
+    "example": 88,
+    "kind": "eligibility",
+    "path": "external:lore/shop/.lore/checkout.lore",
+    "errors": []
+  },
+  "example-88-2.lore": {
+    "example": 88,
+    "kind": "eligibility",
+    "path": "external:lore/shop/apps/web/.lore/web.lore",
+    "errors": []
+  },
+  "example-88-3.lore": {
+    "example": 88,
+    "kind": "eligibility",
+    "path": "external:lore/shop/apps/api/.lore/api.lore",
+    "errors": []
+  },
+  "example-89-1.lore": {
+    "example": 89,
+    "kind": "parse",
+    "path": "external:lore/shop/apps/web/.lore/web.lore",
+    "errors": []
+  },
+  "example-90-1.lore": {
+    "example": 90,
+    "kind": "eligibility",
+    "path": "external:shop/.lore/checkout.lore",
+    "errors": []
+  },
+  "example-90-2.lore": {
+    "example": 90,
+    "kind": "eligibility",
+    "path": "external:payments/.lore/payments.lore",
+    "errors": []
+  },
+  "example-91-1.lore": {
+    "example": 91,
+    "kind": "eligibility",
+    "path": ".lore/orders.lore",
+    "errors": []
+  },
+  "example-91-2.lore": {
+    "example": 91,
+    "kind": "eligibility",
+    "path": "external:shop/.lore/checkout.lore",
+    "errors": []
+  },
+  "example-92-1.lore": {
+    "example": 92,
+    "kind": "eligibility",
+    "path": ".lore/web.lore",
+    "errors": [
+      "unknown-category"
+    ]
+  },
+  "example-92-2.lore": {
+    "example": 92,
+    "kind": "eligibility",
+    "path": "external:lore/shop/.lore/shop.lore",
+    "errors": [
+      "unknown-category"
+    ]
+  },
+  "example-93-1.lore": {
+    "example": 93,
+    "kind": "eligibility",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-93-2.lore": {
+    "example": 93,
+    "kind": "eligibility",
+    "path": "external:shop/.lore/shared.lore",
+    "errors": []
+  },
+  "example-94-1.lore": {
+    "example": 94,
+    "kind": "eligibility",
+    "path": ".lore/checkout.lore",
+    "errors": [
+      "duplicate-id"
+    ]
+  },
+  "example-94-2.lore": {
+    "example": 94,
+    "kind": "eligibility",
+    "path": "external:shop/.lore/shared.lore",
+    "errors": [
+      "duplicate-id"
+    ]
+  },
+  "example-95-1.lore": {
+    "example": 95,
+    "kind": "eligibility",
+    "path": "apps/web/.lore/web.lore",
+    "errors": []
+  },
+  "example-95-2.lore": {
+    "example": 95,
+    "kind": "eligibility",
+    "path": ".lore/shop.lore",
+    "errors": []
+  },
+  "example-95-3.lore": {
+    "example": 95,
+    "kind": "eligibility",
+    "path": "external:lore/shop/.lore/shared.lore",
+    "errors": []
+  },
+  "example-95-4.lore": {
+    "example": 95,
+    "kind": "eligibility",
+    "path": "external:lore/shop/apps/web/.lore/web.lore",
+    "errors": []
+  },
+  "example-96-1.lore": {
+    "example": 96,
+    "kind": "eligibility",
+    "path": ".lore/provenance.lore",
+    "errors": [
+      "unknown-category"
+    ]
+  },
+  "example-96-2.lore": {
+    "example": 96,
+    "kind": "eligibility",
+    "path": "external:.lore/team.lore",
+    "errors": []
+  },
+  "example-96-3.lore": {
+    "example": 96,
+    "kind": "eligibility",
+    "path": "external:shop/.lore/checkout.lore",
+    "errors": []
+  },
+  "example-96-4.lore": {
+    "example": 96,
+    "kind": "eligibility",
+    "path": "external:payments/.lore/payments.lore",
+    "errors": []
+  },
+  "readme-1.lore": {
+    "example": null,
+    "kind": "readme",
+    "path": "README.md",
+    "errors": []
+  },
+  "readme-2.lore": {
+    "example": null,
+    "kind": "readme",
+    "path": "README.md",
+    "errors": []
+  },
+  "readme-3.lore": {
+    "example": null,
+    "kind": "readme",
+    "path": "README.md",
+    "errors": []
+  },
+  "readme-4.lore": {
+    "example": null,
+    "kind": "readme",
+    "path": "README.md",
+    "errors": []
+  },
+  "readme-5.lore": {
+    "example": null,
+    "kind": "readme",
+    "path": "README.md",
+    "errors": []
+  }
+}

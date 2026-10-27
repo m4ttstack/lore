@@ -1,0 +1,9 @@
+<rule id="currency-codes-from-settings" category="functional_correctness">
+<check>
+'USD'
+</check>
+<check lang="regex">
+'EUR'
+</check>
+Display text never hard-codes a currency code.
+</rule>

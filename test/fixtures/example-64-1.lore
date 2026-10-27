@@ -1,0 +1,13 @@
+<rule id="no-price-literals" category="functional_correctness">
+<when>
+addedMatches: ['\d+\.\d{2}']
+</when>
+A price is never written as a number literal in checkout code.
+</rule>
+
+<rule id="shipping-from-quote" category="functional_correctness">
+<when>
+addedMatches: ['^const shipping']
+</when>
+Shipping costs come from the quote.
+</rule>

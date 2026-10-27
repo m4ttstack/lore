@@ -1,0 +1,13 @@
+<scope>
+  files: ["apps/web/src/checkout/**"]
+</scope>
+
+<rule id="currency-indented" category="functional_correctness">
+  <when>
+    addedContains:
+      - "'USD'"
+  </when>
+  Display text never hard-codes a currency code.
+
+  It uses the shop's `currency` setting.
+</rule>

@@ -1,0 +1,6 @@
+<rule id="checkout-currency-from-settings" category="functional_correctness">
+<check>
+'USD'
+</check>
+Checkout display text never hard-codes a currency code.
+</rule>

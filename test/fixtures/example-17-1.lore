@@ -1,0 +1,8 @@
+<rule id="closing-tags-at-column-zero" category="documentation">
+An entry ends at its closing tag at column 0. An indented closing tag,
+like the next line, is prose:
+
+  </rule>
+
+The rule continues here.
+</rule>

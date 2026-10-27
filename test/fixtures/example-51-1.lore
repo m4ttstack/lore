@@ -1,0 +1,15 @@
+<context id="shop-readme" src="./../README.md">
+Read for how the shop is built and deployed.
+</context>
+
+<context id="org-handbook" src="./../../handbook/review.md">
+Read for the organization's review conventions.
+</context>
+
+<context id="shop-readme-roundabout" src="docs/../README.md">
+Read for how the shop is built and deployed.
+</context>
+
+<context id="shop-root" src="./..">
+Read the repository's top-level files.
+</context>

@@ -1,0 +1,7 @@
+<scope>
+files: ["*.json"]
+</scope>
+
+<rule id="manifest-versions-pinned" category="functional_correctness">
+Dependencies in a top-level manifest are pinned to exact versions.
+</rule>

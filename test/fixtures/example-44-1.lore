@@ -1,0 +1,11 @@
+<rule id="price-from-quote" category="functional_correctness">
+<meta>
+source: docs/pricing-review.md#prices
+owner: checkout
+reviewed: 2026-03-01
+reviewers: [pricing, web]
+links:
+  decision: docs/decisions/0042-quote-prices.md
+</meta>
+A displayed price must come from the quote that produced it.
+</rule>

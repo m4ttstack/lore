@@ -1,0 +1,5 @@
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</when>
+</rule>

@@ -1,0 +1,11 @@
+<rule id="no-checkout-todos" category="code_style">
+<meta>
+owner: checkout #pricing team
+source: docs/review.md#todos
+</meta>
+<when>
+addedContains:
+  - TODO #checkout
+</when>
+New checkout code carries no `TODO #checkout` markers.
+</rule>

@@ -1,0 +1,11 @@
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
+</rule>
+
+<rule id="currency-source-recorded" category="data_lineage">
+Every stored amount records the currency setting it was formatted with.
+</rule>
+
+<rule id="tax-source-recorded" category="Data_Provenance">
+Every stored tax amount records the tax table it came from.
+</rule>

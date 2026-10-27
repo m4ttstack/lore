@@ -1,0 +1,3 @@
+<rule id="web-dates-from-locale" category="functional_correctness">
+Dates the web app displays are formatted with the shop's locale.
+</rule>

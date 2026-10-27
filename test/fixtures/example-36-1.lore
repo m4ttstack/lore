@@ -1,0 +1,17 @@
+<rule id="price-from-quote" category="functional_correctness">
+<meta>
+reviewed: yes
+legacy: off
+enforced: true
+owner: ~
+since: 2026
+</meta>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<meta>
+2026: reviewed
+</meta>
+Display text never hard-codes a currency code.
+</rule>

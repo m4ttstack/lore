@@ -1,0 +1,19 @@
+<scope>
+files: ["**/*.graphql"]
+</scope>
+
+<rule id="regen-types-after-graphql" category="functional_correctness">
+<when>
+unchanged: ["/apps/web/src/__generated__/**"]
+</when>
+A `.graphql` change ships with regenerated types in
+`apps/web/src/__generated__/`.
+</rule>
+
+<rule id="regen-checkout-types-after-graphql" category="functional_correctness">
+<when>
+unchanged: ["__generated__/**"]
+</when>
+A `.graphql` change ships with regenerated types in the checkout's own
+`__generated__/` folder.
+</rule>

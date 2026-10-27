@@ -1,0 +1,15 @@
+{
+  "comment": "Minimal stand-in for the editor's built-in Markdown grammar, written for these tests (MIT, this repository). It keeps the multi-line shapes (fenced code, HTML blocks) that could swallow a Lore closing tag.",
+  "scopeName": "text.html.markdown",
+  "patterns": [
+    { "match": "^[ \\t]{0,3}#{1,6}[ \\t].*$", "name": "markup.heading.markdown" },
+    {
+      "begin": "^[ \\t]*(`{3,}|~{3,})",
+      "end": "^[ \\t]*\\1[ \\t]*$",
+      "name": "markup.fenced_code.block.markdown"
+    },
+    { "begin": "^[ \\t]{0,3}<[A-Za-z]", "end": "^[ \\t]*$", "name": "meta.embedded.block.html" },
+    { "begin": "`", "end": "`", "name": "markup.inline.raw.string.markdown" },
+    { "match": "\\*\\*[^*]+\\*\\*", "name": "markup.bold.markdown" }
+  ]
+}

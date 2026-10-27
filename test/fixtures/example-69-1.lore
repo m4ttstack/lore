@@ -1,0 +1,45 @@
+<rule id="currency-before-amount" category="functional_correctness">
+<when>
+addedMatches: ['USD(?=\d)']
+</when>
+A currency code is never written in front of an amount.
+</rule>
+
+<rule id="no-repeated-digits" category="functional_correctness">
+<check>
+(\d)\1
+</check>
+A price is never written with a placeholder of repeated digits.
+</rule>
+
+<rule id="currency-codes-from-settings" category="functional_correctness">
+<when>
+addedMatches: ['(?<code>USD|EUR)']
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="currency-codes-any-case" category="functional_correctness">
+<when>
+addedMatches: ['(?i)usd']
+</when>
+Display text never hard-codes a currency code, in any case.
+</rule>
+
+<rule id="no-inline-styles" category="code_style">
+<when>
+addedMatches: ['style={']
+</when>
+Components never set inline styles.
+</rule>
+
+<rule id="no-inline-style-objects" category="code_style">
+<when>
+addedMatches: ['style=\{']
+</when>
+<check>
+style=\{\{
+</check>
+Components never set inline styles; they use the design system's
+classes.
+</rule>

@@ -1,0 +1,21 @@
+<rule id="price-constants-unquoted" category="functional_correctness">
+<when>
+addedMatches: [[A-Z]+_PRICE]
+</when>
+Prices come from the quote, never from a module constant.
+</rule>
+
+<rule id="currency-symbols-unquoted" category="functional_correctness">
+<when>
+addedMatches: [[$€£]]
+</when>
+Display text never hard-codes a currency symbol.
+</rule>
+
+<rule id="price-sources-quoted" category="functional_correctness">
+<when>
+addedMatches: ['[A-Z]+_PRICE', '[$€£]']
+</when>
+Prices come from the quote, never from a module constant or a literal
+with a currency symbol.
+</rule>

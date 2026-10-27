@@ -1,0 +1,10 @@
+<rule id="lore-samples-fenced" category="documentation">
+Lore syntax shown in a rule's prose sits in a fenced code block, so its
+closing tags do not end the rule.
+
+```
+<rule id="price-from-quote">
+A displayed price must come from the quote that produced it.
+</rule>
+```
+</rule>

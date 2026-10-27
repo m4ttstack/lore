@@ -1,0 +1,14 @@
+<rule id="price-digits-from-formatter" category="functional_correctness">
+<when>
+addedMatches: ['\d']
+</when>
+Prices in labels are formatted by the shop's number formatter, never
+written as digits.
+</rule>
+
+<rule id="currency-code-from-settings" category="functional_correctness">
+<when>
+addedMatches: ['\bUSD\b']
+</when>
+Display text never spells out a currency code.
+</rule>

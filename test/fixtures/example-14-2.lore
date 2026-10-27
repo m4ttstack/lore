@@ -1,0 +1,5 @@
+<!-- Display rules. --> Owned by the web team.
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>

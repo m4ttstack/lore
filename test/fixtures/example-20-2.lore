@@ -1,0 +1,4 @@
+<rule id="dates-from-locale" category="functional_correctness">
+<rule id="times-from-locale" category="functional_correctness">
+Displayed times are formatted with the shop's locale.
+</rule>

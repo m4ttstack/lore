@@ -1,0 +1,11 @@
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code; it uses the shop's
+`currency` setting.
+</rule>
+
+<rule id="currency-codes-from-settings" category="functional_correctness">
+<when>
+addedContains: ["'USD'"]
+</when>
+Display text never spells out a currency code.
+</rule>

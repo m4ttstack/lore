@@ -1,0 +1,6 @@
+<rule id="names-stored-unescaped" category="functional_correctness">
+<when>
+addedContains: ["&amp;"]
+</when>
+Product names are stored as written: `Fish & Chips`, never `Fish &amp; Chips`.
+</rule>

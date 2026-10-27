@@ -1,0 +1,8 @@
+<defaults>
+category: functional_correctness
+severity: critical
+</defaults>
+
+<rule id="price-from-quote">
+A displayed price must come from the quote that produced it.
+</rule>

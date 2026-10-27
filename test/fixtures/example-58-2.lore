@@ -1,0 +1,7 @@
+<scope>
+files: ["**/*.test.{ts,tsx}"]
+</scope>
+
+<rule id="cart-tests-use-fixtures" category="test_coverage">
+Cart tests build their carts from the shared quote fixtures.
+</rule>

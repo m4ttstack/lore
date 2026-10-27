@@ -1,0 +1,3 @@
+<rule id="totals-from-quote" category="functional_correctness">
+Cart totals come from the quote, never from summing line items.
+</rule>

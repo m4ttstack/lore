@@ -1,0 +1,9 @@
+<scope>
+files:
+  - apps/web/**/*.tsx
+ignores: ['**/*.test.tsx']
+</scope>
+
+<rule id="errors-from-messages" category="accessibility">
+Error messages come from the message catalog, never from string literals.
+</rule>

@@ -1,0 +1,31 @@
+<rule id="currency-children-first" category="functional_correctness">
+<meta>
+owner: checkout
+</meta>
+<scope>
+files: ["apps/web/**/*.tsx"]
+</scope>
+<when>
+addedContains: ["'USD'"]
+</when>
+<check>
+'USD'
+</check>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="currency-children-reversed" category="functional_correctness">
+<check>
+'USD'
+</check>
+<when>
+addedContains: ["'USD'"]
+</when>
+<scope>
+files: ["apps/web/**/*.tsx"]
+</scope>
+<meta>
+owner: checkout
+</meta>
+Display text never hard-codes a currency code.
+</rule>

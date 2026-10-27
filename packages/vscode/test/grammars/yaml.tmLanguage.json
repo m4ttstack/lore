@@ -1,0 +1,16 @@
+{
+  "comment": "Minimal stand-in for the editor's built-in YAML grammar, written for these tests (MIT, this repository). It keeps the multi-line shapes (flow collections, quoted strings, block scalars) that could swallow a Lore closing tag.",
+  "scopeName": "source.yaml",
+  "patterns": [
+    { "match": "#.*$", "name": "comment.line.number-sign.yaml" },
+    {
+      "match": "^[ \\t]*([A-Za-z_][\\w-]*)[ \\t]*(:)(?=[ \\t]|$)",
+      "captures": { "1": { "name": "entity.name.tag.yaml" }, "2": { "name": "punctuation.separator.key-value.mapping.yaml" } }
+    },
+    { "begin": "\\[", "end": "\\]", "name": "meta.flow-sequence.yaml", "patterns": [{ "include": "$self" }] },
+    { "begin": "\\{", "end": "\\}", "name": "meta.flow-mapping.yaml", "patterns": [{ "include": "$self" }] },
+    { "begin": "\"", "end": "\"", "name": "string.quoted.double.yaml", "patterns": [{ "match": "\\\\.", "name": "constant.character.escape.yaml" }] },
+    { "begin": "'", "end": "'(?!')", "name": "string.quoted.single.yaml" },
+    { "begin": "[|>][-+]?[ \\t]*$", "end": "^(?=\\S)", "name": "string.unquoted.block.yaml" }
+  ]
+}

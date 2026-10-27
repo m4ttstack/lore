@@ -1,0 +1,183 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Lore",
+  "scopeName": "source.lore",
+  "fileTypes": ["lore"],
+  "comment": "Highlighting only: this grammar never decides whether a file is valid. Bodies are begin/while regions so the embedded YAML and Markdown grammars cannot run past a Lore closing tag.",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#file-block" },
+    { "include": "#rule" },
+    { "include": "#context" },
+    { "include": "#top-tag" }
+  ],
+  "repository": {
+    "comment": {
+      "begin": "^<!--",
+      "end": "-->",
+      "name": "comment.block.lore",
+      "beginCaptures": { "0": { "name": "punctuation.definition.comment.begin.lore" } },
+      "endCaptures": { "0": { "name": "punctuation.definition.comment.end.lore" } }
+    },
+    "file-block": {
+      "begin": "^(<)(defaults|scope)((?:[ \\t].*)?)(>)[ \\t]*$",
+      "while": "^(?!</\\2>[ \\t]*$)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.lore" },
+        "2": { "name": "entity.name.tag.lore" },
+        "3": { "patterns": [{ "include": "#attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.lore" }
+      },
+      "contentName": "meta.embedded.block.yaml source.yaml",
+      "patterns": [{ "include": "source.yaml" }]
+    },
+    "top-tag": {
+      "match": "^(</?)([A-Za-z][A-Za-z0-9-]*)((?:[ \\t].*)?)(>)[ \\t]*$",
+      "captures": {
+        "1": { "name": "punctuation.definition.tag.begin.lore" },
+        "2": { "name": "entity.name.tag.lore" },
+        "3": { "patterns": [{ "include": "#attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.lore" }
+      }
+    },
+    "rule": {
+      "begin": "^(<)(rule)((?:[ \\t].*)?)(>)[ \\t]*$",
+      "end": "^(</)(rule)(>)[ \\t]*$",
+      "name": "meta.entry.rule.lore",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.lore" },
+        "2": { "name": "entity.name.tag.lore" },
+        "3": { "patterns": [{ "include": "#attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.lore" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.lore" },
+        "2": { "name": "entity.name.tag.lore" },
+        "3": { "name": "punctuation.definition.tag.end.lore" }
+      },
+      "patterns": [
+        { "include": "#children" },
+        {
+          "begin": "^(?=[ \\t]*\\S)",
+          "end": "(?=^</rule>[ \\t]*$)",
+          "name": "meta.embedded.block.markdown text.html.markdown",
+          "patterns": [{ "include": "#prose" }]
+        }
+      ]
+    },
+    "context": {
+      "begin": "^(<)(context)((?:[ \\t].*)?)(>)[ \\t]*$",
+      "end": "^(</)(context)(>)[ \\t]*$",
+      "name": "meta.entry.context.lore",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.lore" },
+        "2": { "name": "entity.name.tag.lore" },
+        "3": { "patterns": [{ "include": "#attributes" }] },
+        "4": { "name": "punctuation.definition.tag.end.lore" }
+      },
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.lore" },
+        "2": { "name": "entity.name.tag.lore" },
+        "3": { "name": "punctuation.definition.tag.end.lore" }
+      },
+      "patterns": [
+        { "include": "#children" },
+        {
+          "begin": "^(?=[ \\t]*\\S)",
+          "end": "(?=^</context>[ \\t]*$)",
+          "name": "meta.embedded.block.markdown text.html.markdown",
+          "patterns": [{ "include": "#prose" }]
+        }
+      ]
+    },
+    "children": {
+      "patterns": [
+        {
+          "begin": "^[ \\t]*(<)(when|scope|meta)((?:[ \\t].*)?)(>)[ \\t]*$",
+          "while": "^(?![ \\t]*</\\2>[ \\t]*$)(?!</(?:rule|context)>[ \\t]*$)",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.tag.begin.lore" },
+            "2": { "name": "entity.name.tag.lore" },
+            "3": { "patterns": [{ "include": "#attributes" }] },
+            "4": { "name": "punctuation.definition.tag.end.lore" }
+          },
+          "contentName": "meta.embedded.block.yaml source.yaml",
+          "patterns": [{ "include": "source.yaml" }]
+        },
+        {
+          "begin": "^[ \\t]*(<)(check)((?:[ \\t].*)?[ \\t]lang=\"(?!regex\")[^\"]*\"(?:[ \\t].*)?)(>)[ \\t]*$",
+          "while": "^(?![ \\t]*</\\2>[ \\t]*$)(?!</(?:rule|context)>[ \\t]*$)",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.tag.begin.lore" },
+            "2": { "name": "entity.name.tag.lore" },
+            "3": { "patterns": [{ "include": "#attributes" }] },
+            "4": { "name": "punctuation.definition.tag.end.lore" }
+          },
+          "contentName": "string.unquoted.lore"
+        },
+        {
+          "begin": "^[ \\t]*(<)(check)((?:[ \\t].*)?)(>)[ \\t]*$",
+          "while": "^(?![ \\t]*</\\2>[ \\t]*$)(?!</(?:rule|context)>[ \\t]*$)",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.tag.begin.lore" },
+            "2": { "name": "entity.name.tag.lore" },
+            "3": { "patterns": [{ "include": "#attributes" }] },
+            "4": { "name": "punctuation.definition.tag.end.lore" }
+          },
+          "contentName": "string.regexp.lore"
+        },
+        {
+          "begin": "^[ \\t]*(<)([A-Za-z][A-Za-z0-9-]*)((?:[ \\t].*)?)(>)[ \\t]*$",
+          "while": "^(?![ \\t]*</\\2>[ \\t]*$)(?!</(?:rule|context)>[ \\t]*$)",
+          "beginCaptures": {
+            "1": { "name": "punctuation.definition.tag.begin.lore" },
+            "2": { "name": "entity.name.tag.lore" },
+            "3": { "patterns": [{ "include": "#attributes" }] },
+            "4": { "name": "punctuation.definition.tag.end.lore" }
+          }
+        },
+        {
+          "match": "^[ \\t]*(</)([A-Za-z][A-Za-z0-9-]*)((?:[ \\t].*)?)(>)[ \\t]*$",
+          "captures": {
+            "1": { "name": "punctuation.definition.tag.begin.lore" },
+            "2": { "name": "entity.name.tag.lore" },
+            "3": { "patterns": [{ "include": "#attributes" }] },
+            "4": { "name": "punctuation.definition.tag.end.lore" }
+          }
+        }
+      ]
+    },
+    "prose": {
+      "patterns": [
+        {
+          "begin": "^[ \\t]*(`{3,})(?=[^`]*$)",
+          "end": "^[ \\t]*\\1`*[ \\t]*$",
+          "name": "markup.fenced_code.block.markdown"
+        },
+        {
+          "begin": "^[ \\t]*(~{3,})",
+          "end": "^[ \\t]*\\1~*[ \\t]*$",
+          "name": "markup.fenced_code.block.markdown"
+        },
+        {
+          "begin": "^(?![ \\t]*(?:`{3,}(?=[^`]*$)|~{3,}))",
+          "while": "^(?![ \\t]*(?:`{3,}(?=[^`]*$)|~{3,}))(?!</(?:rule|context)>[ \\t]*$)",
+          "patterns": [{ "include": "text.html.markdown" }]
+        }
+      ]
+    },
+    "attributes": {
+      "patterns": [
+        {
+          "match": "([A-Za-z][A-Za-z0-9-]*)(=)(\"[^\"]*\")",
+          "captures": {
+            "1": { "name": "entity.other.attribute-name.lore" },
+            "2": { "name": "punctuation.separator.key-value.lore" },
+            "3": { "name": "string.quoted.double.lore" }
+          }
+        },
+        { "match": "[A-Za-z][A-Za-z0-9-]*", "name": "entity.other.attribute-name.lore" }
+      ]
+    }
+  }
+}

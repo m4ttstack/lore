@@ -1,0 +1,3 @@
+<rule id="changelog-updated" category="documentation">
+A change that alters what users see adds a line to the changelog.
+</rule>

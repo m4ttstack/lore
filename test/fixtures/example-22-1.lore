@@ -1,0 +1,6 @@
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>

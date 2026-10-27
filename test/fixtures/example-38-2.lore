@@ -1,0 +1,8 @@
+<defaults>
+category: functional_correctness
+owner: web
+</defaults>
+
+<rule id="currency-from-settings">
+Display text never hard-codes a currency code.
+</rule>

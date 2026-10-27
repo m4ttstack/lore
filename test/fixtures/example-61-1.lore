@@ -1,0 +1,28 @@
+<rule id="checkout-props-typed" category="code_style">
+<scope>
+files: ["apps/web/src/**/checkout/*.tsx"]
+</scope>
+Every checkout component declares its props type.
+</rule>
+
+<rule id="checkout-helpers-pure" category="code_style">
+<scope>
+files: ["apps/web/src/checkout/[!A-Z]*.tsx"]
+</scope>
+Checkout files named in lowercase hold helpers, never components.
+</rule>
+
+<rule id="cart-components-named" category="code_style">
+<scope>
+files: ["apps/web/src/{cart,checkout}/*.tsx"]
+</scope>
+A cart or checkout component is named after its file.
+</rule>
+
+<rule id="production-env-no-secrets" category="security">
+<scope>
+files: ["apps/web/*.production"]
+</scope>
+A production environment file holds no secrets; they come from the
+secret store.
+</rule>

@@ -1,0 +1,14 @@
+<context id="checkout-architecture" src="docs/checkout-architecture.md">
+Read before judging any change to how a price is computed.
+</context>
+
+<context id="payments-architecture" src="docs/payments-architecture.md">
+Read before judging any change to how a payment is taken.
+</context>
+
+<context id="refunds-architecture" src="docs/refunds-architecture.md">
+<scope>
+files: ["apps/web/src/refunds/**"]
+</scope>
+Read before judging any change to how a refund is issued.
+</context>

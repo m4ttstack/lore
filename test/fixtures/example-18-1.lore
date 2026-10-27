@@ -1,0 +1,14 @@
+<!-- Checkout rules, owned by the pricing team. -->
+
+<rule id="price-from-quote" category="functional_correctness">
+<!-- Agreed in the 2026 pricing review. -->
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<!-- Check new code only. -->
+<when>
+addedContains: ["'USD'"]
+</when>
+Display text never hard-codes a currency code.
+</rule>

@@ -1,0 +1,15 @@
+{
+  "name": "lore-vscode",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "true"
+  },
+  "devDependencies": {
+    "@lore/parser": "workspace:*",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
+  }
+}

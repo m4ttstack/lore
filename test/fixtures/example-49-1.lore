@@ -1,0 +1,8 @@
+<rule id="checkout-prices-from-quote" category="functional_correctness">
+Every price the checkout page shows comes from the quote:
+- each line item's price;
+- the order total.
+
+A helper that recomputes a price from its inputs drops quote-level
+discounts.
+</rule>

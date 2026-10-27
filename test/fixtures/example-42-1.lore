@@ -1,0 +1,7 @@
+<rule id="price-from-quote" category="functional_correctness" disabled>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>

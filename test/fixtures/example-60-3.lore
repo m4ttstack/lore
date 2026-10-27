@@ -1,0 +1,7 @@
+<scope owner="checkout">
+files: ["**/*.tsx"]
+</scope>
+
+<rule id="checkout-prices-from-quote" category="functional_correctness">
+Every price the checkout page shows comes from the quote.
+</rule>

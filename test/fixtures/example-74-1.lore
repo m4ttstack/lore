@@ -1,0 +1,23 @@
+<scope>
+files: ["**/*.tsx"]
+</scope>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<check>
+'(USD|EUR)'
+</check>
+<check lang="regex">
+'EUR'
+</check>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="currency-symbols-from-settings" category="functional_correctness">
+<when>
+addedContains: ["$"]
+</when>
+<check>
+'USD'
+</check>
+Display text never hard-codes a currency symbol.
+</rule>

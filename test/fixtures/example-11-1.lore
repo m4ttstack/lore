@@ -1,0 +1,11 @@
+<scope>
+files: ["**/*.tsx"]
+</scope>
+
+<scope>
+ignores: ["**/*.test.tsx"]
+</scope>
+
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>

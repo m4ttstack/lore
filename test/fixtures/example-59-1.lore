@@ -1,0 +1,17 @@
+<scope>
+files: ["**/*.ts"]
+</scope>
+
+<rule id="docs-link-changelog" category="documentation">
+<scope>
+files: ["**/*.md"]
+</scope>
+A documentation change links the changelog entry it describes.
+</rule>
+
+<rule id="money-type-for-prices" category="functional_correctness">
+<scope>
+files: ["**/*.md", "**/price*.ts"]
+</scope>
+Prices are typed as `Money`, never as `number`.
+</rule>

@@ -1,0 +1,18 @@
+<scope>
+  files: ["src/checkout/**/*.{ts,tsx}"]
+</scope>
+
+<rule id="price-from-quote" category="functional_correctness" severity="blocking">
+  A displayed price must come from the quote that produced it.
+
+  Recomputing a price from its inputs drops quote-level discounts, so the
+  customer sees one total and is charged another.
+</rule>
+
+<rule id="money-in-minor-units" category="functional_correctness">
+  <when>
+    addedMatches: ['parseFloat\(|toFixed\(']
+  </when>
+  Amounts are integers in minor units (cents). Floating point never touches
+  money.
+</rule>

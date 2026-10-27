@@ -1,0 +1,7 @@
+<defaults>
+category: data_lineage
+</defaults>
+
+<rule id="quote-source-recorded" category="data_provenance">
+Every stored quote records the cart it priced.
+</rule>

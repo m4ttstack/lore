@@ -1,0 +1,9 @@
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<!-- Rules below are drafts.
+
+<rule id="times-from-locale" category="functional_correctness">
+Displayed times are formatted with the shop's locale.
+</rule>

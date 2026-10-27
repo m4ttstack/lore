@@ -1,0 +1,12 @@
+<scope>
+  files: ["src/components/**/*.tsx"]
+  ignores: ["**/*.stories.tsx"]
+</scope>
+
+<rule id="icon-buttons-have-labels" category="accessibility">
+  <when>
+    addedContains: ["<IconButton"]
+  </when>
+  Every `IconButton` has an `aria-label` that names the action, not the
+  icon: "Delete invoice", not "Trash".
+</rule>

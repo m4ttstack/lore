@@ -1,0 +1,27 @@
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContains: []
+</when>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="price-from-quote" category="functional_correctness">
+<when>
+unchanged: []
+</when>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="price-imports-updated" category="functional_correctness">
+<when>
+changed: ["/apps/web/src/checkout/Price.tsx"]
+</when>
+When `Price.tsx` moves or changes, every import of it is updated.
+</rule>
+
+<rule id="price-shown-with-component" category="code_style">
+<when>
+unchanged: ["/apps/web/src/checkout/Price.tsx"]
+</when>
+A price is shown with the `Price` component, never formatted by hand.
+</rule>

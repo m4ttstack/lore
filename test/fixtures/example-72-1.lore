@@ -1,0 +1,6 @@
+<rule id="tax-rate-from-settings" category="functional_correctness">
+<when>
+addedMatches: ['^(|export )const(?:) TAX_RATE()']
+</when>
+The tax rate comes from the shop's settings, never from a constant.
+</rule>

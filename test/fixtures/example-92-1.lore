@@ -1,0 +1,7 @@
+<rule id="checkout-render-budget" category="web_vitals">
+The checkout page shows its first price within the page's time budget.
+</rule>
+
+<rule id="web-prices-recorded" category="data_provenance">
+Every price the web app stores records the quote it came from.
+</rule>

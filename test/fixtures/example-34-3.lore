@@ -1,0 +1,6 @@
+<rule id="dates-from-locale" category="functional_correctness">
+<scope>
+files: ["**/*.tsx"
+</scope>
+Displayed dates are formatted with the shop's locale.
+</rule>

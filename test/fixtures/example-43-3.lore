@@ -1,0 +1,5 @@
+Draft rules, not reviewed yet.
+
+<rule id="dates-from-locale" category="functional_correctness">
+Displayed dates use the shop's locale.
+</rule>

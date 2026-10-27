@@ -1,0 +1,9 @@
+<rule id="migration-with-schema" category="backwards_compatibility" severity="blocking">
+  <scope>
+    files: ["db/migrations/**"]
+  </scope>
+  <when>
+    unchanged: ["/db/schema.sql"]
+  </when>
+  A new migration ships with the regenerated `db/schema.sql`.
+</rule>

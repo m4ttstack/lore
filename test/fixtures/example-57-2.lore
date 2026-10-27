@@ -1,0 +1,7 @@
+<scope>
+files: ["*.json"]
+</scope>
+
+<rule id="checkout-messages-sorted" category="code_style">
+Checkout message files keep their keys in alphabetical order.
+</rule>

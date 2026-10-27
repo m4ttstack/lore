@@ -1,0 +1,7 @@
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
+</rule>
+
+<rule id="render-budgets-kept" category="web_vitals">
+Every page shows its first content within its time budget.
+</rule>

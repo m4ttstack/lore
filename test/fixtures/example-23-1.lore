@@ -1,0 +1,8 @@
+<rule id="quote-totals-match" category="functional_correctness">
+  The order page shows the total
+    from the quote that produced it.
+    
+  A total rebuilt from line items drops quote-level discounts.
+
+
+</rule>

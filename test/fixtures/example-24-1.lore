@@ -1,0 +1,8 @@
+<rule id="lore-samples-tilde-fenced" category="documentation">
+A tilde fence works as well as a backtick fence.
+
+~~~~
+~~~
+</rule>
+~~~~
+</rule>

@@ -1,0 +1,10 @@
+<rule id="tenant-scoped-queries" category="security" severity="blocking">
+  <scope>
+    files: ["server/**/*.ts"]
+  </scope>
+  <check lang="ast-grep">
+    db.$MODEL.findMany($$$)
+  </check>
+  Every query on customer data filters by `tenantId`. A query without it can
+  return another customer's records.
+</rule>
