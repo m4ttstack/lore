@@ -8,7 +8,7 @@ export type {
 export { parseFile, readAttributes } from "./scan";
 export { dedent, dedentEntry } from "./indent";
 export { parse } from "./model";
-export { disjoint, matchGlob, resolveGlob, validateGlob, type GlobPlace } from "./glob";
+export { disjoint, matchFromBase, matchGlob, resolveGlob, validateGlob, type GlobPlace } from "./glob";
 
 export async function select(
   _input: LoreInput,

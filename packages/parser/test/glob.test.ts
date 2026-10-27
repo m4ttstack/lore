@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test";
-import { disjoint, matchGlob, resolveGlob, validateGlob } from "../src/glob";
+import { disjoint, matchFromBase, matchGlob, resolveGlob, validateGlob } from "../src/glob";
+
+function timed(run: () => boolean): { result: boolean; ms: number } {
+  const start = performance.now();
+  const result = run();
+  return { result, ms: performance.now() - start };
+}
 
 describe("validateGlob", () => {
   test("accepts the spec's glob forms", () => {
@@ -142,6 +148,21 @@ describe("matchGlob", () => {
     expect(matchGlob("(a)+|$", "(a)+|$")).toBe(true);
   });
 
+  test("many stars or starred alternatives in one segment match in linear time", () => {
+    const a = (n: number) => "a".repeat(n);
+    for (const run of [
+      () => matchGlob(`${"*a".repeat(12)}*b`, a(60)),
+      () => matchGlob(`${"{*,a}".repeat(12)}b`, a(60)),
+      () => matchGlob(`${"{a,a}".repeat(24)}b`, a(24)),
+    ]) {
+      const { result, ms } = timed(run);
+      expect(result).toBe(false);
+      expect(ms).toBeLessThan(50);
+    }
+    expect(matchGlob(`${"*a".repeat(12)}*b`, `${a(60)}b`)).toBe(true);
+    expect(matchGlob(`${"{*,a}".repeat(12)}b`, `${a(60)}b`)).toBe(true);
+  });
+
   test("an invalid glob matches nothing", () => {
     expect(matchGlob("src/[a", "src/[a")).toBe(false);
     expect(matchGlob("", "")).toBe(false);
@@ -161,6 +182,32 @@ describe("resolveGlob", () => {
   test("a leading / resolves from the repository root", () => {
     expect(resolveGlob("apps/web/src/checkout", "/apps/api/schema.graphql")).toBe("apps/api/schema.graphql");
     expect(resolveGlob("", "/apps/api/**")).toBe("apps/api/**");
+  });
+});
+
+describe("matchFromBase", () => {
+  test("the base is compared character by character, never read as a glob", () => {
+    expect(matchFromBase("app/[id]", "*.ts", "app/[id]/a.ts")).toBe(true);
+    expect(matchFromBase("app/[id]", "*.ts", "app/i/a.ts")).toBe(false);
+    expect(matchFromBase("app/[ab]", "x", "app/a/x")).toBe(false);
+    expect(matchFromBase("app/[ab]", "x", "app/[ab]/x")).toBe(true);
+  });
+
+  test("a path must be below the base", () => {
+    expect(matchFromBase("apps/web", "**", "apps/web/src/a.ts")).toBe(true);
+    expect(matchFromBase("apps/web", "**", "apps/website/a.ts")).toBe(false);
+    expect(matchFromBase("apps/web", "**", "apps/web")).toBe(false);
+    expect(matchFromBase("apps/web/src/checkout", "*.json", "apps/web/src/checkout/cart/a.json")).toBe(false);
+  });
+
+  test("at the repository root the whole path is matched", () => {
+    expect(matchFromBase("", "*.json", "package.json")).toBe(true);
+    expect(matchFromBase("", "*.json", "apps/package.json")).toBe(false);
+  });
+
+  test("a leading / matches from the repository root", () => {
+    expect(matchFromBase("apps/web/src/checkout", "/apps/api/schema.graphql", "apps/api/schema.graphql")).toBe(true);
+    expect(matchFromBase("apps/web/src/checkout", "/apps/api/**", "apps/web/src/checkout/a.ts")).toBe(false);
   });
 });
 

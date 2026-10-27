@@ -1,8 +1,21 @@
 export type GlobPlace = "files" | "ignores" | "changed" | "unchanged";
 
-// null stands for a `**` segment.
-type Segment = RegExp | null;
+type Matcher =
+  | { kind: "literal"; code: number }
+  | { kind: "any" }
+  | { kind: "set"; negated: boolean; ranges: [number, number][] };
+type Piece = Matcher | { kind: "star" };
+type Token = Piece | { kind: "alternatives"; alternatives: Piece[][] };
 
+type State =
+  | { kind: "accept" }
+  | { kind: "char"; matcher: Matcher; next: number }
+  | { kind: "star"; next: number }
+  | { kind: "split"; next: number[] };
+
+type Segment = { kind: "globstar" } | { kind: "name"; states: State[]; start: number };
+
+const ACCEPT = 0;
 const CACHE_LIMIT = 4096;
 const compiled = new Map<string, Segment[] | null>();
 
@@ -18,6 +31,12 @@ export function validateGlob(glob: string, where: GlobPlace): string | null {
 export function matchGlob(glob: string, path: string): boolean {
   const segments = compile(glob);
   return segments !== null && matchSegments(segments, path.split("/"));
+}
+
+export function matchFromBase(base: string, glob: string, path: string): boolean {
+  if (glob.startsWith("/")) return matchGlob(glob.slice(1), path);
+  if (base === "") return matchGlob(glob, path);
+  return path.startsWith(`${base}/`) && matchGlob(glob, path.slice(base.length + 1));
 }
 
 export function resolveGlob(base: string, glob: string): string {
@@ -65,74 +84,129 @@ function compileGlob(glob: string): Segment[] | null {
   const segments: Segment[] = [];
   for (const text of glob.split("/")) {
     if (text === "**") {
-      segments.push(null);
+      segments.push({ kind: "globstar" });
       continue;
     }
     if (text === "" || text === ".") return null;
-    const source = segmentSource([...text]);
-    if (source === null) return null;
-    segments.push(new RegExp(`^${source}$`, "u"));
+    const tokens = readSegment([...text]);
+    if (tokens === null) return null;
+    segments.push(buildStates(tokens));
   }
   return segments;
 }
 
-function segmentSource(chars: string[]): string | null {
-  let source = "";
-  let inAlternatives = false;
+function readSegment(chars: string[]): Token[] | null {
+  const tokens: Token[] = [];
+  let alternatives: Piece[][] | null = null;
+  const push = (piece: Piece) => (alternatives === null ? tokens : alternatives.at(-1)!).push(piece);
   for (let i = 0; i < chars.length; i++) {
     const c = chars[i]!;
     if (c === "[") {
       const set = readSet(chars, i);
       if (set === null) return null;
-      source += set.source;
+      push(set.matcher);
       i = set.close;
     } else if (c === "*") {
       if (chars[i + 1] === "*") return null;
-      source += "[^]*";
+      push({ kind: "star" });
     } else if (c === "?") {
-      source += "[^]";
+      push({ kind: "any" });
     } else if (c === "{") {
-      if (inAlternatives) return null;
-      inAlternatives = true;
-      source += "(?:";
-    } else if (c === "}" && inAlternatives) {
-      inAlternatives = false;
-      source += ")";
-    } else if (c === "," && inAlternatives) {
-      source += "|";
+      if (alternatives !== null) return null;
+      alternatives = [[]];
+    } else if (c === "}" && alternatives !== null) {
+      tokens.push({ kind: "alternatives", alternatives });
+      alternatives = null;
+    } else if (c === "," && alternatives !== null) {
+      alternatives.push([]);
     } else {
-      source += literal(c);
+      push({ kind: "literal", code: c.codePointAt(0)! });
     }
   }
-  return inAlternatives ? null : source;
+  return alternatives === null ? tokens : null;
 }
 
-function readSet(chars: string[], open: number): { source: string; close: number } | null {
+function readSet(chars: string[], open: number): { matcher: Matcher; close: number } | null {
   const negated = chars[open + 1] === "!";
   const first = open + (negated ? 2 : 1);
   if (chars[first] === "^" && !negated) return null;
   const close = chars.indexOf("]", first + 1);
   if (close === -1) return null;
-  const members = chars.slice(first, close);
-  let source = "";
+  const members = chars.slice(first, close).map((c) => c.codePointAt(0)!);
+  const dash = "-".codePointAt(0)!;
+  const ranges: [number, number][] = [];
   for (let j = 0; j < members.length; j++) {
-    const c = members[j]!;
-    if (j + 2 < members.length && members[j + 1] === "-") {
+    const code = members[j]!;
+    if (j + 2 < members.length && members[j + 1] === dash) {
       const end = members[j + 2]!;
-      if (end.codePointAt(0)! < c.codePointAt(0)!) return null;
-      source += `${literal(c)}-${literal(end)}`;
+      if (end < code) return null;
+      ranges.push([code, end]);
       j += 2;
-    } else if (c === "-" && j !== 0 && j !== members.length - 1) {
+    } else if (code === dash && j !== 0 && j !== members.length - 1) {
       return null;
     } else {
-      source += literal(c);
+      ranges.push([code, code]);
     }
   }
-  return { source: `[${negated ? "^" : ""}${source}]`, close };
+  return { matcher: { kind: "set", negated, ranges }, close };
 }
 
-function literal(c: string): string {
-  return `\\u{${c.codePointAt(0)!.toString(16)}}`;
+function buildStates(tokens: Token[]): Segment {
+  const states: State[] = [{ kind: "accept" }];
+  const add = (state: State) => states.push(state) - 1;
+  const piece = (p: Piece, next: number) =>
+    add(p.kind === "star" ? { kind: "star", next } : { kind: "char", matcher: p, next });
+  let start = ACCEPT;
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const token = tokens[i]!;
+    if (token.kind === "alternatives") {
+      const next = start;
+      const branches = token.alternatives.map((pieces) => pieces.reduceRight((n, p) => piece(p, n), next));
+      start = add({ kind: "split", next: branches });
+    } else {
+      start = piece(token, start);
+    }
+  }
+  return { kind: "name", states, start };
+}
+
+// A state-set simulation, so matching stays linear in the name for any number of stars.
+function matchName(segment: Extract<Segment, { kind: "name" }>, name: string): boolean {
+  const { states } = segment;
+  const seen = new Int32Array(states.length).fill(-1);
+  let generation = 0;
+  const enter = (id: number, into: number[]): void => {
+    if (seen[id] === generation) return;
+    seen[id] = generation;
+    const state = states[id]!;
+    if (state.kind === "split") {
+      for (const next of state.next) enter(next, into);
+      return;
+    }
+    into.push(id);
+    if (state.kind === "star") enter(state.next, into);
+  };
+  let current: number[] = [];
+  enter(segment.start, current);
+  for (const c of name) {
+    const code = c.codePointAt(0)!;
+    const next: number[] = [];
+    generation++;
+    for (const id of current) {
+      const state = states[id]!;
+      if (state.kind === "star") enter(id, next);
+      else if (state.kind === "char" && matches(state.matcher, code)) enter(state.next, next);
+    }
+    if (next.length === 0) return false;
+    current = next;
+  }
+  return current.includes(ACCEPT);
+}
+
+function matches(matcher: Matcher, code: number): boolean {
+  if (matcher.kind === "literal") return matcher.code === code;
+  if (matcher.kind === "any") return true;
+  return matcher.ranges.some(([from, to]) => from <= code && code <= to) !== matcher.negated;
 }
 
 function matchSegments(segments: Segment[], parts: string[]): boolean {
@@ -142,10 +216,10 @@ function matchSegments(segments: Segment[], parts: string[]): boolean {
   let starPart = 0;
   while (p < parts.length) {
     const segment = segments[g];
-    if (segment === null) {
+    if (segment?.kind === "globstar") {
       star = g++;
       starPart = p;
-    } else if (segment !== undefined && segment.test(parts[p]!)) {
+    } else if (segment !== undefined && matchName(segment, parts[p]!)) {
       g++;
       p++;
     } else if (star === -1) {
@@ -155,6 +229,6 @@ function matchSegments(segments: Segment[], parts: string[]): boolean {
       p = ++starPart;
     }
   }
-  while (segments[g] === null) g++;
+  while (segments[g]?.kind === "globstar") g++;
   return g === segments.length;
 }
