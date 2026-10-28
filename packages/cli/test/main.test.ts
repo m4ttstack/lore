@@ -239,6 +239,19 @@ async function selectWith(given: string[]): Promise<{ code: number; selection: {
   return { code, selection: JSON.parse(out) };
 }
 
+describe("nested loose folders", () => {
+  test("--given rules --given rules/team reads the inner folder's rules once, with no duplicate-id", async () => {
+    const rules = tempDir();
+    write(rules, { "team/.loreconfig": GIVEN_CONFIG[".loreconfig"], "team/.lore/a.lore": RULE });
+    const args = ["select", "--no-repo", "--remote", "github.com/acme/shop", "--given", rules, "--given", join(rules, "team"), "--diff", "-", "--format", "json"];
+    const { code, out } = await lore(args, { stdin: DIFF });
+    expect(code).toBe(0);
+    const selection = JSON.parse(out);
+    expect(selection.excluded).toEqual([]);
+    expect(selection.rules.map((rule: { id: string; file: string }) => [rule.id, rule.file])).toEqual([["no-usd", "loose:team/.lore/a.lore"]]);
+  });
+});
+
 describe("src text from several given places", () => {
   test("two given repositories tracking the same src path each give their own context its own text", async () => {
     const first = repoWith({ "rules/.loreconfig": GIVEN_CONFIG[".loreconfig"], "rules/.lore/a.lore": CONTEXT("first-guide"), "rules/docs/guide.md": "first\n" });

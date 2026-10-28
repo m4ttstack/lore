@@ -41,12 +41,14 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
   const repositories = new Map<string, Place>();
   const looseFolders = new Map<string, Place>();
   const givenPlaces: Place[] = [];
-  const seen = new Set<string>();
+  const folders = new Map<string, { typed: string; root: string | null }>();
   for (const typed of sources.given) {
     const dir = realFolder(typed);
-    if (seen.has(dir)) continue;
-    seen.add(dir);
-    const root = workingCopyOf(dir);
+    if (!folders.has(dir)) folders.set(dir, { typed, root: workingCopyOf(dir) });
+  }
+  const looseDirs = [...folders].filter(([, { root }]) => root === null).map(([dir]) => dir);
+  for (const [dir, { typed, root }] of folders) {
+    if (root === null && looseDirs.some((outer) => walkReaches(outer, dir))) continue;
     if (root === null) {
       const place = placeOf(dir, walkLoose(dir), LOOSE);
       place.folders.push("");
@@ -151,6 +153,13 @@ function reached(path: string, folders: readonly string[]): boolean {
 
 function within(dir: string, ancestor: string): boolean {
   return ancestor === "" || dir === ancestor || dir.startsWith(`${ancestor}/`);
+}
+
+// A loose folder whose walk reaches another given loose folder already collects that folder's files.
+function walkReaches(outer: string, inner: string): boolean {
+  const path = relative(outer, inner);
+  if (path === "" || path === ".." || path.startsWith(`..${sep}`)) return false;
+  return path.split(sep).every((name) => !name.startsWith(".") || name === LORE_FOLDER);
 }
 
 function walkLoose(dir: string): string[] {

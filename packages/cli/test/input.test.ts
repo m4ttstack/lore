@@ -153,6 +153,19 @@ describe("buildInput", () => {
     expect(input.given.map((folder) => folder.folder)).toEqual(["", "rules"]);
   });
 
+  test("a loose folder inside another given loose folder is collected through the outer one only", async () => {
+    const outer = tempDir();
+    write(outer, { ".lore/a.lore": rule("a"), "team/.lore/b.lore": rule("b"), ".cache/team/.lore/c.lore": rule("c") });
+    const inner = join(outer, "team");
+    const hidden = join(outer, ".cache/team");
+    for (const given of [[outer, inner, hidden], [hidden, inner, outer]]) {
+      const { input } = await buildInput({ repo: null, rulesRef: null, given, remotes: ["github.com/acme/shop"] });
+      expect(input.given.map(({ files }) => files.map(({ path }) => path))).toEqual(
+        given[0] === outer ? [[".lore/a.lore", "team/.lore/b.lore"], [".lore/c.lore"]] : [[".lore/c.lore"], [".lore/a.lore", "team/.lore/b.lore"]],
+      );
+    }
+  });
+
   test("a missing given folder is an input error", async () => {
     const root = repoWith({ ".lore/a.lore": rule("a") });
     await expect(buildInput({ repo: root, rulesRef: null, given: [join(root, "absent")], remotes: ["github.com/acme/shop"] })).rejects.toThrow(
