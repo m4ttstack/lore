@@ -26,7 +26,7 @@ Change:
 
 Output:
 
-- `--format text|json`: default is text on a terminal, json otherwise.
+- `--format text|json`: default is text on a terminal, json otherwise. Text shows at most 20 flagged lines per rule (then `- and N more`), each cut to 200 characters; json keeps every hit in full.
 - `--capabilities <list>`: the checks to run. Default: `regex,ast-grep`.
 - `--strict`: exit 1 when errors in the rules excluded entries.
 

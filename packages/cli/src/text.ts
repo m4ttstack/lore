@@ -17,6 +17,9 @@ Return the verdicts as one fenced code block tagged \`lore-verdicts\`:
 { "lore": "1", "verdicts": [{ "rule": "<id>", "verdict": "fail", "evidence": [{ "file": "<path>", "line": 12 }], "note": "<why>" }] }
 \`\`\``;
 
+const MAX_FLAGGED_LINES = 20;
+const MAX_LINE_CODE_POINTS = 200;
+
 const NOTHING = "No Lore rules apply to this change.";
 
 export function renderText(selection: Selection): string {
@@ -29,7 +32,8 @@ export function renderText(selection: Selection): string {
       const lines = [`## Rule ${span(rule.id)} (${rule.severity}, ${rule.category ?? "no category"})`, "", rule.prose];
       if (rule.hits.length > 0) {
         lines.push("", "Flagged lines:", "");
-        for (const hit of rule.hits) lines.push(`- ${span(`${hit.file}:${hit.line}`)} ${span(hit.text)}`);
+        for (const hit of rule.hits.slice(0, MAX_FLAGGED_LINES)) lines.push(`- ${span(`${hit.file}:${hit.line}`)} ${span(cut(hit.text))}`);
+        if (rule.hits.length > MAX_FLAGGED_LINES) lines.push(`- and ${rule.hits.length - MAX_FLAGGED_LINES} more`);
       }
       sections.push(lines.join("\n"));
     }
@@ -55,6 +59,11 @@ export function excludedLines(selection: Selection): string {
 function warningLine(warning: Diagnostic): string {
   const entry = warning.entry === null ? "" : ` (entry ${span(warning.entry)})`;
   return `- ${span(warning.name)} in ${span(warning.file)} line ${warning.line}${entry}`;
+}
+
+function cut(text: string): string {
+  const points = Array.from(text);
+  return points.length > MAX_LINE_CODE_POINTS ? `${points.slice(0, MAX_LINE_CODE_POINTS).join("")}...` : text;
 }
 
 function longestRun(text: string): number {
