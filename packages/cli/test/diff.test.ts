@@ -7,10 +7,12 @@ import { InputError } from "../src/errors";
 
 const examples = extractExamples(readFileSync(new URL("../../../spec/SPEC.md", import.meta.url), "utf8"));
 
-function exampleChange(number: number) {
-  const example = examples.find((e) => e.number === number);
-  if (!example?.diff) throw new Error(`conformance example ${number} has no diff`);
-  return toChange(example.diff);
+function exampleChange(marker: string) {
+  const found = examples.filter((e) => e.diff?.includes(marker));
+  if (found.length !== 1) {
+    throw new Error(`expected one conformance example whose diff contains "${marker}", found ${found.length}`);
+  }
+  return toChange(found[0]!.diff!);
 }
 
 describe("parseUnifiedDiff", () => {
@@ -161,6 +163,7 @@ describe("prefixes", () => {
 
   test.each([
     ["i/", "w/"], ["c/", "i/"], ["c/", "w/"], ["o/", "w/"], ["c/", "c/"], ["w/", "i/"], ["1/", "2/"],
+    ["b/", "a/"], ["2/", "1/"], ["i/", "c/"], ["w/", "c/"],
   ])("mnemonic pair %s %s is stripped", (left, right) => {
     expect(pathOf(diffWith(`${left}src/x.ts ${right}src/x.ts`, `${left}src/x.ts`, `${right}src/x.ts`))).toEqual(["src/x.ts"]);
   });
@@ -328,7 +331,7 @@ describe("hunk bodies", () => {
 });
 
 describe("conformance fixtures", () => {
-  test("a diff of three modified files equals example 76's change", () => {
+  test("a diff of three modified files equals the conformance example that adds DEFAULT_CURRENCY", () => {
     const diff = [
       "diff --git a/apps/web/src/checkout/Price.tsx b/apps/web/src/checkout/Price.tsx",
       "index 1111111..2222222 100644",
@@ -343,10 +346,10 @@ describe("conformance fixtures", () => {
       "--- a/apps/web/src/checkout/currency.ts", "+++ b/apps/web/src/checkout/currency.ts",
       "@@ -1,1 +1,2 @@", " // currencies", "+export const DEFAULT_CURRENCY = 'USD'", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual(exampleChange(76));
+    expect(parseUnifiedDiff(diff)).toEqual(exampleChange("DEFAULT_CURRENCY = 'USD'"));
   });
 
-  test("a diff with a deletion and a rename equals example 80's change", () => {
+  test("a diff with a deletion and a rename equals the conformance example that deletes OldPrice.tsx", () => {
     const diff = [
       "diff --git a/apps/web/src/legacy/OldPrice.tsx b/apps/web/src/legacy/OldPrice.tsx",
       "deleted file mode 100644", "index 1111111..0000000",
@@ -358,6 +361,6 @@ describe("conformance fixtures", () => {
       "--- a/apps/web/src/checkout/Price.tsx", "+++ b/apps/web/src/pricing/Price.tsx",
       "@@ -2,2 +2,2 @@", " export function Price() {", "-  const label = 'EUR'", "+  const label = 'USD'", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual(exampleChange(80));
+    expect(parseUnifiedDiff(diff)).toEqual(exampleChange("D apps/web/src/legacy/OldPrice.tsx"));
   });
 });

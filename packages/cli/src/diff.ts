@@ -6,7 +6,7 @@ const ESCAPES: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12,
 const NULL_DEVICE = "/dev/null";
 const MNEMONIC = ["c/", "i/", "w/", "o/"];
 const PREFIX_PAIRS: [string, string][] = [
-  ["a/", "b/"], ["1/", "2/"], ...MNEMONIC.flatMap((x) => MNEMONIC.map((y): [string, string] => [x, y])),
+  ["a/", "b/"], ["b/", "a/"], ["1/", "2/"], ["2/", "1/"], ...MNEMONIC.flatMap((x) => MNEMONIC.map((y): [string, string] => [x, y])),
 ];
 
 type Prefixes = [string, string] | null;
