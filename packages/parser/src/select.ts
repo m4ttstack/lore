@@ -171,6 +171,7 @@ async function runChecks(
       if (found !== null) for (const file of searched) for (const added of file.added) if (found(added.text)) hit(entry.id, file.newPath, added);
     }
     const unknownLanguage = new Set<string>();
+    const failedFiles = new Set<string>();
     for (const [n, check] of entry.checks.entries()) {
       if (check.lang === "regex" && support.regex) {
         const regex = support.regexes(check.body);
@@ -194,7 +195,8 @@ async function runChecks(
           runs.push(async () => {
             const spans = await astGrepSpans(astGrep!, check.body, language, content);
             if (spans === null) {
-              warnings.push({ name: "ast-grep-failed", file: file.newPath, entry: entry.id, line: 1 });
+              if (!failedFiles.has(file.newPath)) warnings.push({ name: "ast-grep-failed", file: file.newPath, entry: entry.id, line: 1 });
+              failedFiles.add(file.newPath);
               return;
             }
             for (const added of file.added) if (spans.some(({ first, last }) => first <= added.line && added.line <= last)) hit(entry.id, file.newPath, added);
@@ -241,12 +243,12 @@ function srcTargetsMissing(
 ): Diagnostic[] {
   const governed = new Set((input.rules ?? input.repo).map((file) => file.path));
   if (input.rules === undefined) for (const { newPath } of changed) if (newPath !== null) governed.add(newPath);
-  const external = new Map<Tree, Set<string>>();
-  const externalPaths = (tree: Tree) => {
-    let paths = external.get(tree);
+  const givenTrees = new Map<Tree, Set<string>>();
+  const givenPaths = (tree: Tree) => {
+    let paths = givenTrees.get(tree);
     if (paths === undefined) {
       const files = tree === "repo" ? [] : collected.repositoryFiles[collected.trees[tree]!.repository]!;
-      external.set(tree, (paths = new Set(files.map((file) => file.path))));
+      givenTrees.set(tree, (paths = new Set(files.map((file) => file.path))));
     }
     return paths;
   };
@@ -257,7 +259,7 @@ function srcTargetsMissing(
     const src = entry.src;
     const outside = [EXTERNAL, LOOSE].find((prefix) => src.startsWith(prefix));
     const found = outside !== undefined
-      ? externalPaths(place.tree).has(src.slice(outside.length))
+      ? givenPaths(place.tree).has(src.slice(outside.length))
       : governed.has(src);
     if (!found) missing.push(place.diagnostic("missing-src-target"));
   }

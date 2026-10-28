@@ -42,6 +42,23 @@ test("an ast-grep run that fails reports ast-grep-failed for the changed file", 
   }
 });
 
+test("two failing ast-grep checks of one rule give one ast-grep-failed per file", async () => {
+  const check = '<check lang="ast-grep">\n$A as any\n</check>\n';
+  const lore = `<rule id="no-any" category="code_style">\n${check}${check}No casts to any.\n</rule>\n`;
+  const input = { repo: [{ path: ".lore/a.lore", content: lore }], given: [], remotes: ["https://github.com/acme/shop"] };
+  const change = { files: ["a.ts", "b.ts"].map((path) => ({ kind: "M" as const, path, added: [{ line: 1, text: "x as any" }] })) };
+  const stub = stubAstGrep("ast-grep 0.51.0");
+  try {
+    const result = await select(input, change, { capabilities: ["ast-grep"], astGrepBinary: stub.binary, fileContent: () => "x as any" });
+    expect(brief(result.warnings)).toEqual([
+      { name: "ast-grep-failed", file: "a.ts", entry: "no-any", line: 1 },
+      { name: "ast-grep-failed", file: "b.ts", entry: "no-any", line: 1 },
+    ]);
+  } finally {
+    stub.remove();
+  }
+});
+
 test("ast-grep-failed warnings come out in the spec's diagnostic order, whichever run ends first", async () => {
   const lore = `<rule id="no-any" category="code_style">\n<check lang="ast-grep">\n$A as any\n</check>\nNo casts to any.\n</rule>\n`;
   const input = { repo: [{ path: ".lore/a.lore", content: lore }], given: [], remotes: ["https://github.com/acme/shop"] };

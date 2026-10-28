@@ -255,3 +255,13 @@ test("a loose given folder is collected whole, except dot-folders, with a warnin
   expect(collected.files.map((f) => f.file)).toEqual(["loose:.lore/a.lore"]);
   expect(collected.warnings).toEqual([{ name: "untracked-given-folder", file: "loose:.", entry: null, line: 1 }]);
 });
+
+test("a loose given folder is read from its root, whatever folder the caller names", () => {
+  const lore = `<rule id="kept" category="documentation">\nText.\n</rule>\n`;
+  const files = [
+    { path: ".loreconfig", content: "repo: github.com/acme/shop\n" },
+    { path: ".lore/a.lore", content: lore },
+  ];
+  const collected = collect({ repo: [], remotes: [REMOTE], given: [{ folder: "lore", loose: true, files }] });
+  expect(collected.files.map((f) => f.file)).toEqual(["loose:.lore/a.lore"]);
+});

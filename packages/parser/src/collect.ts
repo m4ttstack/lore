@@ -170,7 +170,7 @@ function repositories(given: readonly GivenFolder[]): { at: number; files: Input
   for (const [at, folder] of given.entries()) {
     const trimmed = folder.folder.replace(/\/+$/, "");
     if (folder.loose === true) {
-      groups.push({ at, first: folder, files: folder.files.filter(({ path }) => !inDotFolder(path)), folders: [trimmed], prefix: LOOSE });
+      groups.push({ at, first: folder, files: folder.files.filter(({ path }) => !inDotFolder(path)), folders: [ROOT], prefix: LOOSE });
       continue;
     }
     const group = groups.find((g) => g.prefix === EXTERNAL && sameRepository(g.first, folder));
