@@ -39,6 +39,8 @@ export interface Collected {
   warnings: Diagnostic[];
   // Indexed by Repository number: the tracked files of each repository of the given folders.
   repositoryFiles: InputFile[][];
+  // Indexed by Repository number: the index in input.given of the first folder of that repository.
+  repositoryGiven: number[];
   configsByRepository: ReadonlyMap<Repository, ReadonlyMap<string, ConfigFile>>;
 }
 
@@ -58,7 +60,8 @@ const NO_CONFIGS: Configs = new Map();
 export function collect(input: LoreInput): Collected {
   const given = repositories(input.given);
   const collected: Collected = {
-    files: [], configs: [], diagnostics: [], warnings: [], trees: [], repositoryFiles: given.map(({ files }) => files), configsByRepository: new Map(),
+    files: [], configs: [], diagnostics: [], warnings: [], trees: [],
+    repositoryFiles: given.map(({ files }) => files), repositoryGiven: given.map(({ at }) => at), configsByRepository: new Map(),
   };
   const governed = input.rules === undefined
     ? { prefix: "", files: input.repo }
@@ -162,19 +165,19 @@ function readConfigs(
 
 // Given folders of one repository are read together, so a file they both reach is read once.
 // A loose folder is no repository's tracked files: it stands alone, and its dot-folders are not read.
-function repositories(given: readonly GivenFolder[]): { files: InputFile[]; folders: string[]; prefix: string }[] {
-  const groups: { first: GivenFolder; files: InputFile[]; folders: string[]; prefix: string }[] = [];
-  for (const folder of given) {
+function repositories(given: readonly GivenFolder[]): { at: number; files: InputFile[]; folders: string[]; prefix: string }[] {
+  const groups: { at: number; first: GivenFolder; files: InputFile[]; folders: string[]; prefix: string }[] = [];
+  for (const [at, folder] of given.entries()) {
     const trimmed = folder.folder.replace(/\/+$/, "");
     if (folder.loose === true) {
-      groups.push({ first: folder, files: folder.files.filter(({ path }) => !inDotFolder(path)), folders: [trimmed], prefix: LOOSE });
+      groups.push({ at, first: folder, files: folder.files.filter(({ path }) => !inDotFolder(path)), folders: [trimmed], prefix: LOOSE });
       continue;
     }
     const group = groups.find((g) => g.prefix === EXTERNAL && sameRepository(g.first, folder));
-    if (group === undefined) groups.push({ first: folder, files: folder.files, folders: [trimmed], prefix: EXTERNAL });
+    if (group === undefined) groups.push({ at, first: folder, files: folder.files, folders: [trimmed], prefix: EXTERNAL });
     else group.folders.push(trimmed);
   }
-  return groups.map(({ files, folders, prefix }) => ({ files, folders, prefix }));
+  return groups.map(({ at, files, folders, prefix }) => ({ at, files, folders, prefix }));
 }
 
 function inDotFolder(path: string): boolean {

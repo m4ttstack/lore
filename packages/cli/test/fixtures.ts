@@ -1,4 +1,5 @@
 import type { Change, DocumentModel, EligibilityResult, Entry } from "@lore/parser";
+import type { EntrySources } from "../src/selection";
 
 const base = { category: null, severity: null, disabled: false, scopes: [], when: null, checks: [], meta: null, src: null };
 
@@ -36,4 +37,6 @@ export const change: Change = {
   ],
 };
 
-export const readSrc = (file: string): string | null => (file === "docs/architecture.md" ? "# Architecture\n\nOne pricing module.\n" : null);
+export const sources: EntrySources = {
+  read: (entry) => (entry.src === "docs/architecture.md" ? "# Architecture\n\nOne pricing module.\n" : null),
+};

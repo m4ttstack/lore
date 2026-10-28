@@ -98,6 +98,21 @@ describe("collect", () => {
     expect(brief(parse(input).errors).map((d) => d.name)).toEqual(["duplicate-id", "duplicate-id"]);
   });
 
+  test("each repository of the given folders names the given folder that opened it", () => {
+    const files: InputFile[] = [{ path: ".loreconfig", content: "repo: github.com/acme/shop\n" }];
+    const input: LoreInput = {
+      repo: [],
+      given: [
+        { folder: "", files, repository: "/work/a" },
+        { folder: "", files, loose: true },
+        { folder: "lore", files, repository: "/work/a" },
+        { folder: "", files, repository: "/work/b" },
+      ],
+      remotes: [REMOTE],
+    };
+    expect(collect(input).repositoryGiven).toEqual([0, 1, 3]);
+  });
+
   test("an external file's base is the directory it stands for, its Lore root is in its own repository", () => {
     const collected = collect(toInput(example(93)));
     expect(collected.files).toEqual([

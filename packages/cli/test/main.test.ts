@@ -230,6 +230,40 @@ describe("lore select", () => {
   });
 });
 
+const CONTEXT = (id: string) => `<context id="${id}" src="./../docs/guide.md">\nRead the guide.\n</context>\n`;
+const GIVEN_CONFIG = { ".loreconfig": "lore: 1\nrepo: github.com/acme/shop\n" };
+
+async function selectWith(given: string[]): Promise<{ code: number; selection: { context: { id: string; srcText: string | null }[]; warnings: unknown[] } }> {
+  const args = ["select", "--no-repo", "--remote", "github.com/acme/shop", ...given.flatMap((dir) => ["--given", dir]), "--diff", "-", "--format", "json"];
+  const { code, out } = await lore(args, { stdin: DIFF });
+  return { code, selection: JSON.parse(out) };
+}
+
+describe("src text from several given places", () => {
+  test("two given repositories tracking the same src path each give their own context its own text", async () => {
+    const first = repoWith({ "rules/.loreconfig": GIVEN_CONFIG[".loreconfig"], "rules/.lore/a.lore": CONTEXT("first-guide"), "rules/docs/guide.md": "first\n" });
+    const second = repoWith({ "rules/.loreconfig": GIVEN_CONFIG[".loreconfig"], "rules/.lore/b.lore": CONTEXT("second-guide"), "rules/docs/guide.md": "second\n" });
+    const { code, selection } = await selectWith([join(first, "rules"), join(second, "rules")]);
+    expect(code).toBe(0);
+    expect(selection.context.map(({ id, srcText }) => ({ id, srcText }))).toEqual([
+      { id: "first-guide", srcText: "first\n" },
+      { id: "second-guide", srcText: "second\n" },
+    ]);
+  });
+
+  test("two loose folders holding the same src path each give their own context its own text", async () => {
+    const first = tempDir();
+    write(first, { ...GIVEN_CONFIG, ".lore/a.lore": CONTEXT("first-guide"), "docs/guide.md": "first\n" });
+    const second = tempDir();
+    write(second, { ...GIVEN_CONFIG, ".lore/b.lore": CONTEXT("second-guide"), "docs/guide.md": "second\n" });
+    const { selection } = await selectWith([first, second]);
+    expect(selection.context.map(({ id, srcText }) => ({ id, srcText }))).toEqual([
+      { id: "first-guide", srcText: "first\n" },
+      { id: "second-guide", srcText: "second\n" },
+    ]);
+  });
+});
+
 describe("usage errors", () => {
   const oneLine = (err: string) => expect(err.trim().split("\n")).toHaveLength(1);
 

@@ -10,7 +10,11 @@ export interface RuleSources {
   given: string[];
   remotes: string[];
 }
-export interface BuiltInput { input: LoreInput; readSrc(file: string): string | null }
+export interface BuiltInput {
+  input: LoreInput;
+  // given is the index in input.given of the folder whose entry names the src; without it an ambiguous path reads as null.
+  readSrc(file: string, given?: number): string | null;
+}
 interface Place { root: string; listed: Set<string>; files: InputFile[] }
 
 const LORE_FOLDER = ".lore";
@@ -32,6 +36,7 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
 
   const repositories = new Map<string, Place>();
   const looseFolders = new Map<string, Place>();
+  const givenPlaces: Place[] = [];
   const seen = new Set<string>();
   for (const typed of sources.given) {
     const dir = realFolder(typed);
@@ -41,6 +46,7 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     if (root === null) {
       const place = placeOf(dir, walkLoose(dir));
       looseFolders.set(dir, place);
+      givenPlaces.push(place);
       input.given.push({ folder: "", loose: true, files: place.files });
       continue;
     }
@@ -50,12 +56,18 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     if (![...place.listed].some((path) => folder === "" || path.startsWith(`${folder}/`))) {
       throw new InputError(`given folder ${typed} is inside the working copy at ${root}, but git tracks none of its files`);
     }
+    givenPlaces.push(place);
     input.given.push({ folder, repository: root, files: place.files });
   }
 
-  const readSrc = (file: string): string | null => {
-    if (file.startsWith(EXTERNAL)) return readOnly(repositories, file.slice(EXTERNAL.length));
-    if (file.startsWith(LOOSE)) return readOnly(looseFolders, file.slice(LOOSE.length));
+  const readGiven = (places: Map<string, Place>, path: string, given: number | undefined): string | null => {
+    if (given === undefined) return readOnly(places, path);
+    const place = givenPlaces[given];
+    return place !== undefined && places.get(place.root) === place ? readTracked(place.root, path, place.listed) : null;
+  };
+  const readSrc = (file: string, given?: number): string | null => {
+    if (file.startsWith(EXTERNAL)) return readGiven(repositories, file.slice(EXTERNAL.length), given);
+    if (file.startsWith(LOOSE)) return readGiven(looseFolders, file.slice(LOOSE.length), given);
     if (repo === null) return null;
     if (rulesRef === null) return readTracked(repo, file, governedTracked);
     try {

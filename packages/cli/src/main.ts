@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { RegexLimitError, parse, select } from "@lore/parser";
+import { RegexLimitError, parseWithContext, select } from "@lore/parser";
 import pkg from "../package.json";
 import { parseCommand, type SelectCommand, type VerdictsCommand } from "./args";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
 import { buildInput, findRepoRoot } from "./input";
-import { toSelection } from "./selection";
+import { entrySources, toSelection } from "./selection";
 import { excludedLines, renderText } from "./text";
 import { checkVerdicts, readSelection } from "./verdicts";
 
@@ -77,13 +77,13 @@ async function runSelect(command: SelectCommand, io: IO): Promise<number> {
     given: command.given,
     remotes: command.remotes,
   });
-  const model = parse(input);
+  const parsed = parseWithContext(input);
   const result = await select(input, change, {
     capabilities: command.capabilities,
     astGrepBinary: "ast-grep",
     fileContent: () => null,
   });
-  const selection = toSelection(model, result, change, readSrc);
+  const selection = toSelection(parsed.model, result, change, entrySources(parsed, readSrc));
   const format = command.format ?? (io.isTTY ? "text" : "json");
   if (format === "json") io.stdout(`${JSON.stringify(selection, null, 2)}\n`);
   else {

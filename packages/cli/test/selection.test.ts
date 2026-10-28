@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { toSelection } from "../src/selection";
-import { change, model, readSrc, result } from "./fixtures";
+import { change, model, sources, result } from "./fixtures";
 
 describe("toSelection", () => {
-  const selection = toSelection(model, result, change, readSrc);
+  const selection = toSelection(model, result, change, sources);
 
   test("splits the eligible entries into rules and context, in the result's order", () => {
     expect(selection.lore).toBe("1");
@@ -32,7 +32,7 @@ describe("toSelection", () => {
     expect(selection.rules[1]).toMatchObject({ id: "name-things", severity: "advisory", category: null, meta: null, hits: [] });
   });
 
-  test("a context reads its src through readSrc", () => {
+  test("a context reads its src through sources", () => {
     expect(selection.context[0]).toEqual({
       id: "architecture",
       file: ".lore/pricing.lore",
@@ -44,11 +44,11 @@ describe("toSelection", () => {
   });
 
   test("a context whose src cannot be read, or that has none, has a null srcText", () => {
-    const gone = toSelection(model, result, change, () => null);
+    const gone = toSelection(model, result, change, { read: () => null });
     expect(gone.context[0]).toMatchObject({ src: "docs/architecture.md", srcText: null });
     const none = toSelection(
       { ...model, entries: model.entries.map((entry) => (entry.kind === "context" ? { ...entry, src: null } : entry)) },
-      result, change, readSrc,
+      result, change, sources,
     );
     expect(none.context[0]).toMatchObject({ src: null, srcText: null });
   });

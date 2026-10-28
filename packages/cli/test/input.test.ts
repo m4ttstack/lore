@@ -227,6 +227,24 @@ describe("readSrc with several given places", () => {
     expect(readSrc("external:docs/guide.md")).toBeNull();
   });
 
+  test("with the entry's given folder, an ambiguous path reads from exactly that place", async () => {
+    const first = repoWith({ "rules/.lore/a.lore": rule("a"), "docs/guide.md": "first\n" });
+    const second = repoWith({ "rules/.lore/b.lore": rule("b"), "docs/guide.md": "second\n" });
+    const loose = tempDir();
+    write(loose, { "docs/guide.md": "loose\n" });
+    const other = tempDir();
+    write(other, { "docs/guide.md": "other\n" });
+    const given = [join(first, "rules"), join(second, "rules"), loose, other];
+    const { readSrc } = await buildInput({ repo: null, rulesRef: null, given, remotes: ["github.com/acme/shop"] });
+    expect(readSrc("external:docs/guide.md", 0)).toBe("first\n");
+    expect(readSrc("external:docs/guide.md", 1)).toBe("second\n");
+    expect(readSrc("loose:docs/guide.md", 2)).toBe("loose\n");
+    expect(readSrc("loose:docs/guide.md", 3)).toBe("other\n");
+    expect(readSrc("loose:docs/guide.md", 0)).toBeNull();
+    expect(readSrc("external:docs/guide.md", 2)).toBeNull();
+    expect(readSrc("external:docs/guide.md", 9)).toBeNull();
+  });
+
   test("loose: is null when more than one loose folder holds the path", async () => {
     const first = tempDir();
     write(first, { "docs/guide.md": "first\n" });
