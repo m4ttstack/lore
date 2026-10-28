@@ -177,6 +177,41 @@ describe("collect", () => {
     };
     expect(collect(input).files).toEqual([]);
   });
+
+  test("with rules given, Lore files come from rules and carry the rules: prefix", () => {
+    const lore = (id: string) => `<rule id="${id}" category="documentation">\nText.\n</rule>\n`;
+    const collected = collect({
+      repo: [{ path: ".lore/a.lore", content: lore("from-repo") }],
+      rules: [{ path: ".lore/a.lore", content: lore("from-rules") }],
+      given: [], remotes: ["https://github.com/acme/shop"],
+    });
+    expect(collected.files.map((f) => f.file)).toEqual(["rules:.lore/a.lore"]);
+    expect(collected.files[0]!.base).toBe("");
+  });
+
+  test("a loose given folder is collected whole, except dot-folders, with a warning", () => {
+    const lore = (id: string) => `<rule id="${id}" category="documentation">\nText.\n</rule>\n`;
+    const collected = collect({
+      repo: [], remotes: ["https://github.com/acme/shop"],
+      given: [{ folder: "", loose: true, files: [
+        { path: ".loreconfig", content: "repo: github.com/acme/shop\n" },
+        { path: ".lore/a.lore", content: lore("kept") },
+        { path: ".cache/.lore/b.lore", content: lore("dropped") },
+      ] }],
+    });
+    expect(collected.files.map((f) => f.file)).toEqual(["loose:.lore/a.lore"]);
+    expect(collected.warnings).toEqual([{ name: "untracked-given-folder", file: "loose:.", entry: null, line: 1 }]);
+  });
+
+  test("a loose given folder is read from its root, whatever folder the caller names", () => {
+    const lore = `<rule id="kept" category="documentation">\nText.\n</rule>\n`;
+    const files = [
+      { path: ".loreconfig", content: "repo: github.com/acme/shop\n" },
+      { path: ".lore/a.lore", content: lore },
+    ];
+    const collected = collect({ repo: [], remotes: [REMOTE], given: [{ folder: "lore", loose: true, files }] });
+    expect(collected.files.map((f) => f.file)).toEqual(["loose:.lore/a.lore"]);
+  });
 });
 
 describe("the document model of every eligibility example", () => {
@@ -229,39 +264,4 @@ describe("parseWithContext", () => {
       { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 },
     ]);
   });
-});
-
-test("with rules given, Lore files come from rules and carry the rules: prefix", () => {
-  const lore = (id: string) => `<rule id="${id}" category="documentation">\nText.\n</rule>\n`;
-  const collected = collect({
-    repo: [{ path: ".lore/a.lore", content: lore("from-repo") }],
-    rules: [{ path: ".lore/a.lore", content: lore("from-rules") }],
-    given: [], remotes: ["https://github.com/acme/shop"],
-  });
-  expect(collected.files.map((f) => f.file)).toEqual(["rules:.lore/a.lore"]);
-  expect(collected.files[0]!.base).toBe("");
-});
-
-test("a loose given folder is collected whole, except dot-folders, with a warning", () => {
-  const lore = (id: string) => `<rule id="${id}" category="documentation">\nText.\n</rule>\n`;
-  const collected = collect({
-    repo: [], remotes: ["https://github.com/acme/shop"],
-    given: [{ folder: "", loose: true, files: [
-      { path: ".loreconfig", content: "repo: github.com/acme/shop\n" },
-      { path: ".lore/a.lore", content: lore("kept") },
-      { path: ".cache/.lore/b.lore", content: lore("dropped") },
-    ] }],
-  });
-  expect(collected.files.map((f) => f.file)).toEqual(["loose:.lore/a.lore"]);
-  expect(collected.warnings).toEqual([{ name: "untracked-given-folder", file: "loose:.", entry: null, line: 1 }]);
-});
-
-test("a loose given folder is read from its root, whatever folder the caller names", () => {
-  const lore = `<rule id="kept" category="documentation">\nText.\n</rule>\n`;
-  const files = [
-    { path: ".loreconfig", content: "repo: github.com/acme/shop\n" },
-    { path: ".lore/a.lore", content: lore },
-  ];
-  const collected = collect({ repo: [], remotes: [REMOTE], given: [{ folder: "lore", loose: true, files }] });
-  expect(collected.files.map((f) => f.file)).toEqual(["loose:.lore/a.lore"]);
 });

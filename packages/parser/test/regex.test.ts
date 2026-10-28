@@ -1,16 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "../src/model";
-import { RegexLimitError, engineReason, toRegExp, validateDialect, validateRegex } from "../src/regex";
+import { RegexLimitError, engineReason, shown, toRegExp, validateDialect, validateRegex } from "../src/regex";
 
 const OUTSIDE = "regex-outside-dialect";
-
-test("a RegexLimitError message shows at most 100 characters of the pattern", () => {
-  const pattern = "(".repeat(5000) + "a" + ")".repeat(5000);
-  let message = "";
-  try { toRegExp(pattern); } catch (error) { message = (error as Error).message; }
-  expect(message).toContain("...");
-  expect(message.length).toBeLessThan(300);
-});
 
 function matches(pattern: string, text: string): boolean {
   return toRegExp(pattern).test(text);
@@ -244,6 +236,32 @@ describe("toRegExp", () => {
     expect(() => toRegExp(nested(1001))).toThrow("1000");
     expect(toRegExp(nested(1000)).test("zb")).toBe(true);
     expect(toRegExp("(?:a|b)".repeat(5000)).test("ab".repeat(5000))).toBe(true);
+  });
+
+  test("a limit error shows at most 100 characters of the pattern", () => {
+    const pattern = "(".repeat(5000) + "a" + ")".repeat(5000);
+    let message = "";
+    try { toRegExp(pattern); } catch (error) { message = (error as Error).message; }
+    expect(message).toEndWith(shown(pattern));
+    expect(message).toContain("...");
+    expect(message.length).toBeLessThan(300);
+  });
+
+  test("the engine-compile message ends with the pattern as shown", () => {
+    const pattern = "(a|b)".repeat(200_000);
+    let message = "";
+    try { toRegExp(pattern); } catch (error) { message = (error as Error).message; }
+    expect(message).toStartWith("the regular expression engine cannot compile this pattern (");
+    expect(message).toEndWith(`): ${shown(pattern)}`);
+  });
+
+  test("the outside-dialect message ends with the pattern as shown", () => {
+    const pattern = `(?=a)${"x".repeat(500)}`;
+    let message = "";
+    try { toRegExp(pattern); } catch (error) { message = (error as Error).message; }
+    expect(message).toStartWith(`${OUTSIDE}: `);
+    expect(message).toEndWith(`: ${shown(pattern)}`);
+    expect(message.length).toBeLessThan(200);
   });
 
   test("an engine failure to compile is rethrown as RegexLimitError", () => {

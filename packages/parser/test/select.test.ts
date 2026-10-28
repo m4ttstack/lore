@@ -16,63 +16,6 @@ function example(number: number) {
   return found;
 }
 
-test("an ast-grep check over a file with no content reports check-needs-file once and skips", async () => {
-  const lore = `<rule id="no-any" category="code_style">\n<check lang="ast-grep">\n$A as any\n</check>\nNo casts to any.\n</rule>\n`;
-  const input = { repo: [{ path: ".lore/a.lore", content: lore }], given: [], remotes: ["https://github.com/acme/shop"] };
-  const change = { files: [
-    { kind: "M" as const, path: "a.ts", added: [{ line: 1, text: "x as any" }] },
-    { kind: "M" as const, path: "b.ts", added: [{ line: 1, text: "y as any" }] },
-  ] };
-  const result = await select(input, change, { capabilities: ["ast-grep"], astGrepBinary: astGrepBinary(), fileContent: () => null });
-  expect(result.hits).toEqual([]);
-  expect(result.warnings.map((w) => [w.name, w.file, w.line])).toEqual([["check-needs-file", ".lore/a.lore", 2]]);
-});
-
-test("an ast-grep run that fails reports ast-grep-failed for the changed file", async () => {
-  const lore = `<rule id="no-any" category="code_style">\n<check lang="ast-grep">\n$A as any\n</check>\nNo casts to any.\n</rule>\n`;
-  const input = { repo: [{ path: ".lore/a.lore", content: lore }], given: [], remotes: ["https://github.com/acme/shop"] };
-  const change = { files: [{ kind: "M" as const, path: "a.ts", added: [{ line: 1, text: "x as any" }] }] };
-  const stub = stubAstGrep("ast-grep 0.51.0");
-  try {
-    const result = await select(input, change, { capabilities: ["ast-grep"], astGrepBinary: stub.binary, fileContent: () => "x as any" });
-    expect(result.hits).toEqual([]);
-    expect(brief(result.warnings)).toEqual([{ name: "ast-grep-failed", file: "a.ts", entry: "no-any", line: 1 }]);
-  } finally {
-    stub.remove();
-  }
-});
-
-test("two failing ast-grep checks of one rule give one ast-grep-failed per file", async () => {
-  const check = '<check lang="ast-grep">\n$A as any\n</check>\n';
-  const lore = `<rule id="no-any" category="code_style">\n${check}${check}No casts to any.\n</rule>\n`;
-  const input = { repo: [{ path: ".lore/a.lore", content: lore }], given: [], remotes: ["https://github.com/acme/shop"] };
-  const change = { files: ["a.ts", "b.ts"].map((path) => ({ kind: "M" as const, path, added: [{ line: 1, text: "x as any" }] })) };
-  const stub = stubAstGrep("ast-grep 0.51.0");
-  try {
-    const result = await select(input, change, { capabilities: ["ast-grep"], astGrepBinary: stub.binary, fileContent: () => "x as any" });
-    expect(brief(result.warnings)).toEqual([
-      { name: "ast-grep-failed", file: "a.ts", entry: "no-any", line: 1 },
-      { name: "ast-grep-failed", file: "b.ts", entry: "no-any", line: 1 },
-    ]);
-  } finally {
-    stub.remove();
-  }
-});
-
-test("ast-grep-failed warnings come out in the spec's diagnostic order, whichever run ends first", async () => {
-  const lore = `<rule id="no-any" category="code_style">\n<check lang="ast-grep">\n$A as any\n</check>\nNo casts to any.\n</rule>\n`;
-  const input = { repo: [{ path: ".lore/a.lore", content: lore }], given: [], remotes: ["https://github.com/acme/shop"] };
-  const files = ["z.ts", "m.ts", "a.ts"];
-  const change = { files: files.map((path) => ({ kind: "M" as const, path, added: [{ line: 1, text: "x as any" }] })) };
-  const stub = stubAstGrep("ast-grep 0.51.0");
-  try {
-    const result = await select(input, change, { capabilities: ["ast-grep"], astGrepBinary: stub.binary, fileContent: () => "x as any" });
-    expect(result.warnings.map((w) => w.file)).toEqual(["a.ts", "m.ts", "z.ts"]);
-  } finally {
-    stub.remove();
-  }
-});
-
 const brief = (diagnostics: Diagnostic[]) => diagnostics.map(({ name, file, entry, line }) => ({ name, file, entry, line }));
 
 function repo(files: Record<string, string>): LoreInput {
@@ -84,6 +27,17 @@ function rule(id: string, children = "", attributes = ""): string {
 }
 
 const change = (...lines: string[]): Change => toChange(lines.join("\n"));
+
+function noAny(checks = 1): LoreInput {
+  return repo({ ".lore/a.lore": rule("no-any", '<check lang="ast-grep">\n$A as any\n</check>\n'.repeat(checks)) });
+}
+
+function castIn(...paths: string[]): Change {
+  return { files: paths.map((path) => ({ kind: "M" as const, path, added: [{ line: 1, text: "x as any" }] })) };
+}
+
+const DEEP = `${"(".repeat(1001)}a${")".repeat(1001)}`;
+const deepWhen = `<when>\naddedMatches: ['${DEEP}']\n</when>\n`;
 
 describe("select: ast-grep availability", () => {
   const totals = example(78);
@@ -140,6 +94,42 @@ describe("select: checks", () => {
     "}",
   ].join("\n");
 
+  test("an ast-grep check over a file with no content reports check-needs-file once and skips", async () => {
+    const result = await select(noAny(), castIn("a.ts", "b.ts"), { capabilities: ["ast-grep"], astGrepBinary: astGrepBinary(), fileContent: () => null });
+    expect(result.hits).toEqual([]);
+    expect(result.warnings.map((w) => [w.name, w.file, w.line])).toEqual([["check-needs-file", ".lore/a.lore", 2]]);
+  });
+
+  describe("when ast-grep fails", () => {
+    const fails = async (input: LoreInput, files: string[]) => {
+      const stub = stubAstGrep("ast-grep 0.51.0");
+      try {
+        return await select(input, castIn(...files), { capabilities: ["ast-grep"], astGrepBinary: stub.binary, fileContent: () => "x as any" });
+      } finally {
+        stub.remove();
+      }
+    };
+
+    test("it reports ast-grep-failed for the changed file", async () => {
+      const result = await fails(noAny(), ["a.ts"]);
+      expect(result.hits).toEqual([]);
+      expect(brief(result.warnings)).toEqual([{ name: "ast-grep-failed", file: "a.ts", entry: "no-any", line: 1 }]);
+    });
+
+    test("two failing checks of one rule give one warning per file", async () => {
+      const result = await fails(noAny(2), ["a.ts", "b.ts"]);
+      expect(brief(result.warnings)).toEqual([
+        { name: "ast-grep-failed", file: "a.ts", entry: "no-any", line: 1 },
+        { name: "ast-grep-failed", file: "b.ts", entry: "no-any", line: 1 },
+      ]);
+    });
+
+    test("the warnings are sorted by file", async () => {
+      const result = await fails(noAny(), ["z.ts", "m.ts", "a.ts"]);
+      expect(result.warnings.map((w) => w.file)).toEqual(["a.ts", "m.ts", "z.ts"]);
+    });
+  });
+
   test("without the regex capability, a regex check is skipped and warned", async () => {
     const input = repo({ ".lore/a.lore": rule("totals-from-quote", "<check>\nreduce\n</check>\n") });
     const result = await select(input, change("M src/Cart.ts", "+2 items.reduce("), { capabilities: [] });
@@ -189,8 +179,7 @@ describe("select: checks", () => {
   });
 
   test("a regex limit error starts with the Lore file and entry id, and stays short", async () => {
-    const deep = `${"(".repeat(1001)}a${")".repeat(1001)}`;
-    const input = repo({ ".lore/pricing.lore": rule("deep-pattern", `<when>\naddedMatches: ['${deep}']\n</when>\n`) });
+    const input = repo({ ".lore/pricing.lore": rule("deep-pattern", deepWhen) });
     const error = await select(input, change("M a.ts", "+1 a"), ALL).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(RegexLimitError);
     const { message } = error as RegexLimitError;
@@ -199,8 +188,7 @@ describe("select: checks", () => {
   });
 
   test("the rewrapped regex limit error keeps the original as its cause", async () => {
-    const deep = `${"(".repeat(1001)}a${")".repeat(1001)}`;
-    const input = repo({ ".lore/a.lore": rule("deep-pattern", `<when>\naddedMatches: ['${deep}']\n</when>\n`) });
+    const input = repo({ ".lore/a.lore": rule("deep-pattern", deepWhen) });
     const error = (await select(input, change("M a.ts", "+1 a"), ALL).catch((caught: unknown) => caught)) as Error;
     expect(error.cause).toBeInstanceOf(RegexLimitError);
     expect((error.cause as Error).message).toStartWith("groups nested 1001 deep");
@@ -213,8 +201,7 @@ describe("select: checks", () => {
   });
 
   test("a check pattern past the limit names its file and entry too", async () => {
-    const deep = `${"(".repeat(1001)}a${")".repeat(1001)}`;
-    const input = repo({ ".lore/a.lore": rule("deep-check", `<check lang="regex">\n${deep}\n</check>\n`) });
+    const input = repo({ ".lore/a.lore": rule("deep-check", `<check lang="regex">\n${DEEP}\n</check>\n`) });
     const error = await select(input, change("M a.ts", "+1 a"), ALL).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(RegexLimitError);
     expect((error as RegexLimitError).message).toStartWith(".lore/a.lore entry deep-check: ");
@@ -309,10 +296,66 @@ describe("select: missing-src-target", () => {
     expect(found.warnings).toEqual([]);
   });
 
+  describe("in a loose folder", () => {
+    const loose = (files: Record<string, string>): LoreInput => ({
+      repo: [],
+      given: [{
+        folder: "", loose: true,
+        files: Object.entries({ ".loreconfig": "repo: github.com/acme/shop\n", ...files }).map(([path, content]) => ({ path, content })),
+      }],
+      remotes: [REMOTE],
+    });
+    const guide = (src: string) => `<context id="guide" src="${src}">\n</context>\n`;
+
+    test("a file-relative src resolves to loose:<path> and is found there", async () => {
+      const input = loose({ ".lore/a.lore": guide("./guide.md"), ".lore/guide.md": "# Guide\n" });
+      expect(parse(input).entries[0]!.src).toBe("loose:.lore/guide.md");
+      expect((await select(input, change("M a.ts"), ALL)).warnings.map((w) => w.name)).toEqual(["untracked-given-folder"]);
+    });
+
+    test("a file-relative src to a file the folder lacks is missing-src-target", async () => {
+      const result = await select(loose({ ".lore/a.lore": guide("./guide.md") }), change("M a.ts"), ALL);
+      expect(result.warnings.map((w) => w.name)).toEqual(["untracked-given-folder", "missing-src-target"]);
+    });
+
+    test("a src that climbs above the Lore root is src-escapes-root", () => {
+      expect(parse(loose({ ".lore/a.lore": guide("./../../guide.md") })).errors.map((e) => e.name)).toEqual(["src-escapes-root"]);
+    });
+  });
+
   test("a file the change adds is a target", async () => {
     const input = repo({ ".lore/a.lore": '<context id="architecture" src="docs/architecture.md">\n</context>\n' });
     const result = await select(input, change("A docs/architecture.md", "+1 # Architecture"), ALL);
     expect(result.warnings).toEqual([]);
+  });
+
+  test("with rules given, a src target counts only when the rules revision tracks it", async () => {
+    const context = `<context id="guide" src="docs/guide.md">\nRead it.\n</context>\n`;
+    const input = {
+      repo: [{ path: "docs/guide.md", content: "" }],
+      rules: [{ path: ".lore/a.lore", content: context }],
+      given: [], remotes: ["https://github.com/acme/shop"],
+    };
+    const result = await select(input, { files: [{ kind: "M", path: "x.ts", added: [] }] });
+    expect(result.warnings.map((w) => [w.name, w.file])).toEqual([["missing-src-target", "rules:.lore/a.lore"]]);
+  });
+
+  test("a file-relative src in a rules file resolves to a plain governed path", () => {
+    const context = `<context id="guide" src="./guide.md">\nRead it.\n</context>\n`;
+    const model = parse({
+      repo: [], given: [], remotes: ["https://github.com/acme/shop"],
+      rules: [{ path: "docs/.lore/a.lore", content: context }, { path: "docs/.lore/guide.md", content: "" }],
+    });
+    expect(model.entries[0]!.src).toBe("docs/.lore/guide.md");
+  });
+
+  test("a governed file literally named external:... keeps that name in a resolved src", () => {
+    const context = `<context id="guide" src="./guide.md">\nRead it.\n</context>\n`;
+    const model = parse({
+      repo: [{ path: "external:docs/.lore/a.lore", content: context }],
+      given: [], remotes: ["https://github.com/acme/shop"],
+    });
+    expect(model.entries[0]!.src).toBe("external:docs/.lore/guide.md");
   });
 });
 
@@ -347,33 +390,4 @@ describe("coveringEntries", () => {
     const copy = structuredClone(model);
     expect(ids("apps/web/src/legacy/Price.tsx", copy)).toEqual(["price-from-quote", "tsx-only"]);
   });
-});
-
-test("with rules given, a src target counts only when the rules revision tracks it", async () => {
-  const context = `<context id="guide" src="docs/guide.md">\nRead it.\n</context>\n`;
-  const input = {
-    repo: [{ path: "docs/guide.md", content: "" }],
-    rules: [{ path: ".lore/a.lore", content: context }],
-    given: [], remotes: ["https://github.com/acme/shop"],
-  };
-  const result = await select(input, { files: [{ kind: "M", path: "x.ts", added: [] }] });
-  expect(result.warnings.map((w) => [w.name, w.file])).toEqual([["missing-src-target", "rules:.lore/a.lore"]]);
-});
-
-test("a file-relative src in a rules file resolves to a plain governed path", () => {
-  const context = `<context id="guide" src="./guide.md">\nRead it.\n</context>\n`;
-  const model = parse({
-    repo: [], given: [], remotes: ["https://github.com/acme/shop"],
-    rules: [{ path: "docs/.lore/a.lore", content: context }, { path: "docs/.lore/guide.md", content: "" }],
-  });
-  expect(model.entries[0]!.src).toBe("docs/.lore/guide.md");
-});
-
-test("a governed file literally named external:... keeps that name in a resolved src", () => {
-  const context = `<context id="guide" src="./guide.md">\nRead it.\n</context>\n`;
-  const model = parse({
-    repo: [{ path: "external:docs/.lore/a.lore", content: context }],
-    given: [], remotes: ["https://github.com/acme/shop"],
-  });
-  expect(model.entries[0]!.src).toBe("external:docs/.lore/guide.md");
 });

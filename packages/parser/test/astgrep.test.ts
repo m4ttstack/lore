@@ -7,21 +7,6 @@ import { astGrepBinary, stubAstGrep } from "./harness";
 
 const binary = astGrepBinary();
 
-test("a binary that fails yields null, not an empty match list", async () => {
-  const stub = stubAstGrep("ast-grep 0.51.0");
-  try { expect(await astGrepSpans(stub.binary, "$A", "typescript", "x")).toBeNull(); } finally { stub.remove(); }
-});
-const CART = [
-  "export function CartTotal({ items, fees }) {",
-  "  const feeTotal = fees.reduce((sum, fee) => sum + fee, 0)",
-  "  const total = items.reduce(",
-  "    (sum, item) => sum + item.price,",
-  "    0,",
-  "  )",
-  "  return <span>{total + feeTotal}</span>",
-  "}",
-].join("\n");
-
 describe("astGrepLanguage", () => {
   test("maps an extension through the spec's table, case-sensitively", () => {
     expect(astGrepLanguage("apps/web/src/CartTotal.tsx")).toBe("tsx");
@@ -65,6 +50,21 @@ describe("astGrepAvailable", () => {
 });
 
 describe("astGrepSpans", () => {
+  test("a binary that fails yields null, not an empty match list", async () => {
+    const stub = stubAstGrep("ast-grep 0.51.0");
+    try { expect(await astGrepSpans(stub.binary, "$A", "typescript", "x")).toBeNull(); } finally { stub.remove(); }
+  });
+  const CART = [
+    "export function CartTotal({ items, fees }) {",
+    "  const feeTotal = fees.reduce((sum, fee) => sum + fee, 0)",
+    "  const total = items.reduce(",
+    "    (sum, item) => sum + item.price,",
+    "    0,",
+    "  )",
+    "  return <span>{total + feeTotal}</span>",
+    "}",
+  ].join("\n");
+
   test("gives each match's lines, from its first character to its last", async () => {
     expect(await astGrepSpans(binary, "$LIST.reduce($$$)", "tsx", CART)).toEqual([
       { first: 2, last: 2 },
