@@ -39,4 +39,5 @@ export const change: Change = {
 
 export const sources: EntrySources = {
   read: (entry) => (entry.src === "docs/architecture.md" ? "# Architecture\n\nOne pricing module.\n" : null),
+  line: () => 12,
 };

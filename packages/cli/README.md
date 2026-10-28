@@ -34,6 +34,11 @@ Output:
 
 ast-grep checks are skipped in this version: each one reports the warning `check-needs-file`, and its rule stays eligible.
 
+The command reads only files git tracks (or a loose folder holds), through symlinks only to tracked files inside the same place. Two more warnings say what it could not read:
+
+- `src-not-read`: a selected context's `src` target exists, but the command did not read it, so its `srcText` is null.
+- `lore-file-not-read`: a tracked Lore or `.loreconfig` file could not be read (a symlink out of its place or to nothing, a directory, a sparse-checkout file), so its entries are missing.
+
 ## lore verdicts
 
 Checks a verdict set against a selection.

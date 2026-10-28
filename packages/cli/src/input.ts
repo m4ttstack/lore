@@ -1,6 +1,6 @@
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
-import { EXTERNAL, LOOSE, type InputFile, type LoreInput } from "@lore/parser";
+import { EXTERNAL, LOOSE, type Diagnostic, type InputFile, type LoreInput } from "@lore/parser";
 import { InputError } from "./errors";
 import { GitMissingError, gitRoot, readFileAt, readTracked, remoteUrls, trackedPaths } from "./git";
 
@@ -14,8 +14,10 @@ export interface BuiltInput {
   input: LoreInput;
   // given is the index in input.given of the folder whose entry names the src; without it an ambiguous path reads as null.
   readSrc(file: string, given?: number): string | null;
+  // lore-file-not-read, once per tracked Lore or .loreconfig file the parser would have read but the command could not.
+  warnings: Diagnostic[];
 }
-interface Place { root: string; listed: Set<string>; files: InputFile[] }
+interface Place { root: string; listed: Set<string>; files: InputFile[]; unread: string[]; folders: string[]; prefix: string }
 
 const LORE_FOLDER = ".lore";
 const CONFIG_NAME = ".loreconfig";
@@ -31,8 +33,10 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
 
   const governedPaths = repo === null ? [] : trackedPaths(repo, rulesRef);
   const governedTracked = new Set(governedPaths);
-  const governed = repo === null ? [] : readFiles(repo, rulesRef, governedPaths);
-  const input: LoreInput = rulesRef === null ? { repo: governed, given: [], remotes } : { repo: [], rules: governed, given: [], remotes };
+  const governed = repo === null ? { files: [], unread: [] } : readFiles(repo, rulesRef, governedPaths);
+  const input: LoreInput = rulesRef === null
+    ? { repo: governed.files, given: [], remotes }
+    : { repo: [], rules: governed.files, given: [], remotes };
 
   const repositories = new Map<string, Place>();
   const looseFolders = new Map<string, Place>();
@@ -44,18 +48,20 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     seen.add(dir);
     const root = workingCopyOf(dir);
     if (root === null) {
-      const place = placeOf(dir, walkLoose(dir));
+      const place = placeOf(dir, walkLoose(dir), LOOSE);
+      place.folders.push("");
       looseFolders.set(dir, place);
       givenPlaces.push(place);
       input.given.push({ folder: "", loose: true, files: place.files });
       continue;
     }
-    if (!repositories.has(root)) repositories.set(root, placeOf(root, trackedPaths(root, null)));
+    if (!repositories.has(root)) repositories.set(root, placeOf(root, trackedPaths(root, null), EXTERNAL));
     const place = repositories.get(root)!;
     const folder = relative(root, dir).split(sep).join("/");
     if (![...place.listed].some((path) => folder === "" || path.startsWith(`${folder}/`))) {
       throw new InputError(`given folder ${typed} is inside the working copy at ${root}, but git tracks none of its files`);
     }
+    place.folders.push(folder);
     givenPlaces.push(place);
     input.given.push({ folder, repository: root, files: place.files });
   }
@@ -76,7 +82,13 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
       return null;
     }
   };
-  return { input, readSrc };
+  const unread = [
+    ...governed.unread,
+    ...[...repositories.values(), ...looseFolders.values()].flatMap((place) =>
+      place.unread.filter((path) => reached(path, place.folders)).map((path) => place.prefix + path)),
+  ];
+  const warnings = [...new Set(unread)].map((file) => ({ name: "lore-file-not-read", file, entry: null, line: 1 }));
+  return { input, readSrc, warnings };
 }
 
 // Without a git binary no folder can be a working copy, so a given folder is loose.
@@ -110,22 +122,35 @@ function wantsContent(path: string): boolean {
 
 // A working-tree Lore or .loreconfig file that does not resolve to a readable listed file
 // (a symlink out of the listed paths, a dangling one, a skipped sparse-checkout file) is left out of the input.
-function readFiles(root: string, ref: string | null, paths: string[]): InputFile[] {
+function readFiles(root: string, ref: string | null, paths: string[]): { files: InputFile[]; unread: string[] } {
   const listed = new Set(paths);
   const files: InputFile[] = [];
+  const unread: string[] = [];
   for (const path of paths) {
     if (!wantsContent(path)) files.push({ path, content: "" });
     else if (ref !== null) files.push({ path, content: readFileAt(root, ref, path) });
     else {
       const content = readTracked(root, path, listed);
-      if (content !== null) files.push({ path, content });
+      if (content === null) unread.push(path);
+      else files.push({ path, content });
     }
   }
-  return files;
+  return { files, unread };
 }
 
-function placeOf(root: string, paths: string[]): Place {
-  return { root, listed: new Set(paths), files: readFiles(root, null, paths) };
+function placeOf(root: string, paths: string[], prefix: string): Place {
+  return { root, listed: new Set(paths), ...readFiles(root, null, paths), folders: [], prefix };
+}
+
+// Mirrors what the parser reads of a given folder: Lore files inside it, and .loreconfig files inside it or above it.
+function reached(path: string, folders: readonly string[]): boolean {
+  const dir = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+  const config = path.split("/").at(-1) === CONFIG_NAME;
+  return folders.some((folder) => within(dir, folder) || (config && within(folder, dir)));
+}
+
+function within(dir: string, ancestor: string): boolean {
+  return ancestor === "" || dir === ancestor || dir.startsWith(`${ancestor}/`);
 }
 
 function walkLoose(dir: string): string[] {

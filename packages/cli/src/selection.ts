@@ -1,4 +1,4 @@
-import type { Change, Diagnostic, DocumentModel, EligibilityResult, Entry, ParsedInput } from "@lore/parser";
+import { compareDiagnostics, type Change, type Diagnostic, type DocumentModel, type EligibilityResult, type Entry, type ParsedInput } from "@lore/parser";
 
 export interface SelectedRule {
   id: string;
@@ -30,6 +30,7 @@ export interface Selection {
 
 export interface EntrySources {
   read(entry: Entry): string | null;
+  line(entry: Entry): number;
 }
 
 // A context's src is read from the given folder its own entry came from, so equal paths in two places do not collide.
@@ -42,6 +43,7 @@ export function entrySources(parsed: ParsedInput, readSrc: (file: string, given?
       const given = tree === undefined || tree === "repo" ? undefined : collected.repositoryGiven[collected.trees[tree]!.repository];
       return readSrc(entry.src, given);
     },
+    line: (entry) => placeOf.get(entry)?.diagnostic("src-not-read").line ?? 1,
   };
 }
 
@@ -50,17 +52,21 @@ export function toSelection(
   result: EligibilityResult,
   change: Change,
   sources: EntrySources,
+  unread: Diagnostic[] = [],
 ): Selection {
+  const missing = new Set(result.warnings.filter((warning) => warning.name === "missing-src-target").map((warning) => `${warning.file}\0${warning.entry}`));
+  const notRead: Diagnostic[] = [];
   const entries = new Map<string, Entry>(model.entries.map((entry) => [entry.id, entry]));
   const rules: SelectedRule[] = [];
   const context: SelectedContext[] = [];
   for (const id of result.eligible) {
     const entry = entries.get(id)!;
     if (entry.kind === "context") {
-      context.push({
-        id, file: entry.file, summary: entry.summary, prose: entry.prose,
-        src: entry.src, srcText: sources.read(entry),
-      });
+      const srcText = sources.read(entry);
+      if (entry.src !== null && srcText === null && !missing.has(`${entry.file}\0${id}`)) {
+        notRead.push({ name: "src-not-read", file: entry.file, entry: id, line: sources.line(entry) });
+      }
+      context.push({ id, file: entry.file, summary: entry.summary, prose: entry.prose, src: entry.src, srcText });
       continue;
     }
     rules.push({
@@ -81,6 +87,6 @@ export function toSelection(
       added: file.added.map((added) => added.line),
     })),
     excluded: result.excluded,
-    warnings: result.warnings,
+    warnings: [...result.warnings, ...notRead, ...unread].sort(compareDiagnostics),
   };
 }

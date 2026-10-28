@@ -30,7 +30,7 @@ describe("renderText", () => {
     });
 
     test("a srcText holding a line of four backticks stays inside a longer fence", () => {
-      const text = renderText(toSelection(model, result, change, { read: () => "before\n````\ninside\n````\nafter\n" }));
+      const text = renderText(toSelection(model, result, change, { ...sources, read: () => "before\n````\ninside\n````\nafter\n" }));
       expect(text).toContain("From `docs/architecture.md`:\n\n`````\nbefore\n````\ninside\n````\nafter\n`````\n");
     });
   });

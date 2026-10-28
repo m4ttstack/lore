@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { run } from "../src/main";
@@ -249,6 +249,20 @@ describe("src text from several given places", () => {
       { id: "first-guide", srcText: "first\n" },
       { id: "second-guide", srcText: "second\n" },
     ]);
+  });
+
+  test("a src target the parser found but the command did not read is warned src-not-read at the context's line", async () => {
+    const outside = tempDir();
+    write(outside, { "secret.md": "host file\n" });
+    const root = repoWith({ ".lore/a.lore": `${RULE}\n${CONTEXT("leak")}`, "docs/real.md": "real\n" });
+    symlinkSync(join(outside, "secret.md"), join(root, "docs/guide.md"));
+    execFileSync("git", ["add", "docs/guide.md"], { cwd: root });
+    execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "link"], { cwd: root, stdio: "ignore" });
+    const { code, out } = await lore(["select", "--repo", root, "--diff", "-", "--format", "json"], { stdin: DIFF });
+    expect(code).toBe(0);
+    const selection = JSON.parse(out);
+    expect(selection.context).toMatchObject([{ id: "leak", src: "docs/guide.md", srcText: null }]);
+    expect(selection.warnings).toEqual([{ name: "src-not-read", file: ".lore/a.lore", entry: "leak", line: 8 }]);
   });
 
   test("two loose folders holding the same src path each give their own context its own text", async () => {

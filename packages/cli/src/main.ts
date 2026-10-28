@@ -71,7 +71,7 @@ export async function run(argv: string[], io: IO): Promise<number> {
 
 async function runSelect(command: SelectCommand, io: IO): Promise<number> {
   const change = parseUnifiedDiff(await readDiff(command.diff, io));
-  const { input, readSrc } = await buildInput({
+  const { input, readSrc, warnings } = await buildInput({
     repo: governedRepo(command),
     rulesRef: command.rulesRef,
     given: command.given,
@@ -83,7 +83,7 @@ async function runSelect(command: SelectCommand, io: IO): Promise<number> {
     astGrepBinary: "ast-grep",
     fileContent: () => null,
   });
-  const selection = toSelection(parsed.model, result, change, entrySources(parsed, readSrc));
+  const selection = toSelection(parsed.model, result, change, entrySources(parsed, readSrc), warnings);
   const format = command.format ?? (io.isTTY ? "text" : "json");
   if (format === "json") io.stdout(`${JSON.stringify(selection, null, 2)}\n`);
   else {

@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { InputError } from "../src/errors";
@@ -334,6 +334,60 @@ describe("reads that leave the folder or fail", () => {
     git(root, "commit", "-q", "-m", "first");
     const { input } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
     expect(input.repo.map(({ path }) => path)).toEqual([".lore/a.lore"]);
+  });
+
+  test("a tracked Lore or .loreconfig file the command cannot read is warned lore-file-not-read", async () => {
+    const outside = tempDir();
+    write(outside, { "evil.lore": rule("evil") });
+    const root = tempDir();
+    git(root, "init", "-q", "-b", "main");
+    write(root, { ".lore/a.lore": rule("a"), ".lore/skipped.lore": rule("skipped"), "src/x.ts": "export {};\n" });
+    symlinkSync(join(outside, "evil.lore"), join(root, ".lore/evil.lore"));
+    symlinkSync(join(root, "missing"), join(root, ".loreconfig"));
+    git(root, "add", ".");
+    git(root, "commit", "-q", "-m", "first");
+    git(root, "update-index", "--skip-worktree", ".lore/skipped.lore");
+    rmSync(join(root, ".lore/skipped.lore"));
+    const { warnings } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    expect(warnings).toEqual([
+      { name: "lore-file-not-read", file: ".lore/evil.lore", entry: null, line: 1 },
+      { name: "lore-file-not-read", file: ".lore/skipped.lore", entry: null, line: 1 },
+      { name: "lore-file-not-read", file: ".loreconfig", entry: null, line: 1 },
+    ]);
+  });
+
+  test("a tracked Lore path that is a directory is warned lore-file-not-read", async () => {
+    const root = repoWith({ ".lore/a.lore": rule("a") });
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    git(root, "update-index", "--add", "--cacheinfo", `160000,${head},.lore/sub.lore`);
+    mkdirSync(join(root, ".lore/sub.lore"));
+    const { warnings } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    expect(warnings).toEqual([{ name: "lore-file-not-read", file: ".lore/sub.lore", entry: null, line: 1 }]);
+  });
+
+  test("a given repository warns only for unread files its given folders reach, and a loose folder for any", async () => {
+    const other = tempDir();
+    git(other, "init", "-q", "-b", "main");
+    write(other, { "rules/.lore/a.lore": rule("a") });
+    symlinkSync(join(other, "missing"), join(other, ".loreconfig"));
+    symlinkSync(join(other, "missing"), join(other, "rules/.lore/gone.lore"));
+    mkdirSync(join(other, "elsewhere/.lore"), { recursive: true });
+    symlinkSync(join(other, "missing"), join(other, "elsewhere/.lore/gone.lore"));
+    git(other, "add", ".");
+    git(other, "commit", "-q", "-m", "first");
+    const loose = tempDir();
+    write(loose, { ".lore/locked.lore": rule("locked") });
+    chmodSync(join(loose, ".lore/locked.lore"), 0o000);
+    try {
+      const { warnings } = await buildInput({ repo: null, rulesRef: null, given: [join(other, "rules"), loose], remotes: ["github.com/acme/shop"] });
+      expect(warnings).toEqual([
+        { name: "lore-file-not-read", file: "external:.loreconfig", entry: null, line: 1 },
+        { name: "lore-file-not-read", file: "external:rules/.lore/gone.lore", entry: null, line: 1 },
+        { name: "lore-file-not-read", file: "loose:.lore/locked.lore", entry: null, line: 1 },
+      ]);
+    } finally {
+      chmodSync(join(loose, ".lore/locked.lore"), 0o644);
+    }
   });
 
   test("a path conflicted in a merge is listed once", () => {

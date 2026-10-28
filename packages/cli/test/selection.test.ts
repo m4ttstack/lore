@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { Diagnostic } from "@lore/parser";
 import { toSelection } from "../src/selection";
 import { change, model, sources, result } from "./fixtures";
 
@@ -44,7 +45,7 @@ describe("toSelection", () => {
   });
 
   test("a context whose src cannot be read, or that has none, has a null srcText", () => {
-    const gone = toSelection(model, result, change, { read: () => null });
+    const gone = toSelection(model, result, change, { ...sources, read: () => null });
     expect(gone.context[0]).toMatchObject({ src: "docs/architecture.md", srcText: null });
     const none = toSelection(
       { ...model, entries: model.entries.map((entry) => (entry.kind === "context" ? { ...entry, src: null } : entry)) },
@@ -63,5 +64,28 @@ describe("toSelection", () => {
   test("excluded and warnings pass through", () => {
     expect(selection.excluded).toEqual(result.excluded);
     expect(selection.warnings).toEqual(result.warnings);
+  });
+
+  describe("warnings for content the command could not read", () => {
+    const unreadable = { ...sources, read: () => null };
+
+    test("a selected context whose src target the parser found but the command did not read gets src-not-read", () => {
+      expect(toSelection(model, result, change, unreadable).warnings).toEqual([
+        ...result.warnings,
+        { name: "src-not-read", file: ".lore/pricing.lore", entry: "architecture", line: 12 },
+      ]);
+    });
+
+    test("a context the parser already warned has a missing src target gets no src-not-read", () => {
+      const missing = { name: "missing-src-target", file: ".lore/pricing.lore", entry: "architecture", line: 12 };
+      const warned = toSelection(model, { ...result, warnings: [...result.warnings, missing] }, change, unreadable);
+      expect(warned.warnings.map((warning) => warning.name)).toEqual(["check-needs-file", "missing-src-target"]);
+    });
+
+    test("the command's unread Lore files join the warnings in the parser's order", () => {
+      const governed: Diagnostic = { name: "lore-file-not-read", file: ".lore/broken.lore", entry: null, line: 1 };
+      const external: Diagnostic = { name: "lore-file-not-read", file: "external:.lore/a.lore", entry: null, line: 1 };
+      expect(toSelection(model, result, change, sources, [external, governed]).warnings).toEqual([governed, ...result.warnings, external]);
+    });
   });
 });
