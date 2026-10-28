@@ -5086,10 +5086,10 @@ team-repo/lore/
 - A **given folder** is a directory in a working copy of another
   repository that the tool's user hands to the tool, for example with a
   command-line option or a setting. A loose folder, below, is the one
-  kind of given folder that is in no working copy. A tool MAY be given any number of
-  folders, and treats each one the same way. In a conformance example,
-  the tool is given one folder: the root of the repository that holds
-  the `external:` input files.
+  kind of given folder that is in no working copy. A tool MAY be given
+  any number of folders, and treats each one the same way. In a
+  conformance example, the tool is given one folder: the root of the
+  repository that holds the `external:` input files.
 - A `.loreconfig` with a `repo` key **marks** its directory: the
   directory stands for the root of the repository that `repo` names. A
   tool looks for marked directories in each given folder and below it.
@@ -5115,10 +5115,11 @@ team-repo/lore/
   in it is at or below the folder, and a file-relative `src` that would
   climb above that Lore root is `src-escapes-root`. Its files carry
   `loose:` and their path from the folder. When a tool collects a loose
-  folder, it MUST report `untracked-given-folder` once for that folder, with `file` `loose:.`, `entry` `null` and `line` 1.
-  A tool MAY instead refuse such a folder and collect nothing from it.
-  The team, not version control, decides what is in such a folder, so a
-  stray copy of a Lore folder in it can add rules.
+  folder, it MUST report `untracked-given-folder` once for that folder,
+  with `file` `loose:.`, `entry` `null` and `line` 1. A tool MAY instead
+  refuse such a folder and collect nothing from it. The team, not
+  version control, decides what is in such a folder, so a stray copy of
+  a Lore folder in it can add rules.
 - Below a marked directory, directories mirror the governed repo: the
   directory `<marked>/<path>` stands for `<path>` in the governed repo.
   The base of a Lore file below a marked directory is found as
@@ -5586,11 +5587,11 @@ scratch folder cannot add rules to a review.
   delete or loosen the rule in its way.
 - **A given folder.** A tool reads the files tracked in the working
   copy that holds it, or, for a loose folder, the files under it that
-  [External folders](#external-folders) counts. It reads every `.loreconfig` of that repository in
-  the given folder, below it or above it, and collects the Lore files of
-  each external folder found in it: those at or below each marked
-  directory that names the governed repo (see
-  [External folders](#external-folders)).
+  [External folders](#external-folders) counts. It reads every
+  `.loreconfig` of that repository in the given folder, below it or
+  above it, and collects the Lore files of each external folder found
+  in it: those at or below each marked directory that names the governed
+  repo (see [External folders](#external-folders)).
 - A `.loreconfig` is a file named exactly `.loreconfig`, outside any
   Lore folder. A file of that name inside a Lore folder is ignored.
 - Files that `repo-inside-repo` or `nested-repo` excludes are neither
@@ -5673,13 +5674,13 @@ file read from a rules revision has `rules:` before it. A file of a
 given folder's repository has `external:` before its path, so that it is
 never mistaken for a file of the governed repo, and a file of a loose
 folder has `loose:` before its path from that folder (see
-[External folders](#external-folders)). The prefix does not say
-which repository the file is in, so a tool given folders of two
-repositories can list two different files with the same `file`. This
-version of the format does not tell them apart. Every other path in
-either output (globs in `scopes`, plain `src` values and hits) names a
-path in the governed repo, apart from a file-relative `src` in an
-external folder (see [Context](#context)).
+[External folders](#external-folders)). The prefix does not say which
+repository the file is in, so a tool given folders of two repositories
+can list two different files with the same `file`. This version of the
+format does not tell them apart. Every other path in either output
+(globs in `scopes`, plain `src` values and hits) names a path in the
+governed repo, apart from a file-relative `src` in an external folder
+(see [Context](#context)).
 
 ### Entry fields
 
