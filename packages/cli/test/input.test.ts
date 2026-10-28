@@ -370,6 +370,52 @@ describe("reads that leave the folder or fail", () => {
     expect(readSrc("external:docs/loose.md")).toBeNull();
   });
 
+  test("external: and loose: refuse .. and absolute paths, with or without the entry's given folder", async () => {
+    const parent = tempDir();
+    write(parent, { "secret.md": "host file\n" });
+    const other = join(parent, "other");
+    mkdirSync(other);
+    git(other, "init", "-q", "-b", "main");
+    write(other, { "rules/.lore/a.lore": rule("a"), "docs/guide.md": "guide\n" });
+    git(other, "add", ".");
+    git(other, "commit", "-q", "-m", "first");
+    const loose = join(tempDir(), "loose");
+    write(loose, { "docs/guide.md": "loose\n" });
+    write(dirname(loose), { "secret.md": "host file\n" });
+    const { readSrc } = await buildInput({ repo: null, rulesRef: null, given: [join(other, "rules"), loose], remotes: ["github.com/acme/shop"] });
+    for (const given of [undefined, 0, 1]) {
+      for (const path of ["../secret.md", "docs/../../secret.md", join(parent, "secret.md"), join(dirname(loose), "secret.md"), "/etc/hosts"]) {
+        expect(readSrc(`external:${path}`, given)).toBeNull();
+        expect(readSrc(`loose:${path}`, given)).toBeNull();
+      }
+    }
+    expect(readSrc("external:docs/guide.md", 0)).toBe("guide\n");
+    expect(readSrc("loose:docs/guide.md", 1)).toBe("loose\n");
+  });
+
+  test("a symlink inside a given folder pointing outside it is not read", async () => {
+    const outside = tempDir();
+    write(outside, { "secret.md": "host file\n", "evil.lore": rule("evil") });
+    const other = tempDir();
+    git(other, "init", "-q", "-b", "main");
+    write(other, { "rules/.lore/a.lore": rule("a") });
+    symlinkSync(join(outside, "secret.md"), join(other, "rules/leak.md"));
+    symlinkSync(join(outside, "evil.lore"), join(other, "rules/.lore/evil.lore"));
+    git(other, "add", ".");
+    git(other, "commit", "-q", "-m", "first");
+    const loose = tempDir();
+    write(loose, { ".lore/b.lore": rule("b") });
+    symlinkSync(join(outside, "secret.md"), join(loose, "leak.md"));
+    symlinkSync(join(outside, "evil.lore"), join(loose, ".lore/evil.lore"));
+    const { input, readSrc } = await buildInput({ repo: null, rulesRef: null, given: [join(other, "rules"), loose], remotes: ["github.com/acme/shop"] });
+    expect(readSrc("external:rules/leak.md", 0)).toBeNull();
+    expect(readSrc("loose:leak.md", 1)).toBeNull();
+    expect(input.given.map(({ files }) => files.filter(({ content }) => content !== "").map(({ path }) => path))).toEqual([
+      ["rules/.lore/a.lore"],
+      [".lore/b.lore"],
+    ]);
+  });
+
   test("a dangling tracked Lore symlink is left out instead of throwing", async () => {
     const root = tempDir();
     git(root, "init", "-q", "-b", "main");
