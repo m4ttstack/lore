@@ -25,9 +25,11 @@ A `GivenFolder` names a folder inside a repository: `folder` is its path from th
 ## API
 
 - `parse(input: LoreInput): DocumentModel`: collects the Lore files and returns `{ entries, errors, warnings }`, the spec's document model. Selection warnings such as `missing-src-target` are not included.
+- `parseWithContext(input: LoreInput): ParsedInput`: `{ model, collected, placeOf }`: the document model with the collection and each entry's place, for callers that go on to `selectParsed`.
 - `parseFile(path: string, content: string): LoreFile`: reads one file's structure (top-level nodes and structure diagnostics) without collecting a repository.
 - `collect(input: LoreInput): Collected`: the collection step on its own: which files are Lore files, their bases, categories and trees, and the `.loreconfig` files that apply.
 - `select(input: LoreInput, change: Change, options?: SelectOptions): Promise<EligibilityResult>`: the entries the change makes eligible, check hits, the entries excluded by errors, and warnings, including `missing-src-target`.
+- `selectParsed(input: LoreInput, parsed: ParsedInput, change: Change, options?: SelectOptions): Promise<EligibilityResult>`: `select` for a caller that has run `parseWithContext(input)` already, so the input is parsed once.
 - `coveringEntries(input: LoreInput, model: DocumentModel, path: string): Entry[]`: the enabled entries whose scope covers `path`, leaving out those a `disable` list switches off for it. `<when>` is not evaluated. Pass the `model` that `parse(input)` returned.
 - `missingSrcTargets(input: LoreInput, model: DocumentModel): Diagnostic[]`: the `missing-src-target` warnings with no change, for callers that know the governed repository's files.
 

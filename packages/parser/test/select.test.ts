@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { extractExamples } from "../../../tools/check/extract";
-import { coveringEntries, missingSrcTargets, parse, select } from "../src/index";
+import { coveringEntries, missingSrcTargets, parse, parseWithContext, select, selectParsed } from "../src/index";
 import { RegexLimitError } from "../src/regex";
 import type { Change, Diagnostic, LoreInput, SelectOptions } from "../src/types";
 import { astGrepBinary, stubAstGrep, toChange, toInput } from "./harness";
@@ -169,6 +169,30 @@ describe("select: checks", () => {
     const input = repo({ ".lore/a.lore": rule("deep-pattern", `<when>\naddedMatches: ['${pattern}']\n</when>\n`) });
     expect(parse(input).errors).toEqual([]);
     await expect(select(input, change("M a.ts", "+1 a"), ALL)).rejects.toBeInstanceOf(RegexLimitError);
+  });
+
+  test("a regex limit error starts with the Lore file and entry id, and stays short", async () => {
+    const deep = `${"(".repeat(1001)}a${")".repeat(1001)}`;
+    const input = repo({ ".lore/pricing.lore": rule("deep-pattern", `<when>\naddedMatches: ['${deep}']\n</when>\n`) });
+    const error = await select(input, change("M a.ts", "+1 a"), ALL).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(RegexLimitError);
+    const { message } = error as RegexLimitError;
+    expect(message).toStartWith(".lore/pricing.lore entry deep-pattern: groups nested 1001 deep, past the limit of 1000: ");
+    expect(message.length).toBeLessThan(300);
+  });
+
+  test("a check pattern past the limit names its file and entry too", async () => {
+    const deep = `${"(".repeat(1001)}a${")".repeat(1001)}`;
+    const input = repo({ ".lore/a.lore": rule("deep-check", `<check lang="regex">\n${deep}\n</check>\n`) });
+    const error = await select(input, change("M a.ts", "+1 a"), ALL).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(RegexLimitError);
+    expect((error as RegexLimitError).message).toStartWith(".lore/a.lore entry deep-check: ");
+  });
+
+  test("selectParsed gives select's result from an input parsed already", async () => {
+    const input = repo({ ".lore/a.lore": rule("no-usd", '<when>\naddedContains: ["USD"]\n</when>\n') });
+    const changed = change("M a.ts", '+1 const c = "USD";');
+    expect(await selectParsed(input, parseWithContext(input), changed, ALL)).toEqual(await select(input, changed, ALL));
   });
 
   test("a pattern past the engine's limits in a rule that can never be eligible does not fail the run", async () => {

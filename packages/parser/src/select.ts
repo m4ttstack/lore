@@ -1,8 +1,8 @@
 import { astGrepAvailable, astGrepLanguage, astGrepSpans } from "./astgrep";
 import { EXTERNAL, LOOSE, collect, disabledFor, type Collected, type Tree } from "./collect";
 import { matchFromBase } from "./glob";
-import { compareDiagnostics, parseWithContext, parsedContextOf, type EntryPlace } from "./model";
-import { toRegExp } from "./regex";
+import { compareDiagnostics, parseWithContext, parsedContextOf, type EntryPlace, type ParsedInput } from "./model";
+import { RegexLimitError, shown, toRegExp } from "./regex";
 import { compareCodePoints } from "./text";
 import type {
   AddedLine, Change, ChangedFile, Diagnostic, DocumentModel, EligibilityResult, Entry, Hit, LoreInput, SelectOptions,
@@ -17,8 +17,13 @@ type Regexes = (pattern: string) => RegExp;
 const DEFAULT_BINARY = "ast-grep";
 const AST_GREP_RUNS_AT_ONCE = 8;
 
-export async function select(input: LoreInput, change: Change, options: SelectOptions = {}): Promise<EligibilityResult> {
-  const { model, collected, placeOf } = parseWithContext(input);
+export function select(input: LoreInput, change: Change, options: SelectOptions = {}): Promise<EligibilityResult> {
+  return selectParsed(input, parseWithContext(input), change, options);
+}
+
+// select for a caller that parsed the input already; parsed must come from parseWithContext(input).
+export async function selectParsed(input: LoreInput, parsed: ParsedInput, change: Change, options: SelectOptions = {}): Promise<EligibilityResult> {
+  const { model, collected, placeOf } = parsed;
   const capabilities = new Set(options.capabilities ?? []);
   const candidates = model.entries.filter((entry) => !neverEligible(entry, placeOf.get(entry)!));
   const regexes = compileRegexes(candidates, capabilities.has("regex"));
@@ -128,8 +133,18 @@ function compileRegexes(entries: readonly Entry[], regexChecks: boolean): Regexe
     return regex;
   };
   for (const entry of entries) {
-    for (const pattern of entry.when?.addedMatches ?? []) compile(pattern);
-    if (regexChecks) for (const check of entry.checks) if (check.lang === "regex") compile(check.body);
+    const patterns = [
+      ...(entry.when?.addedMatches ?? []),
+      ...(regexChecks ? entry.checks.filter((check) => check.lang === "regex").map((check) => check.body) : []),
+    ];
+    for (const pattern of patterns) {
+      try {
+        compile(pattern);
+      } catch (error) {
+        if (!(error instanceof RegexLimitError)) throw error;
+        throw new RegexLimitError(`${shown(entry.file)} entry ${shown(entry.id)}: ${error.message}`);
+      }
+    }
   }
   return compile;
 }

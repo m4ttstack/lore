@@ -61,7 +61,7 @@ export function engineReason(message: string, source: string): string {
   return shown(message.split(source).join("<pattern>"));
 }
 
-function shown(pattern: string): string {
+export function shown(pattern: string): string {
   const chars = Array.from(pattern);
   return chars.length > SHOWN_CODE_POINTS ? `${chars.slice(0, SHOWN_CODE_POINTS).join("")}...` : pattern;
 }
