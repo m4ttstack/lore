@@ -32,6 +32,7 @@ jobs:
           node-version: 20
       - name: Bundle runs under node and bun
         run: |
+          set -o pipefail
           smoke="--no-repo --remote https://github.com/acme/shop --given packages/cli/test/smoke --diff packages/cli/test/smoke/change.diff --format json"
           bun run --filter @lore/cli build
           node packages/cli/dist/lore.js select $smoke | jq -e '.rules[0].id == "smoke-rule"'
