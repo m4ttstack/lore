@@ -15,6 +15,7 @@ const selection: Selection = {
     { kind: "M", path: "src/mod.ts", oldPath: null, added: [2] },
     { kind: "R", path: "src/new.ts", oldPath: "src/old.ts", added: [] },
     { kind: "D", path: "src/gone.ts", oldPath: null, added: [] },
+    { kind: "A", path: "src/added.ts", oldPath: null, added: [1] },
   ],
   excluded: [],
   warnings: [],
@@ -117,6 +118,32 @@ describe("checkVerdicts", () => {
         rule: "alpha",
         detail: "Evidence names no changed file on its side: src/other.ts line 1 (new side), src/new.ts line 4 (old side).",
       },
+    ]);
+  });
+
+  test("an added file has no old side, so old evidence naming it is outside the change", () => {
+    const evidence = [{ file: "src/added.ts", line: 1, side: "old" }];
+    expect(checkVerdicts(selection, set({ rule: "alpha", verdict: "pass", evidence }, pass("beta")))).toEqual([
+      {
+        name: "evidence-outside-change",
+        rule: "alpha",
+        detail: "Evidence names no changed file on its side: src/added.ts line 1 (old side).",
+      },
+    ]);
+    const onNewSide = [{ file: "src/added.ts", line: 1 }];
+    expect(names(set({ rule: "alpha", verdict: "pass", evidence: onNewSide }, pass("beta")))).toEqual([]);
+  });
+
+  test.each([
+    ["a fractional line", { file: "src/mod.ts", line: 1.5 }, 'evidence 1 "line" must be a whole number of 1 or more'],
+    ["line 0", { file: "src/mod.ts", line: 0 }, 'evidence 1 "line" must be a whole number of 1 or more'],
+    ["a negative line", { file: "src/mod.ts", line: -1 }, 'evidence 1 "line" must be a whole number of 1 or more'],
+    ["a numeric file", { file: 7, line: 1 }, 'evidence 1 "file" must be a string'],
+    ["a null file", { file: null, line: 1 }, 'evidence 1 "file" must be a string'],
+  ])("evidence with %s is an invalid-verdict-set problem", (_name, item, detail) => {
+    const problems = checkVerdicts(selection, set({ rule: "alpha", verdict: "pass", evidence: [item] }, pass("beta")));
+    expect(problems.filter((problem) => problem.name === "invalid-verdict-set")).toEqual([
+      { name: "invalid-verdict-set", rule: null, detail: `Verdict 1 for "alpha": ${detail}.` },
     ]);
   });
 
