@@ -162,7 +162,7 @@ describe("prefixes", () => {
   const pathOf = (diff: string) => parseUnifiedDiff(diff).files.map((f) => f.path);
 
   test.each([
-    ["i/", "w/"], ["c/", "i/"], ["c/", "w/"], ["o/", "w/"], ["c/", "c/"], ["w/", "i/"], ["1/", "2/"],
+    ["i/", "w/"], ["c/", "i/"], ["c/", "w/"], ["o/", "o/"], ["c/", "c/"], ["w/", "i/"], ["1/", "2/"],
     ["b/", "a/"], ["2/", "1/"], ["i/", "c/"], ["w/", "c/"],
   ])("mnemonic pair %s %s is stripped", (left, right) => {
     expect(pathOf(diffWith(`${left}src/x.ts ${right}src/x.ts`, `${left}src/x.ts`, `${right}src/x.ts`))).toEqual(["src/x.ts"]);
@@ -175,6 +175,15 @@ describe("prefixes", () => {
   test("noprefix paths that start with a/ or b/ stay whole", () => {
     expect(pathOf(diffWith("a/x.ts a/x.ts", "a/x.ts", "a/x.ts"))).toEqual(["a/x.ts"]);
     expect(pathOf(diffWith("b/x.ts b/x.ts", "b/x.ts", "b/x.ts"))).toEqual(["b/x.ts"]);
+  });
+
+  test("a noprefix diff of a file under a top-level w/ or i/ directory keeps the path", () => {
+    expect(pathOf(diffWith("w/x.ts w/x.ts", "w/x.ts", "w/x.ts"))).toEqual(["w/x.ts"]);
+    expect(pathOf(diffWith("i/x.ts i/x.ts", "i/x.ts", "i/x.ts"))).toEqual(["i/x.ts"]);
+  });
+
+  test("a normal a/ b/ diff of a file under a top-level w/ directory gives w/x.ts", () => {
+    expect(pathOf(diffWith("a/w/x.ts b/w/x.ts", "a/w/x.ts", "b/w/x.ts"))).toEqual(["w/x.ts"]);
   });
 
   test("an unknown pair is not stripped", () => {
@@ -282,6 +291,15 @@ describe("header-only entries", () => {
   ])("a mode-only change with %s", (_name, path, header) => {
     const diff = [header, "old mode 100644", "new mode 100755", ""].join("\n");
     expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path, added: [] }] });
+  });
+
+  test.each([
+    ["a binary file", ["index 1..2 100644", "Binary files a/d/foo b/bar.png and b/d/foo b/bar.png differ"], "M" as const],
+    ["a mode-only change", ["old mode 100644", "new mode 100755"], "M" as const],
+    ["an empty new file", ["new file mode 100644", "index 0000000..e69de29"], "A" as const],
+  ])("%s under a directory named like a prefix keeps the whole path", (_name, body, kind) => {
+    const diff = ["diff --git a/d/foo b/bar.png b/d/foo b/bar.png", ...body, ""].join("\n");
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind, path: "d/foo b/bar.png", added: [] }] });
   });
 
   test("a pure rename with a space in both paths", () => {

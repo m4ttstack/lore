@@ -4,10 +4,10 @@ import { InputError } from "./errors";
 const HUNK = /^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 const ESCAPES: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, "\\": 92 };
 const NULL_DEVICE = "/dev/null";
-const MNEMONIC = ["c/", "i/", "w/", "o/"];
-const PREFIX_PAIRS: [string, string][] = [
-  ["a/", "b/"], ["b/", "a/"], ["1/", "2/"], ["2/", "1/"], ...MNEMONIC.flatMap((x) => MNEMONIC.map((y): [string, string] => [x, y])),
+const EMITTED_PAIRS: [string, string][] = [
+  ["a/", "b/"], ["1/", "2/"], ["c/", "i/"], ["i/", "w/"], ["c/", "w/"], ["c/", "c/"], ["o/", "o/"],
 ];
+const PREFIX_PAIRS: [string, string][] = [...EMITTED_PAIRS, ...EMITTED_PAIRS.map(([x, y]): [string, string] => [y, x])];
 
 type Prefixes = [string, string] | null;
 
@@ -90,6 +90,15 @@ function splitHeader(rest: string): { right: string; prefixes: Prefixes } | null
     const left = rest.slice(0, quoted);
     const right = unquote(rest.slice(quoted + 1));
     return { right, prefixes: prefixPair(left, right) };
+  }
+  const mid = (rest.length - 1) / 2;
+  if (Number.isInteger(mid) && rest[mid] === " ") {
+    const left = rest.slice(0, mid);
+    const right = rest.slice(mid + 1);
+    const prefixes = prefixPair(left, right);
+    if (left === right || (prefixes && left.slice(prefixes[0].length) === right.slice(prefixes[1].length))) {
+      return { right, prefixes };
+    }
   }
   for (let at = rest.indexOf(" "); at !== -1; at = rest.indexOf(" ", at + 1)) {
     const left = rest.slice(0, at);
