@@ -72,8 +72,13 @@ describe("toSelection", () => {
     test("a selected context whose src target the parser found but the command did not read gets src-not-read", () => {
       expect(toSelection(model, result, change, unreadable).warnings).toEqual([
         ...result.warnings,
-        { name: "src-not-read", file: ".lore/pricing.lore", entry: "architecture", line: 12 },
+        { name: "src-not-read", file: ".lore/pricing.lore", entry: "architecture", line: 12, range: { start: { line: 12, character: 0 }, end: { line: 12, character: 9 } } },
       ]);
+    });
+
+    test("src-not-read carries the entry's range like the parser's own diagnostics", () => {
+      const [warning] = toSelection(model, result, change, unreadable).warnings.filter((found) => found.name === "src-not-read");
+      expect(warning!.range).toEqual(sources.diagnostic(model.entries.find((entry) => entry.kind === "context")!, "missing-src-target").range);
     });
 
     test("a context the parser already warned has a missing src target gets no src-not-read", () => {

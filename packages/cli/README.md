@@ -22,7 +22,7 @@ Rules:
 
 Change:
 
-- `--diff <file|->`: a unified diff, or `-` for stdin. Its paths must carry the `a/` and `b/` prefixes; when `diff.mnemonicPrefix` or `diff.noprefix` is set, make one with `git diff --src-prefix=a/ --dst-prefix=b/`.
+- `--diff <file|->`: a unified diff, or `-` for stdin. Its paths must carry the `a/` and `b/` prefixes; when `diff.mnemonicPrefix` or `diff.noprefix` is set, make one with `git diff --src-prefix=a/ --dst-prefix=b/`. The prefixes, including git's mnemonic ones, are detected from each `diff --git` header; a `--no-prefix` diff of a top-level `c/` or `o/` folder is ambiguous and is read as prefixed. A copy (`git diff -C`) is reported as an added file with only the lines its hunk shows, so a copy's unchanged lines are not added lines.
 
 Output:
 
@@ -34,10 +34,10 @@ Output:
 
 ast-grep checks are skipped in this version: each one reports the warning `check-needs-file`, and its rule stays eligible.
 
-The command reads only files git tracks in a working copy, or the files a loose folder holds. In a loose folder symlinks are never followed and are skipped silently. In a working copy a symlink is read only when it points to a tracked file inside the same place. It never fetches: with `--rules-ref` in a partial clone, a Lore file whose content is not local is an input error. Two more warnings say what it could not read:
+The command reads only files git tracks in a working copy, or the files a loose folder holds. In a loose folder symlinks are never followed and are skipped silently. In a working copy a symlink is read only when it points to a tracked file inside the same place. It never fetches (with git 2.44 or later; older git ignores `GIT_NO_LAZY_FETCH`): with `--rules-ref` in a partial clone, a Lore file whose content is not local is an input error. Two more warnings say what it could not read:
 
 - `src-not-read`: a selected context's `src` target exists, but the command did not read it, so its `srcText` is null.
-- `lore-file-not-read`: a Lore or `.loreconfig` file the parser would have collected (tracked in a working copy, or held by a loose folder) could not be read (a symlink out of its place or to nothing, a directory, a sparse-checkout file), so any entries it holds are missing from the selection.
+- `lore-file-not-read`: a Lore or `.loreconfig` file the parser would have collected (tracked in a working copy, or held by a loose folder) could not be read (a symlink out of its place or to nothing, a directory), or a tracked Lore file lies outside a sparse-checkout cone, so any entries it holds are missing from the selection.
 
 ## lore verdicts
 

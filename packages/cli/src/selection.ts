@@ -30,7 +30,7 @@ export interface Selection {
 
 export interface EntrySources {
   read(entry: Entry): string | null;
-  line(entry: Entry): number;
+  diagnostic(entry: Entry, name: string): Diagnostic;
 }
 
 // A context's src is read from the given folder its own entry came from, so equal paths in two places do not collide.
@@ -43,7 +43,7 @@ export function entrySources(parsed: ParsedInput, readSrc: (file: string, given?
       const given = tree === undefined || tree === "repo" ? undefined : collected.repositoryGiven[collected.trees[tree]!.repository];
       return readSrc(entry.src, given);
     },
-    line: (entry) => placeOf.get(entry)?.diagnostic("src-not-read").line ?? 1,
+    diagnostic: (entry, name) => placeOf.get(entry)!.diagnostic(name),
   };
 }
 
@@ -64,7 +64,7 @@ export function toSelection(
     if (entry.kind === "context") {
       const srcText = sources.read(entry);
       if (entry.src !== null && srcText === null && !missing.has(`${entry.file}\0${id}`)) {
-        notRead.push({ name: "src-not-read", file: entry.file, entry: id, line: sources.line(entry) });
+        notRead.push(sources.diagnostic(entry, "src-not-read"));
       }
       context.push({ id, file: entry.file, summary: entry.summary, prose: entry.prose, src: entry.src, srcText });
       continue;

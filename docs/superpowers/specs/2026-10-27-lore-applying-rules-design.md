@@ -246,7 +246,7 @@ warning, not a spec one), and the rule stays eligible.
   "conditional": [],
   "change": [{ "kind": "M", "path": "...", "oldPath": null, "added": [12, 13] }],
   "excluded": [ /* the eligibility result's excluded diagnostics */ ],
-  "warnings": [ /* eligibility warnings, then command warnings */ ]
+  "warnings": [ /* one list, sorted like the eligibility warnings */ ]
 }
 ```
 
@@ -254,7 +254,8 @@ Rules come in the order of the eligibility result. `change` lists the
 change's files with their added line numbers (not their text), so a
 verdict checker has everything it needs from this one document. `srcText` is the
 content of the file a context's `src` names, read at the same ref as the
-rules, or null when it has none.
+rules, or null when it has none. `warnings` is one sorted list of the eligibility warnings and
+the command's own (`check-needs-file`, `src-not-read` and `lore-file-not-read`).
 
 `--format text` (the default on a terminal) prints the same content as
 Markdown a reviewer can read directly: a short preamble with the verdict

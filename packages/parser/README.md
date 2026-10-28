@@ -15,12 +15,14 @@ interface LoreInput {
   remotes: string[];     // the governed repository's remote URLs, matched against each `repo` key
 }
 interface InputFile { path: string; content: string }
-interface GivenFolder { folder: string; files: InputFile[]; repository?: string }
+interface GivenFolder { folder: string; files: InputFile[]; repository?: string; loose?: boolean }
 ```
 
 Paths use forward slashes. `parse` needs the content of the `.lore` and `.loreconfig` files; other files count for their paths, and `select` also searches changed files' content with `<check>` patterns.
 
 A `GivenFolder` names a folder inside a repository: `folder` is its path from that repository's root, and `files` lists that whole repository. `repository` is an optional key for that repository: folders with the same key are one repository. Without keys on both, two folders are one repository when their file lists are equal.
+
+With `loose: true` the folder is a loose folder of Lore files: `folder` is ignored, the place roots at the folder itself, and its files are paths from that folder.
 
 ## API
 

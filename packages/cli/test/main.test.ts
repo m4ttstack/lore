@@ -4,6 +4,9 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { main, run } from "../src/main";
+import pkg from "../package.json";
+
+const version = pkg.version;
 
 const made: string[] = [];
 afterAll(() => {
@@ -308,7 +311,7 @@ describe("src text from several given places", () => {
     expect(code).toBe(0);
     const selection = JSON.parse(out);
     expect(selection.context).toMatchObject([{ id: "leak", src: "docs/guide.md", srcText: null }]);
-    expect(selection.warnings).toEqual([{ name: "src-not-read", file: ".lore/a.lore", entry: "leak", line: 8 }]);
+    expect(selection.warnings).toMatchObject([{ name: "src-not-read", file: ".lore/a.lore", entry: "leak", line: 8, range: { start: { line: 7 } } }]);
   });
 
   test("two loose folders holding the same src path each give their own context its own text", async () => {
@@ -415,8 +418,8 @@ describe("an internal error", () => {
 });
 
 describe("help and version", () => {
-  test("--version prints 0.1.0", async () => {
-    expect(await lore(["--version"])).toEqual({ code: 0, out: "0.1.0\n", err: "" });
+  test("--version prints the package version", async () => {
+    expect(await lore(["--version"])).toEqual({ code: 0, out: `${version}\n`, err: "" });
   });
 
   test("every option description starts in the same column", async () => {

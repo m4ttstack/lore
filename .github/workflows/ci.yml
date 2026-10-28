@@ -37,7 +37,7 @@ jobs:
           bun run --filter @lore/cli build
           node packages/cli/dist/lore.js select $smoke | jq -e '.rules[0].id == "smoke-rule"'
           bun packages/cli/dist/lore.js select $smoke | jq -e '.rules[0].id == "smoke-rule"'
-          test "$(bun packages/cli/dist/lore.js --version)" = "0.1.0"
+          test "$(bun packages/cli/dist/lore.js --version)" = "$(jq -r .version packages/cli/package.json)"
       - run: bun run check
       - run: bunx tree-sitter test
         working-directory: packages/tree-sitter-lore
