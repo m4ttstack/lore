@@ -304,6 +304,16 @@ test("requires: an eligibility example whose inputs hold a check needs requires"
   expect(rules(swap('<rule id="a-rule">', '<rule id="a-rule">\n<check>\nx\n</check>'))).toEqual([]);
 });
 
+test("requires: an example with a loose: section needs loose-given-folder", () => {
+  const loose = '=== loose:.lore/c.lore\n<rule id="c-rule">\n=== diff';
+  const withLoose = swap("=== diff", loose);
+  expect(rules(withLoose)).toEqual(["requires"]);
+  expect(rules(swap(F + "example eligibility", F + "example eligibility\nrequires: loose-given-folder", withLoose))).toEqual([]);
+  const parseLoose = swap("=== expect\n" + parseExpect, "=== loose:.lore/c.lore\n<rule id=\"c-rule\">\n=== expect\n" + parseExpect);
+  expect(rules(parseLoose)).toEqual(["requires"]);
+  expect(rules(swap(F + "example parse", F + "example parse\nrequires: loose-given-folder", parseLoose))).toEqual([]);
+});
+
 test("remote: the remote section is one line", () => {
   const add = (text: string) => swap("=== diff", `=== remote\n${text}\n=== diff`);
   expect(rules(add("https://github.com/acme/shop"))).toEqual([]);

@@ -68,6 +68,9 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
     if (ex.kind === "eligibility" && ex.requires.length === 0 && ex.files.some((f) => CHECK_TAG.test(f.content))) {
       report("requires", "an eligibility example whose inputs hold a <check> needs a requires line");
     }
+    if (ex.files.some((f) => f.place === "loose") && !ex.requires.includes("loose-given-folder")) {
+      report("requires", "an example with a loose: section needs requires: loose-given-folder");
+    }
     if (ex.remote !== null && (ex.remote === "" || ex.remote.includes("\n"))) report("remote", "the remote section is not one line");
     if (ex.kind === "eligibility" && ex.diff === null) report("diff", "an eligibility example needs a diff");
     if (ex.kind === "parse" && (ex.diff !== null || ex.remote !== null)) report("diff", "a parse example takes no diff or remote");
