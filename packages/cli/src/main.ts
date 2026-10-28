@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { RegexLimitError, parseWithContext, select } from "@lore/parser";
+import { RegexLimitError, parseWithContext, selectParsed } from "@lore/parser";
 import pkg from "../package.json";
 import { parseCommand, type SelectCommand, type VerdictsCommand } from "./args";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
 import { GitMissingError } from "./git";
-import { buildInput, findRepoRoot } from "./input";
+import { buildInput, findRepoRoot, unreadWarnings } from "./input";
 import { entrySources, toSelection } from "./selection";
 import { excludedLines, renderText } from "./text";
 import { checkVerdicts, readSelection } from "./verdicts";
@@ -74,20 +74,20 @@ export async function run(argv: string[], io: IO): Promise<number> {
 }
 
 async function runSelect(command: SelectCommand, io: IO): Promise<number> {
-  const change = parseUnifiedDiff(await readDiff(command.diff, io));
-  const { input, readSrc, warnings } = await buildInput({
+  const { input, readSrc, unread } = await buildInput({
     repo: governedRepo(command),
     rulesRef: command.rulesRef,
     given: command.given,
     remotes: command.remotes,
   });
+  const change = parseUnifiedDiff(await readDiff(command.diff, io));
   const parsed = parseWithContext(input);
-  const result = await select(input, change, {
+  const result = await selectParsed(input, parsed, change, {
     capabilities: command.capabilities,
     astGrepBinary: "ast-grep",
     fileContent: () => null,
   });
-  const selection = toSelection(parsed.model, result, change, entrySources(parsed, readSrc), warnings);
+  const selection = toSelection(parsed.model, result, change, entrySources(parsed, readSrc), unreadWarnings(unread, parsed.collected));
   const format = command.format ?? (io.isTTY ? "text" : "json");
   if (format === "json") io.stdout(`${JSON.stringify(selection, null, 2)}\n`);
   else {
@@ -154,19 +154,22 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+export async function main(argv: string[], io: IO): Promise<number> {
+  try {
+    return await run(argv, io);
+  } catch (error) {
+    io.stderr(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
+    return 70;
+  }
+}
+
 if (require.main === module) {
-  run(process.argv.slice(2), {
+  main(process.argv.slice(2), {
     stdin: readStdin,
     stdout: (text) => void process.stdout.write(text),
     stderr: (text) => void process.stderr.write(text),
     isTTY: process.stdout.isTTY === true,
-  }).then(
-    (code) => {
-      process.exitCode = code;
-    },
-    (error: unknown) => {
-      process.stderr.write(`${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
-      process.exitCode = 70;
-    },
-  );
+  }).then((code) => {
+    process.exitCode = code;
+  });
 }

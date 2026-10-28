@@ -3,9 +3,10 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
+import { parseWithContext } from "@lore/parser";
 import { InputError } from "../src/errors";
 import { readFileAt, remoteUrls, trackedPaths } from "../src/git";
-import { buildInput } from "../src/input";
+import { buildInput, unreadWarnings, type BuiltInput } from "../src/input";
 
 const made: string[] = [];
 afterAll(() => {
@@ -39,6 +40,9 @@ function repoWith(files: Record<string, string>): string {
 }
 
 const rule = (id: string) => `# ${id}\n`;
+const MARKED = "lore: 1\nrepo: github.com/acme/shop\n";
+
+const warningsOf = ({ input, unread }: BuiltInput) => unreadWarnings(unread, parseWithContext(input).collected);
 
 describe("buildInput", () => {
   test("lists tracked paths, reads only Lore files, and leaves untracked files out", async () => {
@@ -448,7 +452,7 @@ describe("reads that leave the folder or fail", () => {
     git(root, "commit", "-q", "-m", "first");
     git(root, "update-index", "--skip-worktree", ".lore/skipped.lore");
     rmSync(join(root, ".lore/skipped.lore"));
-    const { warnings } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    const warnings = warningsOf(await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] }));
     expect(warnings).toEqual([
       { name: "lore-file-not-read", file: ".lore/evil.lore", entry: null, line: 1 },
       { name: "lore-file-not-read", file: ".lore/skipped.lore", entry: null, line: 1 },
@@ -461,14 +465,14 @@ describe("reads that leave the folder or fail", () => {
     const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
     git(root, "update-index", "--add", "--cacheinfo", `160000,${head},.lore/sub.lore`);
     mkdirSync(join(root, ".lore/sub.lore"));
-    const { warnings } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    const warnings = warningsOf(await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] }));
     expect(warnings).toEqual([{ name: "lore-file-not-read", file: ".lore/sub.lore", entry: null, line: 1 }]);
   });
 
   test("a given repository warns only for unread files its given folders reach, and a loose folder for any", async () => {
     const other = tempDir();
     git(other, "init", "-q", "-b", "main");
-    write(other, { "rules/.lore/a.lore": rule("a") });
+    write(other, { "rules/.lore/a.lore": rule("a"), "rules/.loreconfig": MARKED });
     symlinkSync(join(other, "missing"), join(other, ".loreconfig"));
     symlinkSync(join(other, "missing"), join(other, "rules/.lore/gone.lore"));
     mkdirSync(join(other, "elsewhere/.lore"), { recursive: true });
@@ -476,10 +480,10 @@ describe("reads that leave the folder or fail", () => {
     git(other, "add", ".");
     git(other, "commit", "-q", "-m", "first");
     const loose = tempDir();
-    write(loose, { ".lore/locked.lore": rule("locked") });
+    write(loose, { ".lore/locked.lore": rule("locked"), ".loreconfig": MARKED });
     chmodSync(join(loose, ".lore/locked.lore"), 0o000);
     try {
-      const { warnings } = await buildInput({ repo: null, rulesRef: null, given: [join(other, "rules"), loose], remotes: ["github.com/acme/shop"] });
+      const warnings = warningsOf(await buildInput({ repo: null, rulesRef: null, given: [join(other, "rules"), loose], remotes: ["github.com/acme/shop"] }));
       expect(warnings).toEqual([
         { name: "lore-file-not-read", file: "external:.loreconfig", entry: null, line: 1 },
         { name: "lore-file-not-read", file: "external:rules/.lore/gone.lore", entry: null, line: 1 },
@@ -488,6 +492,61 @@ describe("reads that leave the folder or fail", () => {
     } finally {
       chmodSync(join(loose, ".lore/locked.lore"), 0o644);
     }
+  });
+
+  describe("an unread file the parser would not collect", () => {
+    const given = (dir: string): string[] => [dir];
+    const unreadLore = (root: string, path: string): void => {
+      mkdirSync(dirname(join(root, path)), { recursive: true });
+      symlinkSync(join(root, "missing"), join(root, path));
+    };
+
+    test("a given folder with no tree marked for the governed repo gives no warning", async () => {
+      const other = tempDir();
+      git(other, "init", "-q", "-b", "main");
+      write(other, { "rules/.lore/a.lore": rule("a") });
+      unreadLore(other, "rules/.lore/gone.lore");
+      git(other, "add", ".");
+      git(other, "commit", "-q", "-m", "first");
+      expect(warningsOf(await buildInput({ repo: null, rulesRef: null, given: given(join(other, "rules")), remotes: ["github.com/acme/shop"] }))).toEqual([]);
+    });
+
+    test("a loose folder with no marked tree gives no warning for a Lore file but one for a config", async () => {
+      const loose = tempDir();
+      write(loose, { ".lore/locked.lore": rule("locked"), "sub/.loreconfig": "lore: 1\n" });
+      chmodSync(join(loose, ".lore/locked.lore"), 0o000);
+      chmodSync(join(loose, "sub/.loreconfig"), 0o000);
+      try {
+        const warnings = warningsOf(await buildInput({ repo: null, rulesRef: null, given: given(loose), remotes: ["github.com/acme/shop"] }));
+        expect(warnings).toEqual([{ name: "lore-file-not-read", file: "loose:sub/.loreconfig", entry: null, line: 1 }]);
+      } finally {
+        chmodSync(join(loose, ".lore/locked.lore"), 0o644);
+        chmodSync(join(loose, "sub/.loreconfig"), 0o644);
+      }
+    });
+
+    test("a Lore file under a repo-inside-repo subtree gives no warning, and one outside it does", async () => {
+      const root = tempDir();
+      git(root, "init", "-q", "-b", "main");
+      write(root, { ".lore/a.lore": rule("a"), "sub/.loreconfig": "lore: 1\nrepo: github.com/acme/other\n", "sub/.lore/b.lore": rule("b") });
+      unreadLore(root, "sub/.lore/gone.lore");
+      unreadLore(root, ".lore/gone.lore");
+      git(root, "add", ".");
+      git(root, "commit", "-q", "-m", "first");
+      const warnings = warningsOf(await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] }));
+      expect(warnings).toEqual([{ name: "lore-file-not-read", file: ".lore/gone.lore", entry: null, line: 1 }]);
+    });
+
+    test("a Lore file under a nested-repo subtree of a loose folder gives no warning", async () => {
+      const loose = tempDir();
+      write(loose, { ".loreconfig": MARKED, ".lore/a.lore": rule("a"), "inner/.loreconfig": "lore: 1\nrepo: github.com/acme/other\n", "inner/.lore/b.lore": rule("b") });
+      chmodSync(join(loose, "inner/.lore/b.lore"), 0o000);
+      try {
+        expect(warningsOf(await buildInput({ repo: null, rulesRef: null, given: given(loose), remotes: ["github.com/acme/shop"] }))).toEqual([]);
+      } finally {
+        chmodSync(join(loose, "inner/.lore/b.lore"), 0o644);
+      }
+    });
   });
 
   test("a path conflicted in a merge is listed once", () => {

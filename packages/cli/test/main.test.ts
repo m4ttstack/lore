@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { run } from "../src/main";
+import { main, run } from "../src/main";
 
 const made: string[] = [];
 afterAll(() => {
@@ -153,7 +153,7 @@ describe("lore select", () => {
     expect(code).toBe(2);
     expect(out).toBe("");
     expect(err.length).toBeLessThan(300);
-    expect(err).toContain("past the limit");
+    expect(err).toStartWith("lore: .lore/deep.lore entry deep: groups nested 1500 deep, past the limit of 1000: ");
     expect(err).not.toContain("    at ");
   });
 
@@ -164,6 +164,7 @@ describe("lore select", () => {
     const { code, out, err } = await lore(["select", "--repo", root, "--diff", diff, "--format", "json"]);
     expect(code).toBe(2);
     expect(out).toBe("");
+    expect(err).toStartWith("lore: .lore/huge.lore entry huge: ");
     expect(err.length).toBeLessThan(400);
   });
 
@@ -226,6 +227,26 @@ describe("lore select", () => {
         expect(err).toBe("lore: git is not installed; pass --no-repo with --remote to run without it\n");
       } finally {
         process.env.PATH = path;
+      }
+    });
+
+    test("the repository is resolved before stdin is read", async () => {
+      process.chdir(tempDir());
+      const io = {
+        stdin: async (): Promise<string> => { throw new Error("stdin was read"); },
+        stdout: () => {},
+        stderr: (text: string) => { err += text; },
+        isTTY: false,
+      };
+      let err = "";
+      try {
+        expect(await run(["select", "--diff", "-"], io)).toBe(2);
+        expect(err).toBe("lore: no git working copy here: pass --repo or --no-repo\n");
+        err = "";
+        expect(await run(["select", "--no-repo", "--diff", "-"], io)).toBe(2);
+        expect(err).toBe("lore: --no-repo needs --remote\n");
+      } finally {
+        restore();
       }
     });
 
@@ -303,6 +324,43 @@ describe("src text from several given places", () => {
   });
 });
 
+describe("lore-file-not-read", () => {
+  const link = (root: string, path: string): void => {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    symlinkSync(join(root, "missing"), join(root, path));
+  };
+  const commit = (root: string): void => {
+    execFileSync("git", ["add", "."], { cwd: root });
+    execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "link"], { cwd: root, stdio: "ignore" });
+  };
+  const warningsFor = async (root: string): Promise<unknown[]> => {
+    const { out } = await lore(["select", "--repo", root, "--diff", "-", "--format", "json"], { stdin: DIFF });
+    return JSON.parse(out).warnings;
+  };
+
+  test("a broken Lore file the parser would read is warned", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    link(root, ".lore/gone.lore");
+    commit(root);
+    expect(await warningsFor(root)).toEqual([{ name: "lore-file-not-read", file: ".lore/gone.lore", entry: null, line: 1 }]);
+  });
+
+  test("a broken Lore file under a repo-inside-repo subtree is not", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE, "sub/.loreconfig": "lore: 1\nrepo: github.com/acme/other\n" });
+    link(root, "sub/.lore/gone.lore");
+    commit(root);
+    expect(await warningsFor(root)).toEqual([]);
+  });
+
+  test("a broken Lore file in a given folder with no tree marked for the governed repo is not", async () => {
+    const other = repoWith({ "rules/.lore/a.lore": RULE });
+    link(other, "rules/.lore/gone.lore");
+    commit(other);
+    const { selection } = await selectWith([join(other, "rules")]);
+    expect(selection.warnings).toEqual([]);
+  });
+});
+
 describe("usage errors", () => {
   const oneLine = (err: string) => expect(err.trim().split("\n")).toHaveLength(1);
 
@@ -334,6 +392,24 @@ describe("usage errors", () => {
     expect(out).toBe("");
     expect(err).toContain(mention);
     oneLine(err);
+  });
+});
+
+describe("an internal error", () => {
+  test("prints the stack and exits 70", async () => {
+    let err = "";
+    const code = await main(["verdicts", "--selection", "-", "x"], {
+      stdin: async () => { throw new Error("boom"); },
+      stdout: () => {},
+      stderr: (text) => { err += text; },
+      isTTY: false,
+    });
+    expect(code).toBe(70);
+    expect(err).toStartWith("Error: boom\n    at ");
+  });
+
+  test("a usage error is still exit 2 through main", async () => {
+    expect(await main(["frobnicate"], { stdin: async () => "", stdout: () => {}, stderr: () => {}, isTTY: false })).toBe(2);
   });
 });
 

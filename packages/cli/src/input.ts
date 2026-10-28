@@ -1,6 +1,6 @@
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
-import { EXTERNAL, LOOSE, type Diagnostic, type InputFile, type LoreInput } from "@lore/parser";
+import { EXTERNAL, LOOSE, type Collected, type Diagnostic, type InputFile, type LoreInput } from "@lore/parser";
 import { InputError } from "./errors";
 import { GitMissingError, gitRoot, readFileAt, readTracked, remoteUrls, trackedPaths } from "./git";
 
@@ -14,8 +14,14 @@ export interface BuiltInput {
   input: LoreInput;
   // given is the index in input.given of the folder whose entry names the src; without it an ambiguous path reads as null.
   readSrc(file: string, given?: number): string | null;
-  // lore-file-not-read, once per tracked Lore or .loreconfig file the parser would have read but the command could not.
-  warnings: Diagnostic[];
+  // Tracked Lore and .loreconfig files the command could not read; unreadWarnings keeps those the parser would have collected.
+  unread: UnreadFile[];
+}
+export interface UnreadFile {
+  // With its source's prefix: "loose:" or "external:" for a given folder, none for the governed repo.
+  file: string;
+  // The index in input.given of the place's first folder, or null for the governed repo.
+  given: number | null;
 }
 interface Place { root: string; listed: Set<string>; files: InputFile[]; unread: string[]; folders: string[]; prefix: string }
 
@@ -84,13 +90,35 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
       return null;
     }
   };
-  const unread = [
-    ...governed.unread,
+  const unread: UnreadFile[] = [
+    ...governed.unread.map((file) => ({ file, given: null })),
     ...[...repositories.values(), ...looseFolders.values()].flatMap((place) =>
-      place.unread.filter((path) => reached(path, place.folders)).map((path) => place.prefix + path)),
+      place.unread.filter((path) => reached(path, place.folders)).map((path) => ({ file: place.prefix + path, given: givenPlaces.indexOf(place) }))),
   ];
-  const warnings = [...new Set(unread)].map((file) => ({ name: "lore-file-not-read", file, entry: null, line: 1 }));
-  return { input, readSrc, warnings };
+  return { input, readSrc, unread };
+}
+
+// One lore-file-not-read per unread file the parser would have collected: a Lore file counts only in a marked tree
+// and outside a repo-inside-repo or nested-repo subtree; a .loreconfig counts outside such a subtree, as it may be what marks one.
+export function unreadWarnings(unread: readonly UnreadFile[], collected: Collected): Diagnostic[] {
+  const files = unread.filter(({ file, given }) => {
+    const prefix = [EXTERNAL, LOOSE].find((candidate) => file.startsWith(candidate)) ?? "";
+    const dir = dirOf(file.slice(prefix.length));
+    const excluded = collected.diagnostics.some(
+      ({ name, file: reported }) =>
+        (name === "repo-inside-repo" || name === "nested-repo") &&
+        (prefix === "" ? ![EXTERNAL, LOOSE].some((other) => reported.startsWith(other)) : reported.startsWith(prefix)) &&
+        within(dir, dirOf(reported.slice(prefix.length))),
+    );
+    if (excluded) return false;
+    if (file.endsWith(CONFIG_NAME) || given === null) return true;
+    return collected.trees.some((tree) => collected.repositoryGiven[tree.repository] === given && within(dir, tree.marked));
+  });
+  return [...new Set(files.map(({ file }) => file))].map((file) => ({ name: "lore-file-not-read", file, entry: null, line: 1 }));
+}
+
+function dirOf(path: string): string {
+  return path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
 }
 
 // Without a git binary no folder can be a working copy, so a given folder is loose.
