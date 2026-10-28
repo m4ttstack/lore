@@ -16,7 +16,11 @@ jobs:
         run: |
           version="$(jq -r .version packages/cli/package.json)"
           test "$GITHUB_REF_NAME" = "cli-v$version" || { echo "tag $GITHUB_REF_NAME does not match version $version"; exit 1; }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
       - run: bun install --frozen-lockfile
+      - run: bun run build
       - run: bunx tsc --noEmit
       - run: bun test
       - run: bun run check
