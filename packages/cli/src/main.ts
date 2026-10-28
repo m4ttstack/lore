@@ -5,6 +5,7 @@ import pkg from "../package.json";
 import { parseCommand, type SelectCommand, type VerdictsCommand } from "./args";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
+import { GitMissingError } from "./git";
 import { buildInput, findRepoRoot } from "./input";
 import { entrySources, toSelection } from "./selection";
 import { excludedLines, renderText } from "./text";
@@ -24,25 +25,28 @@ const HELP = `Usage:
   lore --version
 
 Rules:
-  --repo <dir>        The governed repo's working tree (default: the git root above the current directory)
-  --no-repo           Take the governed repo to hold no Lore files; needs --remote
-  --remote <url>      The governed repo's remote, for matching "repo" (repeatable; default: read from git)
-  --rules-ref <ref>   Read the repo's Lore files at this git ref instead of the working tree
-  --given <dir>       A given folder (repeatable)
+  --repo <dir>           The governed repo's working tree (default: the git root above the current directory)
+  --no-repo              Take the governed repo to hold no Lore files; needs --remote
+  --remote <url>         The governed repo's remote, for matching "repo" (repeatable; default: read from git)
+  --rules-ref <ref>      Read the repo's Lore files at this git ref instead of the working tree
+  --given <dir>          A given folder (repeatable)
 
 Change:
-  --diff <file|->     A unified diff, or - for stdin
+  --diff <file|->        A unified diff, or - for stdin
 
 Output:
-  --format text|json  Default: text on a terminal, json otherwise
+  --format text|json     Default: text on a terminal, json otherwise
   --capabilities <list>  Checks to run, default regex,ast-grep
-  --strict            Exit 1 when the rules have errors that excluded entries
+  --strict               Exit 1 when the rules have errors that excluded entries
 
 Verdicts:
-  --selection <file>  The JSON from lore select
-  <verdicts-file>     A verdict set, or - for stdin (default)
+  --selection <file>     The JSON from lore select
+  <verdicts-file>        A verdict set, or - for stdin (default)
 
-Exit codes: 0 selection ran or verdicts have no problems, 1 --strict and entries were excluded or verdicts have problems, 2 usage or input error, 70 internal error.
+Exit codes:
+  lore select    0 the selection ran, 1 --strict was given and entries were excluded
+  lore verdicts  0 the verdicts have no problems, 1 the verdicts have problems
+  both           2 usage or input error, 70 internal error
 `;
 
 export async function run(argv: string[], io: IO): Promise<number> {
@@ -124,7 +128,13 @@ function governedRepo(command: SelectCommand): string | null {
     if (root === null) throw new InputError(`--repo ${command.repo} is not in a git working copy`);
     return root;
   }
-  const root = findRepoRoot(process.cwd());
+  let root: string | null;
+  try {
+    root = findRepoRoot(process.cwd());
+  } catch (error) {
+    if (error instanceof GitMissingError) throw new InputError(`${error.message}; pass --no-repo with --remote to run without it`);
+    throw error;
+  }
   if (root === null) throw new InputError("no git working copy here: pass --repo or --no-repo");
   return root;
 }

@@ -22,7 +22,7 @@ const NOTHING = "No Lore rules apply to this change.";
 export function renderText(selection: Selection): string {
   const sections: string[] = [];
   if (selection.rules.length === 0 && selection.context.length === 0) {
-    sections.push(selection.excluded.length === 0 ? NOTHING : `${NOTHING} Some Lore entries were excluded; see the errors.`);
+    sections.push(selection.excluded.length === 0 ? NOTHING : `${NOTHING} Some Lore entries were excluded; see the excluded lines on stderr.`);
   } else {
     sections.push(PREAMBLE);
     for (const rule of selection.rules) {

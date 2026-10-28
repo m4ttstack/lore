@@ -123,7 +123,7 @@ describe("lore select", () => {
     writeFileSync(diff, DIFF);
     const { code, out, err } = await lore(["select", "--repo", root, "--diff", diff, "--format", "text"]);
     expect(code).toBe(0);
-    expect(out).toBe("No Lore rules apply to this change. Some Lore entries were excluded; see the errors.\n");
+    expect(out).toBe("No Lore rules apply to this change. Some Lore entries were excluded; see the excluded lines on stderr.\n");
     expect(err).toContain("lore: excluded unknown-attribute");
   });
 
@@ -217,6 +217,18 @@ describe("lore select", () => {
       }
     });
 
+    test("without a git binary the message says how to run without git", async () => {
+      const path = process.env.PATH;
+      process.env.PATH = tempDir();
+      try {
+        const { code, err } = await lore(["select", "--diff", "-"], { stdin: DIFF });
+        expect(code).toBe(2);
+        expect(err).toBe("lore: git is not installed; pass --no-repo with --remote to run without it\n");
+      } finally {
+        process.env.PATH = path;
+      }
+    });
+
     test("outside any repository it says to pass --repo or --no-repo", async () => {
       process.chdir(tempDir());
       try {
@@ -305,7 +317,9 @@ describe("usage errors", () => {
     ["no change input", ["select", "--repo", "."], "--diff"],
     ["two change inputs", ["select", "--diff", "a.diff", "--diff", "b.diff"], "--diff"],
     ["an unknown flag", ["select", "--bogus", "--diff", "-"], "--bogus"],
-    ["a flag without its value", ["select", "--diff"], "--diff"],
+    ["a flag without its value", ["select", "--diff"], "--diff needs a value"],
+    ["a value flag followed by another flag", ["select", "--diff", "--format", "json"], "--diff needs a value"],
+    ["a positional argument", ["select", "foo", "--diff", "x"], "unexpected argument: foo"],
     ["a bad format", ["select", "--diff", "-", "--format", "yaml"], "--format"],
     ["a bad capability", ["select", "--diff", "-", "--capabilities", "regex,magic"], "magic"],
     ["--strict with a value", ["select", "--diff", "-", "--strict=false"], "--strict"],
@@ -326,6 +340,23 @@ describe("usage errors", () => {
 describe("help and version", () => {
   test("--version prints 0.1.0", async () => {
     expect(await lore(["--version"])).toEqual({ code: 0, out: "0.1.0\n", err: "" });
+  });
+
+  test("every option description starts in the same column", async () => {
+    const { out } = await lore(["--help"]);
+    const columns = out.split("\n").flatMap((line) => {
+      const match = /^ {2}(--[\w-]+(?: \S+)?|<[^>]+>)( {2,})\S/.exec(line);
+      return match === null ? [] : [2 + match[1]!.length + match[2]!.length];
+    });
+    expect(columns.length).toBeGreaterThan(8);
+    expect(new Set(columns).size).toBe(1);
+  });
+
+  test("the exit codes are stated per command", async () => {
+    const { out } = await lore(["--help"]);
+    expect(out).toContain("lore select    0 the selection ran, 1 --strict was given and entries were excluded");
+    expect(out).toContain("lore verdicts  0 the verdicts have no problems, 1 the verdicts have problems");
+    expect(out).toContain("both           2 usage or input error, 70 internal error");
   });
 
   test("--help prints usage on stdout", async () => {

@@ -84,7 +84,7 @@ export function readFileAt(root: string, ref: string | null, path: string): stri
 export function remoteUrls(root: string): string[] {
   const urls = git(root, ["remote", "-v"])
     .split("\n")
-    .map((line) => /^[^\t]+\t(.+) \(fetch\)(?: \[[^\]]*\])?$/.exec(line)?.[1])
+    .map((line) => /^[^\t]+\t(.+) \(fetch\)(?: \[.*\])?$/.exec(line)?.[1])
     .filter((url): url is string => url !== undefined);
   return [...new Set(urls)];
 }

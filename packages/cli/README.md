@@ -57,10 +57,9 @@ lore verdicts --selection <file> [<verdicts-file> | -]
 
 ## Exit codes
 
-- `0`: selection ran, or the verdicts have no problems.
-- `1`: `--strict` was given and entries were excluded, or the verdicts have problems.
-- `2`: usage or input error.
-- `70`: internal error (a bug).
+- `lore select`: `0` when the selection ran, `1` when `--strict` was given and entries were excluded.
+- `lore verdicts`: `0` when the verdicts have no problems, `1` when they have problems.
+- Both: `2` for a usage or input error, `70` for an internal error (a bug).
 
 ## Build
 

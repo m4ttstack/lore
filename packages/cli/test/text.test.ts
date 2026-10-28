@@ -46,7 +46,7 @@ describe("renderText", () => {
       { name: "invalid-loreconfig", file: ".loreconfig", entry: null, line: 1 },
     ];
     const empty = toSelection({ entries: [], errors: [], warnings: [] }, { eligible: [], hits: [], excluded, warnings: [] }, { files: [] }, sources);
-    expect(renderText(empty)).toBe("No Lore rules apply to this change. Some Lore entries were excluded; see the errors.\n");
+    expect(renderText(empty)).toBe("No Lore rules apply to this change. Some Lore entries were excluded; see the excluded lines on stderr.\n");
     expect(excludedLines(empty)).toBe(
       "lore: excluded unknown-attribute in .lore/bad.lore line 3 (entry broken)\nlore: excluded invalid-loreconfig in .loreconfig line 1\n",
     );

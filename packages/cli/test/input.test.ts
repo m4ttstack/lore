@@ -208,6 +208,15 @@ describe("buildInput", () => {
     const { input } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: [] });
     expect(input.remotes).toEqual(["https://github.com/acme/shop.git"]);
   });
+
+  test("a partial clone's remote is kept when its filter spec holds a closing bracket", async () => {
+    const root = repoWith({ ".lore/a.lore": rule("a") });
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    git(root, "config", "remote.origin.promisor", "true");
+    git(root, "config", "remote.origin.partialclonefilter", "sparse:path=a]b");
+    const { input } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: [] });
+    expect(input.remotes).toEqual(["https://github.com/acme/shop.git"]);
+  });
 });
 
 describe("git's environment", () => {

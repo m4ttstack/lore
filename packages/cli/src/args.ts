@@ -49,10 +49,11 @@ function parseSelect(args: string[]): Command {
       flags.add(flag);
       continue;
     }
+    if (!arg.startsWith("--")) throw new UsageError(`unexpected argument: ${arg}`);
     if (!VALUE_FLAGS.includes(flag)) throw new UsageError(`unknown option: ${arg}`);
     let value: string;
     if (eq !== -1) value = arg.slice(eq + 1);
-    else if (i + 1 < args.length) value = args[++i]!;
+    else if (i + 1 < args.length && !args[i + 1]!.startsWith("--")) value = args[++i]!;
     else throw new UsageError(`${flag} needs a value`);
     const seen = values.get(flag) ?? [];
     if (seen.length > 0 && !REPEATABLE.includes(flag)) throw new UsageError(`${flag} given more than once`);
