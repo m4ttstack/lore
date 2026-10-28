@@ -593,6 +593,13 @@ describe("--rules-ref in a partial clone", () => {
     await expect(attempt).rejects.toThrow(".lore/a.lore at HEAD is not in this partial clone and lazy fetching is off; fetch it first, lore never fetches");
   });
 
+  test("a promisor flag written as yes still counts", async () => {
+    const clone = partialClone();
+    git(clone, "config", "remote.origin.promisor", "yes");
+    const attempt = buildInput({ repo: clone, rulesRef: "HEAD", given: [], remotes: ["github.com/acme/shop"] });
+    await expect(attempt).rejects.toThrow("is not in this partial clone");
+  });
+
   test("a path missing from the ref keeps the message from the version control tool", () => {
     const root = repoWith({ ".lore/a.lore": rule("a") });
     expect(() => readFileAt(root, "HEAD", "absent.lore")).toThrow(/does not exist in 'HEAD'/);

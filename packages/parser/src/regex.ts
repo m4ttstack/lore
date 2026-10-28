@@ -17,8 +17,8 @@ const CLASS_OUTSIDE_SET: Readonly<Record<ClassLetter, string>> = {
 type Scan = { error: string } | { source: string; depth: number };
 
 export class RegexLimitError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "RegexLimitError";
   }
 }

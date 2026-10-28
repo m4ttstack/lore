@@ -26,7 +26,7 @@ Change:
 
 Output:
 
-- `--format text|json`: default is text on a terminal, json otherwise. Text shows at most 20 flagged lines per rule (then `- and N more`), each cut to 200 characters; json keeps every hit in full.
+- `--format text|json`: default is text on a terminal, json otherwise. Text shows at most 20 flagged lines per rule (then `- and N more`), each cut to 200 code points with `...` appended; json keeps every hit in full.
 - `--capabilities <list>`: the checks to run. Default: `regex,ast-grep`.
 - `--strict`: exit 1 when errors in the rules excluded entries.
 
@@ -37,7 +37,7 @@ ast-grep checks are skipped in this version: each one reports the warning `check
 The command reads only files git tracks in a working copy, or the files a loose folder holds. In a loose folder symlinks are never followed and are skipped silently. In a working copy a symlink is read only when it points to a tracked file inside the same place. It never fetches: with `--rules-ref` in a partial clone, a Lore file whose content is not local is an input error. Two more warnings say what it could not read:
 
 - `src-not-read`: a selected context's `src` target exists, but the command did not read it, so its `srcText` is null.
-- `lore-file-not-read`: a tracked Lore or `.loreconfig` file the parser would have collected could not be read (a symlink out of its place or to nothing, a directory, a sparse-checkout file), so any entries it holds are missing from the selection.
+- `lore-file-not-read`: a Lore or `.loreconfig` file the parser would have collected (tracked in a working copy, or held by a loose folder) could not be read (a symlink out of its place or to nothing, a directory, a sparse-checkout file), so any entries it holds are missing from the selection.
 
 ## lore verdicts
 

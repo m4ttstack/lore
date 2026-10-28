@@ -377,6 +377,7 @@ describe("usage errors", () => {
     ["an unknown flag", ["select", "--bogus", "--diff", "-"], "--bogus"],
     ["a flag without its value", ["select", "--diff"], "--diff needs a value"],
     ["a value flag followed by another flag", ["select", "--diff", "--format", "json"], "--diff needs a value"],
+    ["verdicts --selection followed by a flag", ["verdicts", "--selection", "--x"], "--selection needs a value"],
     ["a positional argument", ["select", "foo", "--diff", "x"], "unexpected argument: foo"],
     ["a bad format", ["select", "--diff", "-", "--format", "yaml"], "--format"],
     ["a bad capability", ["select", "--diff", "-", "--capabilities", "regex,magic"], "magic"],

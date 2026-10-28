@@ -17,7 +17,7 @@ type Regexes = (pattern: string) => RegExp;
 const DEFAULT_BINARY = "ast-grep";
 const AST_GREP_RUNS_AT_ONCE = 8;
 
-export function select(input: LoreInput, change: Change, options: SelectOptions = {}): Promise<EligibilityResult> {
+export async function select(input: LoreInput, change: Change, options: SelectOptions = {}): Promise<EligibilityResult> {
   return selectParsed(input, parseWithContext(input), change, options);
 }
 
@@ -142,7 +142,7 @@ function compileRegexes(entries: readonly Entry[], regexChecks: boolean): Regexe
         compile(pattern);
       } catch (error) {
         if (!(error instanceof RegexLimitError)) throw error;
-        throw new RegexLimitError(`${shown(entry.file)} entry ${shown(entry.id)}: ${error.message}`);
+        throw new RegexLimitError(`${shown(entry.file)} entry ${shown(entry.id)}: ${error.message}`, { cause: error });
       }
     }
   }

@@ -181,6 +181,20 @@ describe("select: checks", () => {
     expect(message.length).toBeLessThan(300);
   });
 
+  test("the rewrapped regex limit error keeps the original as its cause", async () => {
+    const deep = `${"(".repeat(1001)}a${")".repeat(1001)}`;
+    const input = repo({ ".lore/a.lore": rule("deep-pattern", `<when>\naddedMatches: ['${deep}']\n</when>\n`) });
+    const error = (await select(input, change("M a.ts", "+1 a"), ALL).catch((caught: unknown) => caught)) as Error;
+    expect(error.cause).toBeInstanceOf(RegexLimitError);
+    expect((error.cause as Error).message).toStartWith("groups nested 1001 deep");
+  });
+
+  test("select always returns a promise, even when the input cannot be parsed", async () => {
+    const promise = select(null as never, change("M a.ts", "+1 a"), ALL);
+    expect(promise).toBeInstanceOf(Promise);
+    await expect(promise).rejects.toBeInstanceOf(Error);
+  });
+
   test("a check pattern past the limit names its file and entry too", async () => {
     const deep = `${"(".repeat(1001)}a${")".repeat(1001)}`;
     const input = repo({ ".lore/a.lore": rule("deep-check", `<check lang="regex">\n${deep}\n</check>\n`) });

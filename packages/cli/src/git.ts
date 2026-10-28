@@ -49,7 +49,7 @@ export function trackedPaths(root: string, ref: string | null): string[] {
 
 function isPartialClone(root: string): boolean {
   try {
-    return /\btrue$/m.test(git(root, ["config", "--get-regexp", "^remote\\..*\\.promisor$"]));
+    return /\btrue$/m.test(git(root, ["config", "--type=bool", "--get-regexp", "^remote\\..*\\.promisor$"]));
   } catch {
     return false;
   }

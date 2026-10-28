@@ -97,7 +97,7 @@ function parseVerdicts(args: string[]): Command {
     const arg = args[i]!;
     if (arg === "--help") return { name: "help" };
     if (arg === "--selection") {
-      if (i + 1 >= args.length) throw new UsageError("--selection needs a value");
+      if (i + 1 >= args.length || args[i + 1]!.startsWith("--")) throw new UsageError("--selection needs a value");
       selection = args[++i]!;
     } else if (arg.startsWith("--selection=")) selection = arg.slice("--selection=".length);
     else if (arg.startsWith("--")) throw new UsageError(`unknown option: ${arg}`);
