@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, w
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { InputError } from "../src/errors";
-import { readFileAt, trackedPaths } from "../src/git";
+import { readFileAt, remoteUrls, trackedPaths } from "../src/git";
 import { buildInput } from "../src/input";
 
 const made: string[] = [];
@@ -189,6 +189,38 @@ describe("buildInput", () => {
     git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
     const { input } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: [] });
     expect(input.remotes).toEqual(["https://github.com/acme/shop.git"]);
+  });
+
+  test("a remote whose URL is a local path with a space is kept whole", async () => {
+    const root = repoWith({ ".lore/a.lore": rule("a") });
+    const local = join(tempDir(), "acme shop");
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    git(root, "remote", "add", "local", local);
+    const { input } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: [] });
+    expect(input.remotes).toEqual([local, "https://github.com/acme/shop.git"]);
+  });
+
+  test("a partial clone's remote is kept though git prints its filter after the URL", async () => {
+    const root = repoWith({ ".lore/a.lore": rule("a") });
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    git(root, "config", "remote.origin.promisor", "true");
+    git(root, "config", "remote.origin.partialclonefilter", "blob:none");
+    const { input } = await buildInput({ repo: root, rulesRef: null, given: [], remotes: [] });
+    expect(input.remotes).toEqual(["https://github.com/acme/shop.git"]);
+  });
+});
+
+describe("git's environment", () => {
+  test("git runs under LC_ALL=C and with lazy fetching of missing objects turned off", () => {
+    const bin = tempDir();
+    writeFileSync(join(bin, "git"), '#!/bin/sh\nprintf "env\\tLC_ALL=%s NO_LAZY=%s (fetch)\\n" "$LC_ALL" "$GIT_NO_LAZY_FETCH"\n', { mode: 0o755 });
+    const path = process.env.PATH;
+    process.env.PATH = bin;
+    try {
+      expect(remoteUrls(tempDir())).toEqual(["LC_ALL=C NO_LAZY=1"]);
+    } finally {
+      process.env.PATH = path;
+    }
   });
 });
 

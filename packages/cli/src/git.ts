@@ -15,7 +15,8 @@ export class GitMissingError extends InputError {
 function git(root: string, args: string[]): string {
   try {
     // gitRoot matches git's English message, so a translated git must not answer in another language.
-    const env = { ...process.env, LC_ALL: "C" };
+    // A partial clone must not fetch a missing object from its promisor remote: the command never uses the network.
+    const env = { ...process.env, LC_ALL: "C", GIT_NO_LAZY_FETCH: "1" };
     return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env, maxBuffer: MAX_BUFFER, stdio: ["ignore", "pipe", "pipe"] });
   } catch (error) {
     const { code, stderr } = error as NodeJS.ErrnoException & { stderr?: string };
@@ -79,10 +80,11 @@ export function readFileAt(root: string, ref: string | null, path: string): stri
   return content;
 }
 
+// A fetch line is "<name>\t<url> (fetch)", then " [<filter>]" for a partial clone; the URL may hold spaces.
 export function remoteUrls(root: string): string[] {
   const urls = git(root, ["remote", "-v"])
     .split("\n")
-    .map((line) => /^\S+\s+(\S+)\s+\(fetch\)$/.exec(line)?.[1])
+    .map((line) => /^[^\t]+\t(.+) \(fetch\)(?: \[[^\]]*\])?$/.exec(line)?.[1])
     .filter((url): url is string => url !== undefined);
   return [...new Set(urls)];
 }
