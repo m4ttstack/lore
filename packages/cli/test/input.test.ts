@@ -577,6 +577,28 @@ describe("reads that leave the folder or fail", () => {
   });
 });
 
+describe("--rules-ref in a partial clone", () => {
+  function partialClone(): string {
+    const source = repoWith({ ".lore/a.lore": rule("a") });
+    git(source, "config", "uploadpack.allowFilter", "true");
+    const clone = join(tempDir(), "clone");
+    git(dirname(clone), "clone", "-q", "--no-local", "--filter=blob:none", "--no-checkout", `file://${source}`, clone);
+    return clone;
+  }
+
+  test("a Lore file whose blob is not local is an input error that says nothing is fetched", async () => {
+    const clone = partialClone();
+    const attempt = buildInput({ repo: clone, rulesRef: "HEAD", given: [], remotes: ["github.com/acme/shop"] });
+    await expect(attempt).rejects.toThrow(InputError);
+    await expect(attempt).rejects.toThrow(".lore/a.lore at HEAD is not in this partial clone and lazy fetching is off; fetch it first, lore never fetches");
+  });
+
+  test("a path missing from the ref keeps the message from the version control tool", () => {
+    const root = repoWith({ ".lore/a.lore": rule("a") });
+    expect(() => readFileAt(root, "HEAD", "absent.lore")).toThrow(/does not exist in 'HEAD'/);
+  });
+});
+
 describe("under a translated git", () => {
   test("a folder in no working copy is still loose when the caller's locale is not English", async () => {
     const bin = tempDir();

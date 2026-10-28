@@ -47,6 +47,14 @@ export function trackedPaths(root: string, ref: string | null): string[] {
   return git(root, ["ls-tree", "-r", "-z", "--name-only", ref]).split("\0").filter((path) => path !== "");
 }
 
+function isPartialClone(root: string): boolean {
+  try {
+    return /\btrue$/m.test(git(root, ["config", "--get-regexp", "^remote\\..*\\.promisor$"]));
+  } catch {
+    return false;
+  }
+}
+
 // Null unless the path resolves, through any symlinks, to a readable regular file inside root.
 export function readContained(root: string, path: string): string | null {
   try {
@@ -74,7 +82,16 @@ export function readTracked(root: string, path: string, tracked: ReadonlySet<str
 }
 
 export function readFileAt(root: string, ref: string | null, path: string): string {
-  if (ref !== null) return git(root, ["show", `${ref}:${path}`]);
+  if (ref !== null) {
+    try {
+      return git(root, ["show", `${ref}:${path}`]);
+    } catch (error) {
+      if (error instanceof InputError && /failed: fatal: bad object /.test(error.message) && isPartialClone(root)) {
+        throw new InputError(`${path} at ${ref} is not in this partial clone and lazy fetching is off; fetch it first, lore never fetches`);
+      }
+      throw error;
+    }
+  }
   const content = readContained(root, path);
   if (content === null) throw new InputError(`cannot read ${path} inside ${root}`);
   return content;
