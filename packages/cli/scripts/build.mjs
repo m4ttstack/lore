@@ -42,8 +42,10 @@ for (const input of Object.keys(result.metafile.inputs)) {
   if (dir !== null && existsSync(join(root, dir))) dirs.add(join(root, dir));
 }
 
-const notices = [...dirs].sort().map(noticeOf);
-const footer = notices.length === 0 ? "" : `\n/*! Third-party licenses bundled in this file\n\n${notices.join("\n\n---\n\n")}\n*/\n`;
+const own = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const ownNotice = `${own.name}@${own.version} (${own.license})\n\n${readFileSync(join(root, "LICENSE"), "utf8").trim().replaceAll("*/", "* /")}`;
+const notices = [ownNotice, ...[...dirs].sort().map(noticeOf)];
+const footer = `\n/*! Licenses of the code bundled in this file\n\n${notices.join("\n\n---\n\n")}\n*/\n`;
 
 mkdirSync(join(root, "dist"), { recursive: true });
 writeFileSync(join(root, "dist/lore.js"), result.outputFiles[0].text + footer);
