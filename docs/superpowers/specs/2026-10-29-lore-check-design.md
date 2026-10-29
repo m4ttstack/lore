@@ -105,3 +105,22 @@ today. A flagged line never changes the exit code.
   ```markdown
   After editing files, run `lore check` and fix any rule your change breaks.
   ```
+
+## Publishing to npm
+
+Added after the design above was approved: the CLI ships to npm with
+`lore check`, so a repo can run it without downloading a release asset.
+
+- **Name:** `@mattstack/lore` (Matt's choice; `lore`, `lore-cli` and
+  `@lore/cli` are taken). The binary stays `lore`.
+- **Version:** `0.2.0`, the first npm release. The `cli-v0.2.0` tag still
+  makes the GitHub release, as today.
+- **Package:** public, with only the bundle, its README and a license in
+  the tarball. The parser is bundled, so the package has no runtime
+  dependencies.
+- **How:** Matt publishes by hand with `/matt:npm-publish` (OTP from
+  Bitwarden) from the tagged commit on `main`. CI does not publish.
+- **Docs:** the root README's Try it section uses `npx @mattstack/lore`, and
+  its roadmap stops saying packages wait for a final name, for the CLI.
+  The `AGENTS.md` snippet can then name a command every reader has.
+- Every outward step (push, tag, publish) waits for Matt's go-ahead.
