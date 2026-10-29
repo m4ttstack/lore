@@ -249,7 +249,9 @@ later.
 
 From a repository with `.lore` files, check your uncommitted work against
 the rules. The command lists the rules that apply to the change and flags
-the lines worth a look, so you can fix anything the change breaks:
+the lines worth a look, so you can fix anything the change breaks. It
+prints text even when its output is not a terminal, so an agent reads the
+same thing; add `--format json` for the selection as JSON:
 
 ```
 npx @mattstack/lore check

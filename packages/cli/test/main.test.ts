@@ -507,6 +507,20 @@ describe("lore check", () => {
     expect(out).toStartWith("# Lore rules for this change\n\nThese rules apply to your change.");
   });
 
+  test("text is the default when stdout is not a terminal", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    write(root, { "src/p.ts": USD_FILE });
+    const { code, out } = await lore(["check", "--repo", root], { isTTY: false });
+    expect(code).toBe(0);
+    expect(out).toStartWith("# Lore rules for this change\n\nThese rules apply to your change.");
+  });
+
+  test("--format json prints the selection when stdout is not a terminal", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    write(root, { "src/p.ts": USD_FILE });
+    expect(ids((await lore(["check", "--repo", root, "--format", "json"], { isTTY: false })).out)).toEqual(["no-usd"]);
+  });
+
   test("an untracked rule applies to uncommitted work", async () => {
     const root = repoWith({ "README.md": "x\n" });
     write(root, { ".lore/a.lore": RULE, "src/p.ts": USD_FILE });

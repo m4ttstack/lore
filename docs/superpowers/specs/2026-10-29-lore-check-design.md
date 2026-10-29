@@ -52,8 +52,10 @@ branch.)*
 `--no-repo`, `--remote`, `--rules-ref`, `--given`, `--capabilities`,
 `--strict`, `--format text|json`. Not carried over: `--diff`.
 
-**Output.** Text is the default on a terminal and JSON otherwise, as for
-`select`.
+**Output.** Text is the default whether or not stdout is a terminal, so
+an agent that runs `lore check` reads the author text; `--format json`
+gives the selection JSON. `select` keeps its default of text on a
+terminal and JSON otherwise. *(Matt's decision.)*
 
 - Text uses a new author preamble in place of the verdict request: the rules
   below apply to the change, fix any the change breaks, a flagged line is a

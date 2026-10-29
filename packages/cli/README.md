@@ -66,6 +66,8 @@ The rules come from the working tree. Without a commit, untracked `.lore` and `.
 
 Text output is written for the author, not for a reviewer. It asks the author to fix any rule the change breaks, and says that flagged lines are places to look, not verdicts. It does not ask for a verdict set. JSON output has the same shape as `lore select`.
 
+The default format is text, on a terminal or not, so an agent that runs `lore check` reads the author text; `--format json` prints the selection.
+
 These options work as they do in `lore select`: `[rules]` (`--repo`, `--no-repo`, `--remote`, `--rules-ref`, `--given`), `--capabilities`, `--strict` and `--format text|json`. With `--no-repo` and `--repo` together, the repo supplies only the change. `--diff` is not accepted.
 
 ## lore verdicts

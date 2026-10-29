@@ -39,7 +39,7 @@ Change:
   --base <ref>           lore check: compare with the merge base of <ref> and HEAD (the branch so far)
 
 Output:
-  --format text|json     Default: text on a terminal, json otherwise
+  --format text|json     Default: text for lore check; for lore select, text on a terminal, json otherwise
   --capabilities <list>  Checks to run, default regex,ast-grep
   --strict               Exit 1 when the rules have errors that excluded entries
 
@@ -123,7 +123,7 @@ async function selectChange(command: SelectCommand | CheckCommand, io: IO, sourc
     fileContent: () => null,
   });
   const selection = toSelection(parsed.model, result, change, entrySources(parsed, readSrc), unreadWarnings(unread, parsed.collected));
-  const format = command.format ?? (io.isTTY ? "text" : "json");
+  const format = command.format ?? (command.name === "check" || io.isTTY ? "text" : "json");
   if (format === "json") io.stdout(`${JSON.stringify(selection, null, 2)}\n`);
   else {
     io.stderr(excludedLines(selection));
