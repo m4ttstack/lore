@@ -317,6 +317,12 @@ plus JSON Schemas for every structured block and for the expected output.
 no Lore tooling. Paste it into `AGENTS.md` or your agent's instruction
 file.
 
+[`skills/writing-lore`](skills/writing-lore/SKILL.md) is an agent skill
+for writing Lore files and converting existing review guidance into them:
+which instructions belong in Lore, how to choose when a rule applies, and
+how to test the result. It carries its own feature reference, so an agent
+can use it without reading the specification.
+
 ### Roadmap
 
 1. **Specification** for `.lore` and `.loreconfig`, with conformance
