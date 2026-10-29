@@ -282,6 +282,30 @@ rule folders and reading rules at a git ref.
 Lore complements these tools rather than replacing them. If a rule can be
 a lint rule, it should be one.
 
+### Lore or a skill?
+
+A skill, such as a Claude Code or Codex skill, packages a procedure an
+agent follows for one kind of task. A Lore file holds the rules a
+finished change must satisfy. Many instructions written in skills today
+are rules, and work better as Lore.
+
+| | Lore rule | Skill |
+|---|---|---|
+| Describes | What a finished change must satisfy | How to carry out a kind of task |
+| Selected | By a tool, from the files a change touches | By the agent, from the task it was given |
+| Used by | Authors and reviewers | The agent doing the task |
+| Result | A verdict per rule | The work itself |
+| Example | Amounts are integers in minor units. | To remove a feature flag, delete its reads, then its definition, then the flag itself. |
+
+To decide where an instruction belongs, ask whether a reviewer who sees
+only the finished change could tell whether it was followed. If they
+could, it is a Lore rule. If it is a step, an order of steps, or a
+check-in with a person, it belongs in a skill.
+
+The two work together. A skill keeps only its steps, and can end by
+running `lore select` on the change instead of restating rules that Lore
+already holds.
+
 ## Specification
 
 The specification is [`spec/SPEC.md`](spec/SPEC.md). It is written in the
