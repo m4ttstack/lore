@@ -58,7 +58,7 @@ lore check [<commit> | --base <ref>] [rules] [options]
 
 The change comes from git, so no diff file is needed:
 
-- `lore check` reads uncommitted work: staged changes, unstaged changes, and untracked files that git does not ignore, all against `HEAD`.
+- `lore check` reads uncommitted work: staged changes, unstaged changes, and untracked files that git does not ignore, all against `HEAD`, or against the empty tree when the repo has no commits yet.
 - `lore check <commit>` reads one commit against its first parent. A root commit is read against the empty tree.
 - `lore check --base <ref>` reads the branch so far: the working tree, untracked files included, against the merge base of `<ref>` and `HEAD`. It covers committed and uncommitted work together. `--base HEAD` is the same as plain `lore check`. A `<ref>` with no merge base with `HEAD` is an input error.
 
