@@ -17,17 +17,23 @@ Return the verdicts as one fenced code block tagged \`lore-verdicts\`:
 { "lore": "1", "verdicts": [{ "rule": "<id>", "verdict": "fail", "evidence": [{ "file": "<path>", "line": 12 }], "note": "<why>" }] }
 \`\`\``;
 
+const AUTHOR_PREAMBLE = `# Lore rules for this change
+
+These rules apply to your change. Fix any that your change breaks.
+
+A flagged line is a place to look, not a verdict. Read the context below before changing code. Judge only by these rules; never invent rules from other prose.`;
+
 const MAX_FLAGGED_LINES = 20;
 const MAX_LINE_CODE_POINTS = 200;
 
 const NOTHING = "No Lore rules apply to this change.";
 
-export function renderText(selection: Selection): string {
+export function renderText(selection: Selection, audience: "reviewer" | "author" = "reviewer"): string {
   const sections: string[] = [];
   if (selection.rules.length === 0 && selection.context.length === 0) {
     sections.push(selection.excluded.length === 0 ? NOTHING : `${NOTHING} Some Lore entries were excluded; see the excluded lines on stderr.`);
   } else {
-    sections.push(PREAMBLE);
+    sections.push(audience === "author" ? AUTHOR_PREAMBLE : PREAMBLE);
     for (const rule of selection.rules) {
       const lines = [`## Rule ${span(rule.id)} (${rule.severity}, ${rule.category ?? "no category"})`, "", rule.prose];
       if (rule.hits.length > 0) {

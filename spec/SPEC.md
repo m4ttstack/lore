@@ -4746,6 +4746,7 @@ a mapping whose keys are all optional:
 | `lore` | `1` | The version of this specification that the files follow. Without it, the version is 1. |
 | `root` | `true` or `false` | `true` makes this directory a Lore root (see [Lore root](#lore-root)). Without it, `false`. |
 | `repo` | `<host>/<path>` | Marks this directory as standing for the root of the repository it names (see [External folders](#external-folders)). |
+| `loose` | `true` or `false` | `true` in the `.loreconfig` at the root of a loose folder says the folder is meant to be loose (see [External folders](#external-folders)). Without it, `false`. |
 | `categories` | A list of categories | Categories declared for this directory and below (see [Categories](#categories)). |
 | `disable` | A list of ids | Entries switched off for changed files in this directory and below (see [Disable](#disable)). |
 
@@ -5116,10 +5117,14 @@ team-repo/lore/
   climb above that Lore root is `src-escapes-root`. Its files carry
   `loose:` and their path from the folder. When a tool collects a loose
   folder, it MUST report `untracked-given-folder` once for that folder,
-  with `file` `loose:.`, `entry` `null` and `line` 1. A tool MAY instead
-  refuse such a folder and collect nothing from it. The team, not
-  version control, decides what is in such a folder, so a stray copy of
-  a Lore folder in it can add rules.
+  with `file` `loose:.`, `entry` `null` and `line` 1, unless the
+  `.loreconfig` at the top of the folder (`loose:.loreconfig`) sets
+  `loose: true`. The `loose` key has no effect in any other
+  `.loreconfig`, and a `.loreconfig` with a problem is ignored as a
+  whole, so the tool then reports the folder. A tool MAY instead refuse
+  such a folder and collect nothing from it. The team, not version
+  control, decides what is in such a folder, so a stray copy of a Lore
+  folder in it can add rules.
 - Below a marked directory, directories mirror the governed repo: the
   directory `<marked>/<path>` stands for `<path>` in the governed repo.
   The base of a Lore file below a marked directory is found as
@@ -5214,6 +5219,83 @@ M apps/web/src/checkout/Price.tsx
   "eligible": ["price-from-quote"],
   "hits": [],
   "excluded": [],
+  "warnings": [{ "name": "untracked-given-folder", "file": "loose:.", "entry": null, "line": 1 }]
+}
+``````
+
+A folder that is meant to be loose, such as rules installed with a
+tool, says so in its root `.loreconfig`, and the tool does not report
+it:
+
+``````example eligibility
+requires: loose-given-folder
+=== loose:.loreconfig
+repo: github.com/acme/shop
+loose: true
+=== loose:.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12 const total = quote.total
+=== expect
+{
+  "eligible": ["price-from-quote"],
+  "hits": [],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+Here `loose: true` is in the marked directory's `.loreconfig`, which is
+not at the folder's root, so it has no effect and the tool reports the
+folder:
+
+``````example eligibility
+requires: loose-given-folder
+=== loose:sub/.loreconfig
+repo: github.com/acme/shop
+loose: true
+=== loose:sub/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12 const total = quote.total
+=== expect
+{
+  "eligible": ["price-from-quote"],
+  "hits": [],
+  "excluded": [],
+  "warnings": [{ "name": "untracked-given-folder", "file": "loose:.", "entry": null, "line": 1 }]
+}
+``````
+
+The root `.loreconfig` has a `loose` that is not a boolean, so it is
+ignored, and the tool reports the folder:
+
+``````example eligibility
+requires: loose-given-folder
+=== loose:.loreconfig
+loose: yes
+=== loose:sub/.loreconfig
+repo: github.com/acme/shop
+=== loose:sub/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
++12 const total = quote.total
+=== expect
+{
+  "eligible": ["price-from-quote"],
+  "hits": [],
+  "excluded": [
+    { "name": "invalid-loreconfig", "file": "loose:.loreconfig", "entry": null, "line": 1 }
+  ],
   "warnings": [{ "name": "untracked-given-folder", "file": "loose:.", "entry": null, "line": 1 }]
 }
 ``````
@@ -5772,7 +5854,7 @@ given as [`errors.json`](errors.json).
 | `unsupported-check-language` | warning | A check uses a language the tool does not support. |
 | `ast-grep-no-language` | warning | An ast-grep check skips a changed file whose extension maps to no ast-grep language. |
 | `unknown-disabled-id` | warning | A disable list names an id of no entry it can switch off. |
-| `untracked-given-folder` | warning | A given folder in no working copy was collected whole. |
+| `untracked-given-folder` | warning | A given folder in no working copy, not marked loose, was collected whole. |
 
 Whether an error excludes a file, an entry or a `.loreconfig`, and for
 some errors where it is found, is listed in [Error reach](#error-reach).

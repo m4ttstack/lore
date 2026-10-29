@@ -7,6 +7,7 @@
   "properties": {
     "lore": { "const": 1 },
     "root": { "type": "boolean" },
+    "loose": { "type": "boolean" },
     "repo": {
       "type": "string",
       "pattern": "^[a-z0-9.-]+(:[0-9]+)?/[^\\s]*[^\\s/]$",

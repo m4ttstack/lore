@@ -436,7 +436,8 @@ describe("help and version", () => {
     const { out } = await lore(["--help"]);
     expect(out).toContain("lore select    0 the selection ran, 1 --strict was given and entries were excluded");
     expect(out).toContain("lore verdicts  0 the verdicts have no problems, 1 the verdicts have problems");
-    expect(out).toContain("both           2 usage or input error, 70 internal error");
+    expect(out).toContain("lore check     0 the check ran, 1 --strict was given and entries were excluded");
+    expect(out).toContain("all            2 usage or input error, 70 internal error");
   });
 
   test("--help prints usage on stdout", async () => {
@@ -447,6 +448,186 @@ describe("help and version", () => {
     expect(out).toContain("--diff");
     expect(await lore(["select", "--help"])).toEqual({ code: 0, out, err: "" });
     expect(await lore(["verdicts", "--help"])).toEqual({ code: 0, out, err: "" });
+  });
+});
+
+describe("lore check", () => {
+  const start = process.cwd();
+  const USD_FILE = 'const c = "USD";\n';
+  const gitIn = (root: string, ...args: string[]) =>
+    execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: root, stdio: "ignore" });
+  const ids = (out: string): string[] => JSON.parse(out).rules.map((rule: { id: string }) => rule.id);
+
+  test("checks uncommitted work, untracked files included", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    write(root, { "src/p.ts": USD_FILE });
+    const { code, out, err } = await lore(["check", "--repo", root, "--format", "json"]);
+    expect(err).toBe("");
+    expect(code).toBe(0);
+    const selection = JSON.parse(out);
+    expect(selection.rules[0].id).toBe("no-usd");
+    expect(selection.rules[0].hits[0].file).toBe("src/p.ts");
+  });
+
+  test("checks one commit", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    write(root, { "src/p.ts": USD_FILE });
+    gitIn(root, "add", ".");
+    gitIn(root, "commit", "-q", "-m", "usd");
+    expect(ids((await lore(["check", "HEAD", "--repo", root, "--format", "json"])).out)).toEqual(["no-usd"]);
+    expect(ids((await lore(["check", "--repo", root, "--format", "json"])).out)).toEqual([]);
+  });
+
+  test("lore check --base checks the branch so far", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    gitIn(root, "checkout", "-q", "-b", "feat");
+    write(root, { "src/p.ts": USD_FILE });
+    gitIn(root, "add", ".");
+    gitIn(root, "commit", "-q", "-m", "usd");
+    expect(ids((await lore(["check", "--base", "main", "--repo", root, "--format", "json"])).out)).toEqual(["no-usd"]);
+    expect(ids((await lore(["check", "--repo", root, "--format", "json"])).out)).toEqual([]);
+  });
+
+  test("a commit and --base together are a usage error", async () => {
+    const { code, err } = await lore(["check", "HEAD", "--base", "main"]);
+    expect(code).toBe(2);
+    expect(err).toContain("give a commit or --base, not both");
+  });
+
+  test("lore select --base is still not available", async () => {
+    const { code, err } = await lore(["select", "--base", "main", "--diff", "-"]);
+    expect(code).toBe(2);
+    expect(err).toContain("--base is not available yet");
+  });
+
+  test("text output uses the author preamble", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    write(root, { "src/p.ts": USD_FILE });
+    const { out } = await lore(["check", "--repo", root], { isTTY: true });
+    expect(out).toStartWith("# Lore rules for this change\n\nThese rules apply to your change.");
+  });
+
+  test("text is the default when stdout is not a terminal", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    write(root, { "src/p.ts": USD_FILE });
+    const { code, out } = await lore(["check", "--repo", root], { isTTY: false });
+    expect(code).toBe(0);
+    expect(out).toStartWith("# Lore rules for this change\n\nThese rules apply to your change.");
+  });
+
+  test("--format json prints the selection when stdout is not a terminal", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    write(root, { "src/p.ts": USD_FILE });
+    expect(ids((await lore(["check", "--repo", root, "--format", "json"], { isTTY: false })).out)).toEqual(["no-usd"]);
+  });
+
+  test("an untracked rule applies to uncommitted work", async () => {
+    const root = repoWith({ "README.md": "x\n" });
+    write(root, { ".lore/a.lore": RULE, "src/p.ts": USD_FILE });
+    expect(ids((await lore(["check", "--repo", root, "--format", "json"])).out)).toEqual(["no-usd"]);
+  });
+
+  test("exits 0 when a rule has flagged lines", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    write(root, { "src/p.ts": USD_FILE });
+    const { code, out } = await lore(["check", "--repo", root, "--format", "json"]);
+    expect(JSON.parse(out).rules[0].hits).toHaveLength(1);
+    expect(code).toBe(0);
+  });
+
+  test("--strict exits 1 when entries are excluded", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE, ".lore/bad.lore": BROKEN });
+    expect((await lore(["check", "--repo", root, "--format", "json"])).code).toBe(0);
+    expect((await lore(["check", "--repo", root, "--format", "json", "--strict"])).code).toBe(1);
+  });
+
+  test("--diff is a usage error", async () => {
+    const { code, err } = await lore(["check", "--diff", "-"]);
+    expect(code).toBe(2);
+    expect(err).toContain("lore check builds the change itself; use lore select --diff for a diff");
+  });
+
+  test("two commits are a usage error", async () => {
+    const { code, err } = await lore(["check", "a", "b"]);
+    expect(code).toBe(2);
+    expect(err).toContain("at most one commit");
+  });
+
+  test("an unknown commit is an input error", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    const { code, err } = await lore(["check", "nope", "--repo", root]);
+    expect(code).toBe(2);
+    expect(err).toBe("lore: not a commit: nope\n");
+  });
+
+  test("--no-repo reads rules only from --given and the change from the working copy", async () => {
+    const root = repoWith({ ".lore/own.lore": RULE.replace("no-usd", "own-rule") });
+    write(root, { "src/p.ts": USD_FILE });
+    const folder = tempDir();
+    write(folder, { ".loreconfig": "lore: 1\nrepo: github.com/acme/shop\n", ".lore/g.lore": RULE.replace("no-usd", "given-rule") });
+    const { code, out, err } = await lore(["check", "--repo", root, "--no-repo", "--given", folder, "--remote", "github.com/acme/shop", "--format", "json"]);
+    expect(err).toBe("");
+    expect(code).toBe(0);
+    expect(ids(out)).toEqual(["given-rule"]);
+  });
+
+  test("outside a working copy it is an input error", async () => {
+    process.chdir(tempDir());
+    try {
+      const { code, err } = await lore(["check", "--format", "json"]);
+      expect(code).toBe(2);
+      expect(err).toBe("lore: lore check needs a git working copy: run it inside one or pass --repo\n");
+    } finally {
+      process.chdir(start);
+    }
+  });
+
+  test("--repo outside a working copy is an input error", async () => {
+    const { code, err } = await lore(["check", "--repo", tempDir()]);
+    expect(code).toBe(2);
+    expect(err).toContain("lore check needs a git working copy");
+  });
+
+  test("--repo naming a path that does not exist is the same input error", async () => {
+    const missing = join(tempDir(), "no", "such", "dir");
+    const { code, err } = await lore(["check", "--repo", missing]);
+    expect(code).toBe(2);
+    expect(err).toBe(`lore: lore check needs a git working copy: ${missing} is not in one\n`);
+  });
+
+  test("without a git binary the message says check needs it", async () => {
+    const path = process.env.PATH;
+    process.env.PATH = tempDir();
+    try {
+      const { code, err } = await lore(["check"]);
+      expect(code).toBe(2);
+      expect(err).toBe("lore: git is not installed; lore check needs it\n");
+    } finally {
+      process.env.PATH = path;
+    }
+  });
+
+  test("from a subdirectory, untracked files elsewhere in the repo are included", async () => {
+    const scoped = '<rule id="lib-usd" category="security" severity="blocking">\n<scope>\nfiles: ["lib/**"]\n</scope>\n<when>\naddedContains: ["USD"]\n</when>\nDo not hardcode USD.\n</rule>\n';
+    const root = repoWith({ ".lore/a.lore": scoped, "src/sub/keep.ts": "a\n" });
+    write(root, { "lib/q.ts": USD_FILE });
+    process.chdir(join(root, "src/sub"));
+    try {
+      const { code, out } = await lore(["check", "--format", "json"]);
+      expect(code).toBe(0);
+      const selection = JSON.parse(out);
+      expect(selection.rules[0].id).toBe("lib-usd");
+      expect(selection.rules[0].hits[0].file).toBe("lib/q.ts");
+    } finally {
+      process.chdir(start);
+    }
+  });
+
+  test("--help lists lore check", async () => {
+    const { out } = await lore(["--help"]);
+    expect(out).toContain("lore check [<commit> | --base <ref>] [rules] [options]");
+    expect(out).toContain("  --base <ref>           lore check: compare with the merge base of <ref> and HEAD (the branch so far)\n");
+    expect(await lore(["check", "--help"])).toEqual({ code: 0, out, err: "" });
   });
 });
 

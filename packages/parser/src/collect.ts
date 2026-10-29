@@ -68,7 +68,7 @@ export function collect(input: LoreInput): Collected {
     : { prefix: RULES, files: input.rules };
   collectSource({ repository: "repo", ...governed, folders: null }, input.remotes, collected);
   given.forEach(({ files, folders, prefix }, repository) => {
-    if (prefix === LOOSE) collected.warnings.push({ name: "untracked-given-folder", file: `${LOOSE}.`, entry: null, line: 1 });
+    if (prefix === LOOSE && !markedLoose(files)) collected.warnings.push({ name: "untracked-given-folder", file: `${LOOSE}.`, entry: null, line: 1 });
     collectSource({ repository, prefix, files, folders }, input.remotes, collected);
   });
   collected.files.sort((a, b) => compareCodePoints(a.file, b.file));
@@ -178,6 +178,11 @@ function repositories(given: readonly GivenFolder[]): { at: number; files: Input
     else group.folders.push(trimmed);
   }
   return groups.map(({ at, files, folders, prefix }) => ({ at, files, folders, prefix }));
+}
+
+function markedLoose(files: readonly InputFile[]): boolean {
+  const config = files.find(({ path }) => path === CONFIG_NAME);
+  return config !== undefined && readLoreconfig(config.content).config?.loose === true;
 }
 
 function inDotFolder(path: string): boolean {

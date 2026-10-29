@@ -22,7 +22,7 @@ Paths use forward slashes. `parse` needs the content of the `.lore` and `.loreco
 
 A `GivenFolder` names a folder inside a repository: `folder` is its path from that repository's root, and `files` lists that whole repository. `repository` is an optional key for that repository: folders with the same key are one repository. Without keys on both, two folders are one repository when their file lists are equal.
 
-With `loose: true` the folder is a loose folder of Lore files: `folder` is ignored, the place roots at the folder itself, and its files are paths from that folder.
+With `loose: true` (this input flag, not the `.loreconfig` `loose` key) the folder is a loose folder of Lore files: `folder` is ignored, the place roots at the folder itself, and its files are paths from that folder.
 
 ## API
 

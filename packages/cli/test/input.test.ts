@@ -80,6 +80,55 @@ describe("buildInput", () => {
     expect(input.rules).toEqual([{ path: ".lore/a.lore", content: rule("a") }]);
   });
 
+  describe("untrackedLore", () => {
+    const sources = { given: [], remotes: ["github.com/acme/shop"] };
+
+    test("reads an untracked Lore file", async () => {
+      const root = repoWith({ ".lore/a.lore": '<rule id="a">\nA.\n</rule>\n' });
+      const fresh = '<rule id="fresh">\nFresh.\n</rule>\n';
+      write(root, { ".lore/new.lore": fresh });
+      const { input } = await buildInput({ ...sources, repo: root, rulesRef: null, untrackedLore: true });
+      expect(input.repo).toContainEqual({ path: ".lore/new.lore", content: fresh });
+      expect(parseWithContext(input).model.entries.map(({ id }) => id)).toContain("fresh");
+    });
+
+    test("reads an untracked .loreconfig", async () => {
+      const root = repoWith({ "README.md": "hi\n" });
+      write(root, { ".loreconfig": "root: true\n" });
+      const { input } = await buildInput({ ...sources, repo: root, rulesRef: null, untrackedLore: true });
+      expect(input.repo).toContainEqual({ path: ".loreconfig", content: "root: true\n" });
+    });
+
+    test("without it an untracked Lore file is not read", async () => {
+      const root = repoWith({ ".lore/a.lore": rule("a") });
+      write(root, { ".lore/new.lore": rule("new") });
+      const { input } = await buildInput({ ...sources, repo: root, rulesRef: null });
+      expect(input.repo.map(({ path }) => path)).toEqual([".lore/a.lore"]);
+    });
+
+    test("never reads an ignored Lore file", async () => {
+      const root = repoWith({ ".gitignore": ".lore/local.lore\n", ".lore/a.lore": rule("a") });
+      write(root, { ".lore/local.lore": rule("local") });
+      const { input } = await buildInput({ ...sources, repo: root, rulesRef: null, untrackedLore: true });
+      expect(input.repo.map(({ path }) => path)).not.toContain(".lore/local.lore");
+    });
+
+    test("does not make an untracked src readable", async () => {
+      const root = repoWith({ ".lore/a.lore": '<context id="c" src="secret.txt">\nRead it.\n</context>\n' });
+      write(root, { "secret.txt": "shh\n", ".lore/new.lore": rule("new") });
+      const { readSrc } = await buildInput({ ...sources, repo: root, rulesRef: null, untrackedLore: true });
+      expect(readSrc("secret.txt")).toBeNull();
+    });
+
+    test("is ignored with a rules ref", async () => {
+      const root = repoWith({ ".lore/a.lore": rule("a") });
+      write(root, { ".lore/new.lore": rule("new") });
+      const { input } = await buildInput({ ...sources, repo: root, rulesRef: "HEAD", untrackedLore: true });
+      expect(input.repo).toEqual([]);
+      expect(input.rules).toEqual([{ path: ".lore/a.lore", content: rule("a") }]);
+    });
+  });
+
   test("a ref git cannot resolve is an input error naming the command", async () => {
     const root = repoWith({ ".lore/a.lore": rule("a") });
     const attempt = buildInput({ repo: root, rulesRef: "nope", given: [], remotes: ["github.com/acme/shop"] });

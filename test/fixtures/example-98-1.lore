@@ -1,3 +1,3 @@
-<rule id="price-from-quote" category="functional_correctness" severity="blocking">
-The checkout page shows the price from the quote, never a recomputed one.
+<rule id="orders-logged" category="observability">
+Every order is logged with its quote.
 </rule>

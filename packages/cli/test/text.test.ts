@@ -10,6 +10,30 @@ describe("renderText", () => {
     expect(renderText(toSelection(model, result, change, sources))).toBe(expected);
   });
 
+  describe("author audience", () => {
+    const authorPreamble = `# Lore rules for this change
+
+These rules apply to your change. Fix any that your change breaks.
+
+A flagged line is a place to look, not a verdict. Read the context below before changing code. Judge only by these rules; never invent rules from other prose.`;
+    const selection = toSelection(model, result, change, sources);
+    const author = renderText(selection, "author");
+    const reviewer = renderText(selection);
+
+    test("author text starts with the author preamble", () => {
+      expect(author.startsWith(authorPreamble)).toBe(true);
+    });
+
+    test("author text asks for no verdicts", () => {
+      expect(author).not.toContain("lore-verdicts");
+      expect(author).not.toContain("Answer every rule");
+    });
+
+    test("author text keeps the rule, flagged-line and context sections", () => {
+      expect(author.slice(authorPreamble.length)).toBe(reviewer.slice(reviewer.indexOf("\n\n## Rule")));
+    });
+  });
+
   describe("backticks in selected text", () => {
     const withHit = (file: string, text: string) =>
       renderText(toSelection(model, { ...result, hits: [{ rule: "money-in-minor-units", file, line: 4, text }] }, change, sources));

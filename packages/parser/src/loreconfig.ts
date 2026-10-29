@@ -8,6 +8,7 @@ export interface DisableItem { id: string; line: number; range: Range }
 
 export interface LoreConfig {
   root: boolean;
+  loose?: boolean;
   repo: { value: string; line: number } | null;
   categories: string[];
   disable: DisableItem[];
@@ -47,6 +48,10 @@ export function readLoreconfig(content: string): ConfigRead {
       case "root":
         if (typeof field !== "boolean") return fail(line);
         config.root = field;
+        break;
+      case "loose":
+        if (typeof field !== "boolean") return fail(line);
+        config.loose = field;
         break;
       case "repo":
         if (typeof field !== "string" || !REPO.test(field) || field.endsWith(GIT_SUFFIX)) return fail(line);

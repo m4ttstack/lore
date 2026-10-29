@@ -2,13 +2,14 @@ import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import { EXTERNAL, LOOSE, type Collected, type Diagnostic, type InputFile, type LoreInput } from "@lore/parser";
 import { InputError } from "./errors";
-import { GitMissingError, gitRoot, readFileAt, readTracked, remoteUrls, trackedPaths } from "./git";
+import { GitMissingError, gitRoot, readFileAt, readTracked, remoteUrls, trackedPaths, untrackedPaths } from "./git";
 
 export interface RuleSources {
   repo: string | null;
   rulesRef: string | null;
   given: string[];
   remotes: string[];
+  untrackedLore?: boolean;
 }
 export interface BuiltInput {
   input: LoreInput;
@@ -39,6 +40,9 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
 
   const governedPaths = repo === null ? [] : trackedPaths(repo, rulesRef);
   const governedTracked = new Set(governedPaths);
+  if (repo !== null && rulesRef === null && sources.untrackedLore) {
+    governedPaths.push(...untrackedPaths(repo).filter(wantsContent));
+  }
   const governed = repo === null ? { files: [], unread: [] } : readFiles(repo, rulesRef, governedPaths);
   const input: LoreInput = rulesRef === null
     ? { repo: governed.files, given: [], remotes }

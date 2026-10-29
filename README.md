@@ -243,26 +243,56 @@ shown is up to the tool. A review bot might show something like this:
 
 ## Try it
 
-The reference `lore` command implements selection and verdict checking.
-It is one JavaScript file, attached to each GitHub release, and runs on
-Node 20 or later or on Bun:
+The reference `lore` command implements selection, change checking and
+verdict checking. It is on npm as `@mattstack/lore` and runs on Node 20 or
+later.
+
+From a repository with `.lore` files, check your uncommitted work against
+the rules. The command lists the rules that apply to the change and flags
+the lines worth a look, so you can fix anything the change breaks:
 
 ```
-curl -LO https://github.com/m4ttstack/lore/releases/download/cli-v0.1.1/lore.js
+npx @mattstack/lore check
 ```
 
-From a repository with `.lore` files, print the rules that apply to your
-branch, ready to paste into a reviewer's prompt:
+It prints text even when its output is not a terminal, so an agent reads
+the same thing; add `--format json` for the selection as JSON.
+
+To check one commit instead, name it: `npx @mattstack/lore check HEAD`. To check
+a whole branch, committed and uncommitted work together, compare it against
+the commit where the branch left `main`: `npx @mattstack/lore check --base main`.
+
+To have an agent do this after every edit, add a line to `AGENTS.md`:
+
+```markdown
+After editing files, run `lore check` and fix any rule your change breaks.
+```
+
+Plain `lore check` needs `lore` on the `PATH`; adding `@mattstack/lore` as a
+dev dependency puts it there inside package scripts. `npx @mattstack/lore check`
+works from any shell, so write that in the line if the agent runs it outside
+package scripts.
+
+To hand a reviewer the rules that apply to your branch, print them ready to
+paste into a prompt:
 
 ```
-git diff main... | node lore.js select --diff - --format text
+git diff main... | npx @mattstack/lore select --diff - --format text
 ```
 
 Save the selection as JSON, then check a reviewer's verdicts against it:
 
 ```
-git diff main... | node lore.js select --diff - --format json > selection.json
-node lore.js verdicts --selection selection.json verdicts.json
+git diff main... | npx @mattstack/lore select --diff - --format json > selection.json
+npx @mattstack/lore verdicts --selection selection.json verdicts.json
+```
+
+The command is also one JavaScript file, attached to each GitHub release,
+that runs on Node 20 or later or on Bun:
+
+```
+curl -LO https://github.com/m4ttstack/lore/releases/download/cli-v0.2.0/lore.js
+node lore.js check
 ```
 
 `lore verdicts` exits 0 when every selected rule has exactly one valid
@@ -303,7 +333,7 @@ could, it is a Lore rule. If it is a step, an order of steps, or a
 check-in with a person, it belongs in a skill.
 
 The two work together. A skill keeps only its steps, and can end by
-running `lore select` on the change instead of restating rules that Lore
+running `lore check` on the change instead of restating rules that Lore
 already holds.
 
 ## Specification
@@ -329,15 +359,15 @@ can use it without reading the specification.
    examples and schemas.
 2. **Editor support:** done: reference parser, Prettier plugin, language
    server, VS Code/Cursor and Zed extensions (not yet published).
-3. **Applying rules:** in progress. The `lore` command (`select` and
-   `verdicts`) is released as a preview. Next: the verdict format as a
-   normative part of the specification, and more ways to describe a
-   change, such as a list of paths or two git refs.
+3. **Applying rules:** in progress. The `lore` command (`select`, `check`
+   and `verdicts`) is on npm as `@mattstack/lore`, a preview. Next: the
+   verdict format as a normative part of the specification, and more ways
+   to describe a change, such as a list of paths or two git refs.
 4. **Integrations** with code review tools and AI agents. A first
    integration with an AI review pipeline is in trial.
 5. **More implementations:** a second conforming implementation in Rust,
-   standalone binaries, and an online playground. Packages go to npm once
-   the format's name is final.
+   standalone binaries, and an online playground. The other packages go to
+   npm once the format's name is final.
 
 ### Editor support
 

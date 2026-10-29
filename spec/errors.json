@@ -207,6 +207,6 @@
   {
     "name": "untracked-given-folder",
     "kind": "warning",
-    "description": "A given folder in no working copy was collected whole."
+    "description": "A given folder in no working copy, not marked loose, was collected whole."
   }
 ]

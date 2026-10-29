@@ -1,22 +1,31 @@
 {
-  "name": "@lore/cli",
-  "version": "0.1.1",
-  "private": true,
+  "name": "@mattstack/lore",
+  "version": "0.2.0",
+  "description": "The reference command for Lore, portable domain rules for code review.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/m4ttstack/lore.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/m4ttstack/lore#readme",
+  "keywords": ["lore", "code-review", "rules", "ai-agents"],
   "bin": {
     "lore": "dist/lore.js"
   },
   "files": ["dist"],
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --target=node20 --format=cjs --banner:js=\"#!/usr/bin/env node\" --outfile=dist/lore.js"
-  },
-  "dependencies": {
-    "@lore/parser": "workspace:*"
+    "build": "node scripts/build.mjs",
+    "prepublishOnly": "bun run build"
   },
   "devDependencies": {
+    "@lore/parser": "workspace:*",
     "esbuild": "^0.25.0"
   }
 }
