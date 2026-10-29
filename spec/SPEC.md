@@ -5123,8 +5123,8 @@ team-repo/lore/
   `.loreconfig`, and a `.loreconfig` with a problem is ignored as a
   whole, so the tool then reports the folder. A tool MAY instead refuse
   such a folder and collect nothing from it. The team, not version
-  control, decides what is in such a folder, so a
-  stray copy of a Lore folder in it can add rules.
+  control, decides what is in such a folder, so a stray copy of a Lore
+  folder in it can add rules.
 - Below a marked directory, directories mirror the governed repo: the
   directory `<marked>/<path>` stands for `<path>` in the governed repo.
   The base of a Lore file below a marked directory is found as

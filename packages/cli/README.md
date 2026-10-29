@@ -1,6 +1,6 @@
 # lore
 
-The `lore` command reads Lore rule files and tells a reviewer which rules apply to a change. It never calls a forge, a model or the network. Git is the only program it runs, and only when an input needs it.
+The `lore` command reads Lore rule files and tells a reviewer or an author which rules apply to a change. It never calls a forge, a model or the network. Git is the only program it runs, and only when an input needs it.
 
 It has three commands.
 
@@ -50,7 +50,7 @@ The command reads only files git tracks in a working copy, or the files a loose 
 
 ## lore check
 
-Checks the rules against a change the author is about to make or has just made, and prints the rules the change must follow.
+Checks the rules against an author's change (work not yet committed, one commit, or the branch so far) and prints the rules the change must follow.
 
 ```
 lore check [<commit> | --base <ref>] [rules] [options]

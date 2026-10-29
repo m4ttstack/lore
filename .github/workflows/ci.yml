@@ -37,6 +37,13 @@ jobs:
           bun run --filter @mattstack/lore build
           node packages/cli/dist/lore.js select $smoke | jq -e '.rules[0].id == "smoke-rule"'
           bun packages/cli/dist/lore.js select $smoke | jq -e '.rules[0].id == "smoke-rule"'
+          scratch="$(mktemp -d)"
+          git -C "$scratch" init -q -b main
+          cp -R packages/cli/test/smoke/.lore "$scratch/"
+          git -C "$scratch" add .lore
+          git -C "$scratch" -c user.name=ci -c user.email=ci@example.com -c commit.gpgsign=false commit -q -m rules
+          mkdir "$scratch/src" && echo 'export const label = "USD 10";' > "$scratch/src/price.ts"
+          node packages/cli/dist/lore.js check --repo "$scratch" --format json | jq -e '.rules[0].id == "smoke-rule" and .rules[0].hits[0].file == "src/price.ts"'
           test "$(bun packages/cli/dist/lore.js --version)" = "$(jq -r .version packages/cli/package.json)"
       - run: bun run check
       - run: bunx tree-sitter test

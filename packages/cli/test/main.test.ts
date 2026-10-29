@@ -619,7 +619,7 @@ describe("lore check", () => {
   test("--help lists lore check", async () => {
     const { out } = await lore(["--help"]);
     expect(out).toContain("lore check [<commit> | --base <ref>] [rules] [options]");
-    expect(out).toContain("--base <ref>");
+    expect(out).toContain("  --base <ref>           lore check: compare with the merge base of <ref> and HEAD (the branch so far)\n");
     expect(await lore(["check", "--help"])).toEqual({ code: 0, out, err: "" });
   });
 });

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { RegexLimitError, parseWithContext, selectParsed } from "@lore/parser";
 import pkg from "../package.json";
 import { parseCommand, type CheckCommand, type SelectCommand, type VerdictsCommand } from "./args";
-import { changeDiff, type ChangeSource as GitChange } from "./change";
+import { changeDiff, type ChangeSource } from "./change";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
 import { GitMissingError } from "./git";
@@ -91,7 +91,7 @@ async function runSelect(command: SelectCommand, io: IO): Promise<number> {
 
 async function runCheck(command: CheckCommand, io: IO): Promise<number> {
   const root = changeRoot(command);
-  const change: GitChange = command.commit === null ? { base: command.base } : { commit: command.commit };
+  const change: ChangeSource = command.commit === null ? { base: command.base } : { commit: command.commit };
   return selectChange(command, io, {
     repo: command.noRepo ? null : root,
     untrackedLore: command.commit === null,
@@ -100,14 +100,14 @@ async function runCheck(command: CheckCommand, io: IO): Promise<number> {
   });
 }
 
-interface ChangeSource {
+interface SelectionSource {
   repo: string | null;
   untrackedLore: boolean;
   change: () => Promise<string>;
   audience: "reviewer" | "author";
 }
 
-async function selectChange(command: SelectCommand | CheckCommand, io: IO, source: ChangeSource): Promise<number> {
+async function selectChange(command: SelectCommand | CheckCommand, io: IO, source: SelectionSource): Promise<number> {
   const { input, readSrc, unread } = await buildInput({
     repo: source.repo,
     rulesRef: command.rulesRef,

@@ -249,17 +249,18 @@ later.
 
 From a repository with `.lore` files, check your uncommitted work against
 the rules. The command lists the rules that apply to the change and flags
-the lines worth a look, so you can fix anything the change breaks. It
-prints text even when its output is not a terminal, so an agent reads the
-same thing; add `--format json` for the selection as JSON:
+the lines worth a look, so you can fix anything the change breaks:
 
 ```
 npx @mattstack/lore check
 ```
 
+It prints text even when its output is not a terminal, so an agent reads
+the same thing; add `--format json` for the selection as JSON.
+
 To check one commit instead, name it: `npx @mattstack/lore check HEAD`. To check
-a whole branch, committed and uncommitted work together, compare it with where
-it left its base: `npx @mattstack/lore check --base main`.
+a whole branch, committed and uncommitted work together, compare it against
+the commit where the branch left `main`: `npx @mattstack/lore check --base main`.
 
 To have an agent do this after every edit, add a line to `AGENTS.md`:
 
@@ -267,8 +268,10 @@ To have an agent do this after every edit, add a line to `AGENTS.md`:
 After editing files, run `lore check` and fix any rule your change breaks.
 ```
 
-Add `@mattstack/lore` as a dev dependency so `lore` is on the path in
-package scripts, or write `npx @mattstack/lore check` in the line instead.
+Plain `lore check` needs `lore` on the `PATH`; adding `@mattstack/lore` as a
+dev dependency puts it there inside package scripts. `npx @mattstack/lore check`
+works from any shell, so write that in the line if the agent runs it outside
+package scripts.
 
 To hand a reviewer the rules that apply to your branch, print them ready to
 paste into a prompt:
