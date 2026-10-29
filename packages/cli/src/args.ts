@@ -13,9 +13,14 @@ export interface SelectCommand {
   capabilities: Capability[];
   strict: boolean;
 }
+export interface CheckCommand extends Omit<SelectCommand, "name" | "diff"> {
+  name: "check";
+  commit: string | null;
+}
 export interface VerdictsCommand { name: "verdicts"; selection: string; verdicts: string }
 export type Command =
   | SelectCommand
+  | CheckCommand
   | VerdictsCommand
   | { name: "help" }
   | { name: "version" };
@@ -27,17 +32,18 @@ const REPEATABLE = ["--remote", "--given"];
 
 export function parseCommand(argv: string[]): Command {
   const [first, ...rest] = argv;
-  if (first === undefined) throw new UsageError("missing command: expected select or verdicts (see lore --help)");
+  if (first === undefined) throw new UsageError("missing command: expected select, check or verdicts (see lore --help)");
   if (first === "--help") return { name: "help" };
   if (first === "--version") return { name: "version" };
-  if (first === "select") return parseSelect(rest);
+  if (first === "select" || first === "check") return parseChangeCommand(first, rest);
   if (first === "verdicts") return parseVerdicts(rest);
   throw new UsageError(`unknown command: ${first} (see lore --help)`);
 }
 
-function parseSelect(args: string[]): Command {
+function parseChangeCommand(name: "select" | "check", args: string[]): Command {
   const values = new Map<string, string[]>();
   const flags = new Set<string>();
+  const positional: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
@@ -49,7 +55,12 @@ function parseSelect(args: string[]): Command {
       flags.add(flag);
       continue;
     }
-    if (!arg.startsWith("--")) throw new UsageError(`unexpected argument: ${arg}`);
+    if (!arg.startsWith("--")) {
+      if (name === "select") throw new UsageError(`unexpected argument: ${arg}`);
+      positional.push(arg);
+      continue;
+    }
+    if (name === "check" && flag === "--diff") throw new UsageError("lore check builds the change itself; use lore select --diff for a diff");
     if (!VALUE_FLAGS.includes(flag)) throw new UsageError(`unknown option: ${arg}`);
     let value: string;
     if (eq !== -1) value = arg.slice(eq + 1);
@@ -63,24 +74,25 @@ function parseSelect(args: string[]): Command {
   const one = (flag: string): string | null => values.get(flag)?.[0] ?? null;
   const noRepo = flags.has("--no-repo");
   if (noRepo && one("--rules-ref") !== null) throw new UsageError("--rules-ref cannot be used with --no-repo");
-  if (noRepo && one("--repo") !== null) throw new UsageError("--repo cannot be used with --no-repo");
-  const diff = one("--diff");
-  if (diff === null) throw new UsageError("give a change: --diff <file|->");
+  if (name === "select" && noRepo && one("--repo") !== null) throw new UsageError("--repo cannot be used with --no-repo");
+  if (positional.length > 1) throw new UsageError("give at most one commit");
 
   const format = one("--format");
   if (format !== null && format !== "text" && format !== "json") throw new UsageError(`--format must be text or json, not ${format}`);
-  return {
-    name: "select",
+  const shared: Omit<CheckCommand, "name" | "commit"> = {
     repo: one("--repo"),
     noRepo,
     remotes: values.get("--remote") ?? [],
     rulesRef: one("--rules-ref"),
     given: values.get("--given") ?? [],
-    diff,
     format,
     capabilities: parseCapabilities(one("--capabilities") ?? CAPABILITIES.join(",")),
     strict: flags.has("--strict"),
   };
+  if (name === "check") return { name, commit: positional[0] ?? null, ...shared };
+  const diff = one("--diff");
+  if (diff === null) throw new UsageError("give a change: --diff <file|->");
+  return { name, diff, ...shared };
 }
 
 function parseCapabilities(list: string): Capability[] {
