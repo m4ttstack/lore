@@ -5118,11 +5118,12 @@ team-repo/lore/
   `loose:` and their path from the folder. When a tool collects a loose
   folder, it MUST report `untracked-given-folder` once for that folder,
   with `file` `loose:.`, `entry` `null` and `line` 1, unless the
-  folder's root `.loreconfig` sets `loose: true`. The `loose` key has no
-  effect in any other `.loreconfig`, and a `.loreconfig` with a problem
-  is ignored as a whole, so the tool then reports the folder. A tool
-  MAY instead refuse such a folder and collect nothing from it. The
-  team, not version control, decides what is in such a folder, so a
+  `.loreconfig` at the top of the folder (`loose:.loreconfig`) sets
+  `loose: true`. The `loose` key has no effect in any other
+  `.loreconfig`, and a `.loreconfig` with a problem is ignored as a
+  whole, so the tool then reports the folder. A tool MAY instead refuse
+  such a folder and collect nothing from it. The team, not version
+  control, decides what is in such a folder, so a
   stray copy of a Lore folder in it can add rules.
 - Below a marked directory, directories mirror the governed repo: the
   directory `<marked>/<path>` stands for `<path>` in the governed repo.

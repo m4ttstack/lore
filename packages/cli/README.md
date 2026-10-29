@@ -43,7 +43,7 @@ Output:
 
 ast-grep checks are skipped in this version: each one reports the warning `check-needs-file`, and its rule stays eligible.
 
-The command reads only files git tracks in a working copy, or the files a loose folder holds. In a loose folder symlinks are never followed and are skipped silently. In a working copy a symlink is read only when it points to a tracked file inside the same place. It never fetches (with git 2.44 or later; older git ignores `GIT_NO_LAZY_FETCH`): with `--rules-ref` in a partial clone, a Lore file whose content is not local is an input error. Two more warnings say what it could not read:
+The command reads only files git tracks in a working copy, or the files a loose folder holds. In a loose folder symlinks are never followed and are skipped silently. A folder meant to be loose, such as rules installed with a tool, puts `loose: true` in its top `.loreconfig`, and the `untracked-given-folder` warning is not reported for it. In a working copy a symlink is read only when it points to a tracked file inside the same place. It never fetches (with git 2.44 or later; older git ignores `GIT_NO_LAZY_FETCH`): with `--rules-ref` in a partial clone, a Lore file whose content is not local is an input error. Two more warnings say what it could not read:
 
 - `src-not-read`: a selected context's `src` target exists, but the command did not read it, so its `srcText` is null.
 - `lore-file-not-read`: a Lore or `.loreconfig` file the parser would have collected (tracked in a working copy, or held by a loose folder) could not be read (a symlink out of its place or to nothing, a directory), or a tracked Lore file lies outside a sparse-checkout cone, so any entries it holds are missing from the selection.
