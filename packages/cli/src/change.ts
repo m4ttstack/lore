@@ -1,3 +1,6 @@
+import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { git, untrackedPaths } from "./git";
 import { InputError } from "./errors";
 
@@ -29,11 +32,26 @@ function mergeBase(root: string, ref: string): string {
   return base;
 }
 
+// Untracked files join the diff as intent-to-add entries in a copy of the index, so one git diff
+// reads them all and the real index never changes. A nested repository is listed as "dir/" and skipped.
 function workingTreeDiff(root: string, base: string): string {
-  const tracked = git(root, [...DIFF_FLAGS, base, "--"]);
-  // --no-index exits 1 when the files differ and prints nothing for a nested repository or a symlink to a directory.
-  const untracked = untrackedPaths(root).map((path) => git(root, [...DIFF_FLAGS, "--no-index", "--", "/dev/null", path], [0, 1]));
-  return [tracked, ...untracked].join("");
+  const scratch = mkdtempSync(join(tmpdir(), "lore-index-"));
+  try {
+    const index = join(scratch, "index");
+    const real = resolve(root, git(root, ["rev-parse", "--git-path", "index"]).trim());
+    if (existsSync(real)) copyFileSync(real, index);
+    const env = { GIT_INDEX_FILE: index, GIT_LITERAL_PATHSPECS: "1" };
+    const untracked = untrackedPaths(root).filter((path) => !path.endsWith("/"));
+    // A split index would write its shared part into the git directory.
+    const noSplit = ["-c", "core.splitIndex=false"];
+    if (untracked.length > 0) {
+      const input = untracked.map((path) => `${path}\0`).join("");
+      git(root, [...noSplit, "add", "--intent-to-add", "--pathspec-from-file=-", "--pathspec-file-nul"], [0], { env, input });
+    }
+    return git(root, [...noSplit, ...DIFF_FLAGS, base, "--"], [0], { env });
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
 }
 
 function uncommittedDiff(root: string): string {

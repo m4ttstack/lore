@@ -12,12 +12,18 @@ export class GitMissingError extends InputError {
   }
 }
 
-export function git(root: string, args: string[], okCodes: readonly number[] = [0]): string {
+export interface GitOptions {
+  env?: Record<string, string>;
+  input?: string;
+}
+
+export function git(root: string, args: string[], okCodes: readonly number[] = [0], options: GitOptions = {}): string {
   try {
     // gitRoot matches git's English message, so a translated git must not answer in another language.
     // A partial clone must not fetch a missing object from its promisor remote: the command never uses the network.
-    const env = { ...process.env, LC_ALL: "C", GIT_NO_LAZY_FETCH: "1" };
-    return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env, maxBuffer: MAX_BUFFER, stdio: ["ignore", "pipe", "pipe"] });
+    const env = { ...process.env, ...options.env, LC_ALL: "C", GIT_NO_LAZY_FETCH: "1" };
+    const stdin = options.input === undefined ? "ignore" : "pipe";
+    return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env, input: options.input, maxBuffer: MAX_BUFFER, stdio: [stdin, "pipe", "pipe"] });
   } catch (error) {
     const { code, stderr, stdout, status } = error as NodeJS.ErrnoException & { stderr?: string; stdout?: string; status?: number };
     if (typeof status === "number" && okCodes.includes(status)) return String(stdout ?? "");

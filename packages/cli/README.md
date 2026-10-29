@@ -11,7 +11,7 @@ npm install --save-dev @mattstack/lore
 npx @mattstack/lore check
 ```
 
-It needs Node 20 or later.
+It needs Node 20 or later, and `lore check` needs git 2.25 or later.
 
 ## lore select
 

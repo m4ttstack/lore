@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { changeDiff, type ChangeSource } from "../src/change";
@@ -92,6 +92,51 @@ describe("changeDiff for uncommitted work", () => {
     const link = filesOf(root, { base: null }).find((f) => f.path === "link.ts")!;
     expect(link.kind).toBe("A");
     expect(link.added).toEqual([{ line: 1, text: "real.ts" }]);
+  });
+
+  test("uncommitted: an untracked symlink to a directory is added with its target as the one added line", () => {
+    const { root } = repoWith({ "dir/a.ts": "a\n" });
+    symlinkSync("dir", join(root, "link"));
+    expect(filesOf(root, { base: null }).map((f) => [f.kind, f.path, f.added])).toEqual([["A", "link", [{ line: 1, text: "dir" }]]]);
+  });
+
+  test("uncommitted: untracked names that look like pathspecs or options are read literally", () => {
+    const { root } = repoWith({ "a.ts": "a\n" });
+    write(root, { "*.ts": "s\n", ":(glob)c.ts": "c\n", "-dash.ts": "d\n" });
+    expect(filesOf(root, { base: null }).map((f) => f.path).sort()).toEqual(["*.ts", "-dash.ts", ":(glob)c.ts"]);
+  });
+
+  test("uncommitted: many untracked files are all in the change", () => {
+    const { root } = repoWith({ "a.ts": "a\n" });
+    for (let i = 0; i < 500; i++) writeFileSync(join(root, `f${i}.ts`), `x${i}\n`);
+    const started = performance.now();
+    const files = filesOf(root, { base: null });
+    expect(files.length).toBe(500);
+    expect(files.every((f) => f.kind === "A" && f.added.length === 1)).toBe(true);
+    // One git call per file took about 8 s here; a single diff takes well under one.
+    expect(performance.now() - started).toBeLessThan(5000);
+  });
+
+  test("uncommitted: a moved file that is not staged is a rename", () => {
+    const { root } = repoWith({ "old.ts": "one\ntwo\nthree\nfour\nfive\n" });
+    renameSync(join(root, "old.ts"), join(root, "new.ts"));
+    expect(filesOf(root, { base: null }).map((f) => [f.kind, f.path, f.oldPath])).toEqual([["R", "new.ts", "old.ts"]]);
+  });
+
+  test("uncommitted: the real index and git directory are unchanged", () => {
+    const { root, git } = repoWith({ "staged.ts": "a\n", "unstaged.ts": "a\n", "gone.ts": "g\n" });
+    git("config", "core.splitIndex", "true");
+    write(root, { "staged.ts": "a\nb\n" });
+    git("add", "staged.ts");
+    write(root, { "unstaged.ts": "a\nb\n", "fresh.ts": "f\n" });
+    rmSync(join(root, "gone.ts"));
+    const state = () => [git("diff", "--cached", "--name-only"), git("status", "--porcelain")];
+    const disk = () => [readdirSync(join(root, ".git")).sort(), readFileSync(join(root, ".git", "index")).toString("base64")];
+    const before = state();
+    const diskBefore = disk();
+    expect(filesOf(root, { base: null }).length).toBe(4);
+    expect(disk()).toEqual(diskBefore);
+    expect(state()).toEqual(before);
   });
 
   test("uncommitted: an untracked nested repository is skipped", () => {
