@@ -50,7 +50,9 @@
   - `uncommitted: an ignored untracked file is not in the change`: `.gitignore` lists `secret.env`; it is absent.
   - `uncommitted: a clean tree gives an empty change`: `files` is `[]`.
   - `uncommitted: a repo with no commits treats every file as added`: `git init`, write and `git add` one file, write one untracked file; both kind `A`.
-  - `uncommitted: an untracked path with a space is named exactly`: `src/my file.ts`.
+  - `uncommitted: an untracked path git quotes is named exactly`: `src/é.ts` (git emits `"b/src/\303\251.ts"`).
+  - `uncommitted: an untracked symlink to a file is added with its target as the one added line`.
+  - `uncommitted: an untracked nested repository is skipped`: `nested/` holds its own `.git`; it is absent and nothing throws. (`ls-files --others` lists it as `nested/`, and `--no-index` exits 1 with empty stdout, so `okCodes [0, 1]` skips it. A symlink to a directory is skipped the same way.)
   - `uncommitted: an untracked binary file is added with no added lines`.
   - `uncommitted: diff config does not change the result`: repo config sets `diff.noprefix=true`, `diff.mnemonicPrefix=true`, `color.ui=always`, `diff.external=false`; result equals the unconfigured case.
   - `commit: compares with its first parent`: second commit changes one file; only that file.
@@ -71,7 +73,7 @@
 - [ ] **Step 4: Run them to see them pass**
 
   Run: `bun test packages/cli/test/change.test.ts`
-  Expected: PASS, 12 tests.
+  Expected: PASS, 14 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -101,7 +103,7 @@
 - [ ] **Step 2: Run them to see them fail**
 
   Run: `bun test packages/cli/test/input.test.ts`
-  Expected: FAIL on the four `untrackedLore` reads.
+  Expected: FAIL on the two tests that read an untracked file.
 
 - [ ] **Step 3: Implement `untrackedLore` in `buildInput`**
 
@@ -170,8 +172,8 @@
 **Interfaces:**
 - Consumes: `changeDiff` (Task 1), `RuleSources.untrackedLore` (Task 2), `renderText(selection, "author")` (Task 3).
 - Produces: `export interface CheckCommand` in `args.ts`: `SelectCommand`'s fields without `diff`, with `name: "check"` and `commit: string | null`. `Command` gains `CheckCommand`. Usage: `lore check [<commit>] [rules] [options]`. One positional argument at most (the commit). `--diff` is a usage error with the message `lore check builds the change itself; use lore select --diff for a diff`. The missing-command message lists `select, check or verdicts`.
-- `runCheck` reuses `runSelect`'s steps (governed repo, `buildInput`, parse, `selectParsed`, `toSelection`, format choice, exit code) with the change from `changeDiff(changeRoot, command.commit)`, `untrackedLore: command.commit === null`, and the author audience for text. Factor the shared steps into one function instead of copying them. `changeRoot` is the `--repo` working copy, or the git root above the current directory, also under `--no-repo`: `--no-repo` only stops rules being read from that repo (rules kept in a pack come from `--given` with `--remote`). With no working copy to read the change from, `check` is an input error: `lore check needs a git working copy: run it inside one or pass --repo`.
-- `HELP` gains the `lore check` usage line, a one-line description, and `lore check` in the exit-code lines.
+- `runCheck` reuses `runSelect`'s steps (governed repo, `buildInput`, parse, `selectParsed`, `toSelection`, format choice, exit code) with the change from `changeDiff(changeRoot, command.commit)`, `untrackedLore: command.commit === null`, and the author audience for text. Factor the shared steps into one function instead of copying them. `changeRoot` is the `--repo` working copy, or the git root above the current directory, also under `--no-repo`: `--no-repo` only stops rules being read from that repo (rules kept in a pack come from `--given` with `--remote`). Unlike `select`, `check` accepts `--repo` together with `--no-repo` (the repo is then only where the change comes from), so a pack's rules can check a repo from outside it. With no working copy to read the change from, `check` is an input error: `lore check needs a git working copy: run it inside one or pass --repo`. Without a git binary the message is `git is not installed; lore check needs it`.
+- `HELP` gains the `lore check [<commit>] [rules] [options]` usage line, a one-line description (a `<commit>` line, if any, in the same description column as the option lines, which the alignment test checks), and the exit-code line `lore check     0 the check ran, 1 --strict was given and entries were excluded`. The `both` exit-code line becomes `all            2 usage or input error, 70 internal error`; update the existing `main.test.ts` assertion on that line.
 
 - [ ] **Step 1: Write the failing tests** under `describe("lore check")`, using `repoWith` and `lore(...)`, with `RULE` from the file:
   - `checks uncommitted work, untracked files included`: an untracked `src/p.ts` adding `USD`; JSON `rules[0].id` is `no-usd` and its hit names `src/p.ts`.
@@ -182,7 +184,7 @@
   - `--strict exits 1 when entries are excluded`.
   - `--diff is a usage error`: exit 2, stderr has the message above.
   - `two commits are a usage error`: `lore check a b`, exit 2.
-  - `--no-repo reads rules only from --given and the change from the working copy`: rule in a loose given folder, `--remote` set, untracked violating file in the repo; the rule is selected.
+  - `--no-repo reads rules only from --given and the change from the working copy`: `--repo <root> --no-repo --given <loose folder> --remote <url>`, an untracked violating file in the repo; the given rule is selected and a rule in the repo's own `.lore/` is not.
   - `outside a working copy it is an input error`: exit 2, stderr names `lore check needs a git working copy`.
   - `from a subdirectory, untracked files elsewhere in the repo are included`: run with the working directory in `src/sub/`, untracked `lib/q.ts` adding `USD` with a rule scoped to `lib/**`; selected, hit path `lib/q.ts`. (Use the existing pattern for tests that change `process.cwd()`.)
   - `--help lists lore check`.
@@ -228,7 +230,7 @@
 
 - [ ] **Step 3: Docs**
   - `packages/cli/README.md`: the opening says it has three commands; a `## lore check` section after `lore select` with the usage line, both modes, what is read (untracked files, untracked Lore files, `src` stays tracked-only), the author output, options carried over, and `lore check` in Exit codes; an install line `npm install --save-dev @mattstack/lore` (or `npx @mattstack/lore`); the Build section's filter name.
-  - `README.md` Try it: lead with `npx @mattstack/lore check`, keep the `select` and `verdicts` examples (as `npx @mattstack/lore select ...`), keep the release-asset download as an alternative, and add the `AGENTS.md` snippet from the design doc: ``After editing files, run `lore check` and fix any rule your change breaks.`` (with a note to add `@mattstack/lore` as a dev dependency so `lore` is on the path in package scripts, or to write `npx @mattstack/lore check`).
+  - `README.md` Try it: lead with `npx @mattstack/lore check`, keep the `select` and `verdicts` examples (as `npx @mattstack/lore select ...`), keep the release-asset download as an alternative with its URL on `cli-v0.2.0`, and add the `AGENTS.md` snippet from the design doc: ``After editing files, run `lore check` and fix any rule your change breaks.`` (with a note to add `@mattstack/lore` as a dev dependency so `lore` is on the path in package scripts, or to write `npx @mattstack/lore check`).
   - `README.md` "Lore or a skill?": its last paragraph says a skill can end by running `lore check` instead of `lore select`.
   - `README.md` Roadmap item 3: the `lore` command (`select`, `check` and `verdicts`) is on npm as `@mattstack/lore`, a preview; item 5 keeps "Packages go to npm once the format's name is final" only for the other packages.
 
