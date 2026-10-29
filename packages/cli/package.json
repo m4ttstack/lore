@@ -21,7 +21,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "esbuild src/main.ts --bundle --platform=node --target=node20 --format=cjs --banner:js=\"#!/usr/bin/env node\" --outfile=dist/lore.js",
+    "build": "node scripts/build.mjs",
     "prepublishOnly": "bun run build"
   },
   "devDependencies": {
