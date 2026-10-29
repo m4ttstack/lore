@@ -22,6 +22,8 @@
 - npm package name `@mattstack/lore`, version `0.2.0`, binary `lore`, public, no runtime dependencies.
 - Pushes, tags and the npm publish wait for Matt's go-ahead. Matt publishes with `/matt:npm-publish`; CI never publishes.
 - Prose in docs and help text: no em or en dashes.
+- `lore check --base <ref>` compares the working tree with the merge base of `<ref>` and `HEAD`, untracked files and untracked Lore files included. `<commit>` with `--base` is a usage error. No merge base is `no merge base between <ref> and HEAD`.
+- `.loreconfig` key `loose` (`true` or `false`): `loose: true` in a loose folder's root `.loreconfig` silences `untracked-given-folder` for that folder; anywhere else it has no effect; any other value is `invalid-loreconfig`.
 
 ## Review Focus
 
@@ -246,7 +248,103 @@
   git commit -m "cli: publish as @mattstack/lore 0.2.0"
   ```
 
-### Task 6: Ship (controller only, each step after Matt's go-ahead)
+### Task 6: `lore check --base <ref>`
+
+Design: the "Added for 0.2.0" section of the spec, `lore check --base <ref>`.
+
+**Files:**
+- Modify: `packages/cli/src/change.ts`, `packages/cli/src/args.ts`, `packages/cli/src/main.ts` (`runCheck`, `HELP`)
+- Modify: `packages/cli/README.md` (`lore check` section), `README.md` (Try it: one line for checking a branch)
+- Test: `packages/cli/test/change.test.ts`, `packages/cli/test/main.test.ts`
+
+**Interfaces:**
+- Produces: `export type ChangeSource = { commit: string } | { base: string | null }` in `change.ts`, and `changeDiff(root: string, source: ChangeSource): string` replacing `changeDiff(root, commit)`. `{ base: null }` is today's uncommitted mode (compare with `HEAD`); `{ base: ref }` compares the working tree with the merge base of `ref` and `HEAD`, with the same untracked part; `{ commit }` is today's commit mode. Update every caller and existing test.
+- Produces: `CheckCommand.base: string | null`. `untrackedLore` stays `command.commit === null`, so it is true for `--base`.
+- `--base` stays in `NOT_YET` for `lore select` (its "is not available yet" error is unchanged) and becomes a value flag for `lore check` only.
+- Ref handling: reject a leading `-` and resolve exactly as `commitDiff` does, with the message `not a commit: <ref>`. Then `merge-base <sha> HEAD` with `okCodes [0, 1]`; empty output, or a `HEAD` that does not resolve, is `InputError` `no merge base between <ref> and HEAD`.
+- A positional commit together with `--base` is `UsageError` `give a commit or --base, not both`.
+- `HELP`: usage line becomes `lore check [<commit> | --base <ref>] [rules] [options]`; add an option line for `--base <ref>` in the shared description column: `lore check: compare with the merge base of <ref> and HEAD (the branch so far)`.
+
+- [ ] **Step 1: Write the failing tests**
+  - `change.test.ts`, `base: compares the merge base with the working tree`: `main` commits `m0.ts`; branch `feat` from there commits `b.ts`, then an unstaged edit to `b.ts` and an untracked `c.ts`; `main` then commits `m1.ts`. With `HEAD` on `feat`, `{ base: "main" }` gives files `b.ts` and `c.ts` only.
+  - `change.test.ts`, `base: HEAD as the base equals the uncommitted change`: `{ base: "HEAD" }` parses to the same files as `{ base: null }`.
+  - `change.test.ts`, `base: an unknown ref is an input error`: `not a commit: nope`.
+  - `change.test.ts`, `base: a value starting with - is an input error`: `not a commit: --help`.
+  - `change.test.ts`, `base: unrelated histories are an input error`: an orphan branch `other` with its own root commit; `{ base: "other" }` throws `no merge base between other and HEAD`.
+  - `main.test.ts`, `lore check --base checks the branch so far`: a branch commit adds `USD`, tree clean; `lore check --base main` selects `no-usd`, `lore check` selects nothing.
+  - `main.test.ts`, `a commit and --base together are a usage error`: exit 2, stderr has the message above.
+  - `main.test.ts`, `lore select --base is still not available`: exit 2, `--base is not available yet`.
+  - The existing `--help lists lore check` test also asserts the `--base <ref>` line.
+
+- [ ] **Step 2: Run them to see them fail**
+
+  Run: `bun test packages/cli/test/change.test.ts packages/cli/test/main.test.ts`
+  Expected: FAIL on the new tests.
+
+- [ ] **Step 3: Implement `ChangeSource`, `--base` parsing and the `HELP` lines; update the two READMEs**
+
+  `packages/cli/README.md`'s `lore check` section gains `--base <ref>` with what it compares. `README.md` Try it gains `npx @mattstack/lore check --base main` for checking a whole branch, beside `check HEAD`.
+
+- [ ] **Step 4: Run the CLI tests and the type check**
+
+  Run: `bun test packages/cli && bunx tsc --noEmit`
+  Expected: all PASS, no type errors.
+
+- [ ] **Step 5: Commit**
+
+  ```bash
+  git add packages/cli/src packages/cli/test packages/cli/README.md README.md
+  git commit -m "cli: lore check --base for the branch so far"
+  ```
+
+### Task 7: The `loose` key in `.loreconfig`
+
+Design: the "Added for 0.2.0" section of the spec, `loose: true` in `.loreconfig`.
+
+**Files:**
+- Modify: `spec/SPEC.md` (`.loreconfig` key table; External folders, the loose-folder bullet; the `untracked-given-folder` row in Errors and warnings; new conformance examples in External folders)
+- Modify: `spec/schemas/loreconfig.schema.json` (`"loose": { "type": "boolean" }`)
+- Modify: `spec/errors.json` (`untracked-given-folder` description: `A given folder in no working copy, not marked loose, was collected whole.`)
+- Modify: `packages/parser/src/loreconfig.ts` (`LoreConfig.loose?: boolean`, a `case "loose"` that accepts only a boolean), `packages/parser/src/collect.ts` (skip the warning for a loose folder whose root `.loreconfig` is valid and has `loose: true`)
+- Test: `packages/parser/test/loreconfig.test.ts`, `packages/parser/test/collect.test.ts`; conformance through `bun run check` and `packages/parser/test/conformance.test.ts`
+
+**Interfaces:**
+- Spec text, normative, in the spec's voice: key table row `loose` | `true` or `false` | `true` in the `.loreconfig` at the root of a loose folder says the folder is meant to be loose (see External folders). Without it, `false`. The loose-folder bullet's MUST sentence gains the exception: not when the folder's root `.loreconfig` sets `loose: true`. Say that the key has no effect anywhere else, and that a `.loreconfig` with a problem is ignored, so the warning is then reported. The Errors and warnings row matches the new `errors.json` description.
+- Conformance examples, each ` ``````example eligibility ` with `requires: loose-given-folder`, modelled on the existing loose-folder example near the `untracked-given-folder` warning:
+  1. `=== loose:.loreconfig` holding `loose: true` plus a rule in `loose:.lore/`: the rule is eligible and `warnings` is `[]`.
+  2. `loose: true` only in `loose:sub/.loreconfig`: the warning is still reported.
+  3. `loose: yes` at `loose:.loreconfig`: the `.loreconfig` is `invalid-loreconfig` at line 1 with a null `entry`, and the warning is reported.
+  Write each `expect` from what the parser produces once implemented, then check it by hand against the spec text.
+- No CLI change: the CLI gets the behavior from the parser.
+
+- [ ] **Step 1: Write the failing tests**
+  - `loreconfig.test.ts`: `loose: true` and `loose: false` parse to `config.loose`; `loose: yes` is `invalid-loreconfig` at that key's line.
+  - `collect.test.ts`, `a loose folder marked loose: true reports no warning`.
+  - `collect.test.ts`, `loose: true below a loose folder's root has no effect`: the warning is reported.
+  - `collect.test.ts`, `an invalid root .loreconfig in a loose folder still reports the warning`.
+  - `collect.test.ts`, `loose: true in a working-copy given folder has no effect`: no warning, as today, and no error.
+  - The three conformance examples above, added to `spec/SPEC.md`.
+
+- [ ] **Step 2: Run them to see them fail**
+
+  Run: `bun test packages/parser && bun run check`
+  Expected: FAIL on the new unit tests and the new examples.
+
+- [ ] **Step 3: Implement the parser change and the spec, schema and `errors.json` edits**
+
+- [ ] **Step 4: Full local check**
+
+  Run, from the repo root: `bun run build && bunx tsc --noEmit && bun test && bun run check`
+  Expected: all pass; `bun run check` counts three more examples than before.
+
+- [ ] **Step 5: Commit**
+
+  ```bash
+  git add spec packages/parser
+  git commit -m "spec: loose: true marks a loose folder as intended"
+  ```
+
+### Task 8: Ship (controller only, each step after Matt's go-ahead)
 
 - [ ] **Step 1:** Ask Matt how `lore-check` reaches `main` (PR with CodeRabbit and CI, or a direct fast-forward push), then do that. CI on `main` must be green.
 - [ ] **Step 2:** Tag `cli-v0.2.0` on the merged `main` commit and push the tag. Expected: the `release` workflow passes and the GitHub release `lore cli-v0.2.0` has `lore.js`.
