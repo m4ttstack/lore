@@ -124,3 +124,58 @@ Added after the design above was approved: the CLI ships to npm with
   its roadmap stops saying packages wait for a final name, for the CLI.
   The `AGENTS.md` snippet can then name a command every reader has.
 - Every outward step (push, tag, publish) waits for Matt's go-ahead.
+
+## Added for 0.2.0: `--base` and `loose`
+
+Added after the plan's first five tasks were built, at the request of a
+work pipeline that commits as it goes, so neither mode above sees a
+whole branch. Both ship in 0.2.0, before the tag (Matt's decision).
+
+### `lore check --base <ref>`
+
+The non-goal "ranges or whole branches" is narrowed: one range is now in
+scope, the branch so far.
+
+- **`lore check --base <ref>`** compares the working tree with the merge
+  base of `<ref>` and `HEAD`: everything the branch committed since it
+  left `<ref>`, plus staged, unstaged and untracked files git does not
+  ignore. Rules are read as in `lore check` with no commit, untracked
+  Lore files included.
+- `<ref>` is any revision git resolves to a commit. A value starting
+  with `-` or one git cannot resolve is `not a commit: <ref>`, as for
+  `<commit>`.
+- No merge base (unrelated histories, or a repo with no commits yet) is
+  an input error: `no merge base between <ref> and HEAD`. *(My call.)*
+- `<commit>` and `--base` together are a usage error:
+  `give a commit or --base, not both`. *(My call.)*
+- Output, options and exit codes are the same as `lore check`.
+- Built on approach 1: the tracked part diffs the merge base against the
+  working tree, and the untracked part is the same as for `lore check`.
+
+Still out of scope: arbitrary `<a>..<b>` ranges.
+
+### `loose: true` in `.loreconfig`
+
+A loose folder (a given folder in no working copy) always reports
+`untracked-given-folder`, so a stray copy of a Lore folder in it cannot
+add rules unseen. A team that ships its rules as an installed folder,
+such as a plugin, gets that warning on every run even though the
+folder is meant to be loose.
+
+- New optional `.loreconfig` key **`loose`**, value `true` or `false`,
+  default `false`.
+- In the `.loreconfig` at the root of a loose folder (`loose:.loreconfig`),
+  `loose: true` says the folder is meant to be loose, and the tool does
+  not report `untracked-given-folder` for it.
+- Anywhere else (the governed repo, a given folder in a working copy, a
+  directory below a loose folder's root) the key is allowed and has no
+  effect. *(My call: an error there would break a folder that is
+  sometimes checked out and sometimes installed.)*
+- Any other value is `invalid-loreconfig`, like every key. A
+  `.loreconfig` with a problem is ignored as a whole, so the warning is
+  then reported.
+- This is a spec change: the `.loreconfig` key table, External folders,
+  the warning's row in Errors and warnings, `errors.json`,
+  `loreconfig.schema.json`, and conformance examples for the silenced
+  warning, the key with no effect below the root, and an invalid value.
+  The parser implements it, so the CLI gets it with no CLI change.
