@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { git, untrackedPaths } from "./git";
 import { InputError } from "./errors";
 
-const DIFF_FLAGS = ["diff", "--no-color", "--no-ext-diff", "--no-textconv", "-M", "--submodule=short", "--src-prefix=a/", "--dst-prefix=b/"];
+const DIFF_FLAGS = ["diff", "--no-color", "--no-ext-diff", "--no-textconv", "-M", "--submodule=short", "--ignore-submodules=none", "--src-prefix=a/", "--dst-prefix=b/"];
 
 // stdin is ignored, so this hashes the empty tree in both SHA-1 and SHA-256 repositories.
 function emptyTree(root: string): string {
