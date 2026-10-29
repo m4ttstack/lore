@@ -209,6 +209,31 @@ describe("changeDiff in special working copies", () => {
     git("config", "diff.submodule", "diff");
     expect(filesOf(root, { base: null })).toEqual(plain);
   });
+
+  test("uncommitted: a submodule pointer change shows whatever diff.ignoreSubmodules says", () => {
+    const sub = repoWith({ "s.ts": "s\n" });
+    const { root, git } = repoWith({ "a.ts": "a\n" });
+    git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub.root, "mod");
+    git("commit", "-q", "-m", "add submodule");
+    write(join(root, "mod"), { "s.ts": "s\nmore\n" });
+    runner(join(root, "mod"))("commit", "-q", "-am", "advance");
+    git("config", "diff.ignoreSubmodules", "all");
+    expect(filesOf(root, { base: null }).map((f) => f.path)).toEqual(["mod"]);
+  });
+
+  test("uncommitted: an inherited GIT_DIR does not redirect the read", () => {
+    const other = repoWith({ "o.ts": "o\n" });
+    const { root } = repoWith({ "a.ts": "a\n" });
+    write(root, { "a.ts": "a\nmore\n" });
+    const saved = process.env.GIT_DIR;
+    process.env.GIT_DIR = join(other.root, ".git");
+    try {
+      expect(filesOf(root, { base: null }).map((f) => f.path)).toEqual(["a.ts"]);
+    } finally {
+      if (saved === undefined) delete process.env.GIT_DIR;
+      else process.env.GIT_DIR = saved;
+    }
+  });
 });
 
 describe("changeDiff for one commit", () => {
