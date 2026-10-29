@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { git, untrackedPaths } from "./git";
 import { InputError } from "./errors";
 
-const DIFF_FLAGS = ["diff", "--no-color", "--no-ext-diff", "--no-textconv", "-M", "--src-prefix=a/", "--dst-prefix=b/"];
+const DIFF_FLAGS = ["diff", "--no-color", "--no-ext-diff", "--no-textconv", "-M", "--submodule=short", "--src-prefix=a/", "--dst-prefix=b/"];
 
 // stdin is ignored, so this hashes the empty tree in both SHA-1 and SHA-256 repositories.
 function emptyTree(root: string): string {
@@ -13,7 +13,7 @@ function emptyTree(root: string): string {
 
 function resolveCommit(root: string, ref: string): string {
   if (ref.startsWith("-")) throw new InputError(`not a commit: ${ref}`);
-  const sha = git(root, ["rev-parse", "--verify", "--quiet", "--end-of-options", `${ref}^{commit}`], [0, 1]).trim();
+  const sha = git(root, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], [0, 1]).trim();
   if (sha === "") throw new InputError(`not a commit: ${ref}`);
   return sha;
 }
@@ -32,6 +32,17 @@ function mergeBase(root: string, ref: string): string {
   return base;
 }
 
+// --sparse lets an untracked file outside a sparse-checkout cone in; git before 2.36 does not know the flag.
+function intentToAdd(root: string, noSplit: string[], env: Record<string, string>, input: string): void {
+  const add = ["-c", "advice.updateSparsePath=false", ...noSplit, "add", "--intent-to-add", "--pathspec-from-file=-", "--pathspec-file-nul"];
+  try {
+    git(root, [...add, "--sparse"], [0], { env, input });
+  } catch (error) {
+    if (!(error instanceof InputError) || !/unknown option `sparse'/.test(error.message)) throw error;
+    git(root, add, [0], { env, input });
+  }
+}
+
 // Untracked files join the diff as intent-to-add entries in a copy of the index, so one git diff
 // reads them all and the real index never changes. A nested repository is listed as "dir/" and skipped.
 function workingTreeDiff(root: string, base: string): string {
@@ -46,7 +57,7 @@ function workingTreeDiff(root: string, base: string): string {
     const noSplit = ["-c", "core.splitIndex=false"];
     if (untracked.length > 0) {
       const input = untracked.map((path) => `${path}\0`).join("");
-      git(root, [...noSplit, "add", "--intent-to-add", "--pathspec-from-file=-", "--pathspec-file-nul"], [0], { env, input });
+      intentToAdd(root, noSplit, env, input);
     }
     return git(root, [...noSplit, ...DIFF_FLAGS, base, "--"], [0], { env });
   } finally {

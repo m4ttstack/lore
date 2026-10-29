@@ -173,6 +173,44 @@ describe("changeDiff for uncommitted work", () => {
   });
 });
 
+describe("changeDiff in special working copies", () => {
+  test("uncommitted: untracked files outside a sparse-checkout cone are in the change", () => {
+    const { root, git } = repoWith({ "in/a.ts": "a\n", "out/b.ts": "b\n" });
+    git("sparse-checkout", "set", "in");
+    write(root, { "in/new.ts": "n\n", "out/new.ts": "o\n" });
+    expect(filesOf(root, { base: null }).map((f) => [f.kind, f.path]).sort()).toEqual([["A", "in/new.ts"], ["A", "out/new.ts"]]);
+  });
+
+  test("uncommitted: git that rejects --sparse is retried without it", () => {
+    const { root } = repoWith({ "a.ts": "a\n" });
+    write(root, { "fresh.ts": "f\n" });
+    const real = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+    const shim = tempDir();
+    const script = ["#!/bin/sh", 'for a; do [ "$a" = --sparse ] && { echo "error: unknown option \\`sparse\'" >&2; exit 129; }; done', `exec ${real} "$@"`, ""].join("\n");
+    writeFileSync(join(shim, "git"), script, { mode: 0o755 });
+    const path = process.env.PATH;
+    process.env.PATH = `${shim}:${path}`;
+    try {
+      expect(filesOf(root, { base: null }).map((f) => f.path)).toEqual(["fresh.ts"]);
+    } finally {
+      process.env.PATH = path;
+    }
+  });
+
+  test("uncommitted: a submodule pointer change reads the same whatever diff.submodule says", () => {
+    const sub = repoWith({ "s.ts": "s\n" });
+    const { root, git } = repoWith({ "a.ts": "a\n" });
+    git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub.root, "mod");
+    git("commit", "-q", "-m", "add submodule");
+    write(join(root, "mod"), { "s.ts": "s\nmore\n" });
+    runner(join(root, "mod"))("commit", "-q", "-am", "advance");
+    const plain = filesOf(root, { base: null });
+    expect(plain.map((f) => f.path)).toEqual(["mod"]);
+    git("config", "diff.submodule", "diff");
+    expect(filesOf(root, { base: null })).toEqual(plain);
+  });
+});
+
 describe("changeDiff for one commit", () => {
   test("commit: compares with its first parent", () => {
     const { root, git } = repoWith({ "a.ts": "a\n", "b.ts": "b\n" });
