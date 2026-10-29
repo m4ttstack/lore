@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { RegexLimitError, parseWithContext, selectParsed } from "@lore/parser";
 import pkg from "../package.json";
 import { parseCommand, type CheckCommand, type SelectCommand, type VerdictsCommand } from "./args";
-import { changeDiff } from "./change";
+import { changeDiff, type ChangeSource as GitChange } from "./change";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
 import { GitMissingError } from "./git";
@@ -21,7 +21,7 @@ export interface IO {
 
 const HELP = `Usage:
   lore select [rules] --diff <file|-> [options]
-  lore check [<commit>] [rules] [options]
+  lore check [<commit> | --base <ref>] [rules] [options]
   lore verdicts --selection <file> [<verdicts-file> | -]
   lore --help
   lore --version
@@ -36,6 +36,7 @@ Rules:
 Change:
   --diff <file|->        A unified diff, or - for stdin (lore select)
   <commit>               The commit lore check reads the change from (default: uncommitted work, untracked files included)
+  --base <ref>           lore check: compare with the merge base of <ref> and HEAD (the branch so far)
 
 Output:
   --format text|json     Default: text on a terminal, json otherwise
@@ -90,10 +91,11 @@ async function runSelect(command: SelectCommand, io: IO): Promise<number> {
 
 async function runCheck(command: CheckCommand, io: IO): Promise<number> {
   const root = changeRoot(command);
+  const change: GitChange = command.commit === null ? { base: command.base } : { commit: command.commit };
   return selectChange(command, io, {
     repo: command.noRepo ? null : root,
     untrackedLore: command.commit === null,
-    change: async () => changeDiff(root, command.commit),
+    change: async () => changeDiff(root, change),
     audience: "author",
   });
 }

@@ -53,13 +53,14 @@ The command reads only files git tracks in a working copy, or the files a loose 
 Checks the rules against a change the author is about to make or has just made, and prints the rules the change must follow.
 
 ```
-lore check [<commit>] [rules] [options]
+lore check [<commit> | --base <ref>] [rules] [options]
 ```
 
 The change comes from git, so no diff file is needed:
 
 - `lore check` reads uncommitted work: staged changes, unstaged changes, and untracked files that git does not ignore, all against `HEAD`.
 - `lore check <commit>` reads one commit against its first parent. A root commit is read against the empty tree.
+- `lore check --base <ref>` reads the branch so far: the working tree, untracked files included, against the merge base of `<ref>` and `HEAD`. It covers committed and uncommitted work together. `--base HEAD` is the same as plain `lore check`. A `<ref>` with no merge base with `HEAD` is an input error.
 
 The rules come from the working tree. Without a commit, untracked `.lore` and `.loreconfig` files are read too, so a rule file that has not been added yet already applies. A context `src` stays readable only when git tracks the file. With a commit, the rules are the tracked files, as in `lore select`.
 

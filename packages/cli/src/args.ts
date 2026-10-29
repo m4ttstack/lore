@@ -16,6 +16,7 @@ export interface SelectCommand {
 export interface CheckCommand extends Omit<SelectCommand, "name" | "diff"> {
   name: "check";
   commit: string | null;
+  base: string | null;
 }
 export interface VerdictsCommand { name: "verdicts"; selection: string; verdicts: string }
 export type Command =
@@ -49,7 +50,7 @@ function parseChangeCommand(name: "select" | "check", args: string[]): Command {
     const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
     const flag = eq === -1 ? arg : arg.slice(0, eq);
     if (flag === "--help") return { name: "help" };
-    if (NOT_YET.includes(flag)) throw new UsageError(`${flag} is not available yet`);
+    if (NOT_YET.includes(flag) && !(name === "check" && flag === "--base")) throw new UsageError(`${flag} is not available yet`);
     if (flag === "--no-repo" || flag === "--strict") {
       if (eq !== -1) throw new UsageError(`${flag} takes no value`);
       flags.add(flag);
@@ -61,7 +62,7 @@ function parseChangeCommand(name: "select" | "check", args: string[]): Command {
       continue;
     }
     if (name === "check" && flag === "--diff") throw new UsageError("lore check builds the change itself; use lore select --diff for a diff");
-    if (!VALUE_FLAGS.includes(flag)) throw new UsageError(`unknown option: ${arg}`);
+    if (!VALUE_FLAGS.includes(flag) && !(name === "check" && flag === "--base")) throw new UsageError(`unknown option: ${arg}`);
     let value: string;
     if (eq !== -1) value = arg.slice(eq + 1);
     else if (i + 1 < args.length && !args[i + 1]!.startsWith("--")) value = args[++i]!;
@@ -76,10 +77,11 @@ function parseChangeCommand(name: "select" | "check", args: string[]): Command {
   if (noRepo && one("--rules-ref") !== null) throw new UsageError("--rules-ref cannot be used with --no-repo");
   if (name === "select" && noRepo && one("--repo") !== null) throw new UsageError("--repo cannot be used with --no-repo");
   if (positional.length > 1) throw new UsageError("give at most one commit");
+  if (positional.length > 0 && one("--base") !== null) throw new UsageError("give a commit or --base, not both");
 
   const format = one("--format");
   if (format !== null && format !== "text" && format !== "json") throw new UsageError(`--format must be text or json, not ${format}`);
-  const shared: Omit<CheckCommand, "name" | "commit"> = {
+  const shared: Omit<CheckCommand, "name" | "commit" | "base"> = {
     repo: one("--repo"),
     noRepo,
     remotes: values.get("--remote") ?? [],
@@ -89,7 +91,7 @@ function parseChangeCommand(name: "select" | "check", args: string[]): Command {
     capabilities: parseCapabilities(one("--capabilities") ?? CAPABILITIES.join(",")),
     strict: flags.has("--strict"),
   };
-  if (name === "check") return { name, commit: positional[0] ?? null, ...shared };
+  if (name === "check") return { name, commit: positional[0] ?? null, base: one("--base"), ...shared };
   const diff = one("--diff");
   if (diff === null) throw new UsageError("give a change: --diff <file|->");
   return { name, diff, ...shared };

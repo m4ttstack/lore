@@ -255,7 +255,9 @@ the lines worth a look, so you can fix anything the change breaks:
 npx @mattstack/lore check
 ```
 
-To check one commit instead, name it: `npx @mattstack/lore check HEAD`.
+To check one commit instead, name it: `npx @mattstack/lore check HEAD`. To check
+a whole branch, committed and uncommitted work together, compare it with where
+it left its base: `npx @mattstack/lore check --base main`.
 
 To have an agent do this after every edit, add a line to `AGENTS.md`:
 

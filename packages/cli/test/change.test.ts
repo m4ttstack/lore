@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { changeDiff } from "../src/change";
+import { changeDiff, type ChangeSource } from "../src/change";
 import { parseUnifiedDiff } from "../src/diff";
 import { InputError } from "../src/errors";
 
@@ -40,8 +40,8 @@ function repoWith(files: Record<string, string>): { root: string; git: (...args:
   return { root, git };
 }
 
-function filesOf(root: string, commit: string | null) {
-  return parseUnifiedDiff(changeDiff(root, commit)).files;
+function filesOf(root: string, source: ChangeSource) {
+  return parseUnifiedDiff(changeDiff(root, source)).files;
 }
 
 describe("changeDiff for uncommitted work", () => {
@@ -50,7 +50,7 @@ describe("changeDiff for uncommitted work", () => {
     write(root, { "staged.ts": "a\nb\n" });
     git("add", "staged.ts");
     write(root, { "unstaged.ts": "a\nb\nc\n", "fresh.ts": "x\ny\n" });
-    const files = filesOf(root, null);
+    const files = filesOf(root, { base: null });
     expect(files.map((f) => [f.kind, f.path]).sort()).toEqual([["A", "fresh.ts"], ["M", "staged.ts"], ["M", "unstaged.ts"]]);
     const added = (path: string) => files.find((f) => f.path === path)!.added.map((l) => l.line);
     expect(added("staged.ts")).toEqual([2]);
@@ -61,12 +61,12 @@ describe("changeDiff for uncommitted work", () => {
   test("uncommitted: an ignored untracked file is not in the change", () => {
     const { root } = repoWith({ ".gitignore": "secret.env\n" });
     write(root, { "secret.env": "TOKEN=1\n", "visible.ts": "v\n" });
-    expect(filesOf(root, null).map((f) => f.path)).toEqual(["visible.ts"]);
+    expect(filesOf(root, { base: null }).map((f) => f.path)).toEqual(["visible.ts"]);
   });
 
   test("uncommitted: a clean tree gives an empty change", () => {
     const { root } = repoWith({ "a.ts": "a\n" });
-    expect(filesOf(root, null)).toEqual([]);
+    expect(filesOf(root, { base: null })).toEqual([]);
   });
 
   test("uncommitted: a repo with no commits treats every file as added", () => {
@@ -75,21 +75,21 @@ describe("changeDiff for uncommitted work", () => {
     git("init", "-q", "-b", "main");
     write(root, { "staged.ts": "s\n", "loose.ts": "l\n" });
     git("add", "staged.ts");
-    const files = filesOf(root, null);
+    const files = filesOf(root, { base: null });
     expect(files.map((f) => [f.kind, f.path]).sort()).toEqual([["A", "loose.ts"], ["A", "staged.ts"]]);
   });
 
   test("uncommitted: an untracked path git quotes is named exactly", () => {
     const { root } = repoWith({ "a.ts": "a\n" });
     write(root, { "src/é.ts": "e\n" });
-    expect(filesOf(root, null).map((f) => f.path)).toEqual(["src/é.ts"]);
+    expect(filesOf(root, { base: null }).map((f) => f.path)).toEqual(["src/é.ts"]);
   });
 
   test("uncommitted: an untracked symlink to a file is added with its target as the one added line", () => {
     const { root } = repoWith({ "a.ts": "a\n" });
     write(root, { "real.ts": "r\n" });
     symlinkSync("real.ts", join(root, "link.ts"));
-    const link = filesOf(root, null).find((f) => f.path === "link.ts")!;
+    const link = filesOf(root, { base: null }).find((f) => f.path === "link.ts")!;
     expect(link.kind).toBe("A");
     expect(link.added).toEqual([{ line: 1, text: "real.ts" }]);
   });
@@ -102,13 +102,13 @@ describe("changeDiff for uncommitted work", () => {
     write(nested, { "inner.ts": "i\n" });
     runner(nested)("add", ".");
     runner(nested)("commit", "-q", "-m", "inner");
-    expect(filesOf(root, null)).toEqual([]);
+    expect(filesOf(root, { base: null })).toEqual([]);
   });
 
   test("uncommitted: an untracked binary file is added with no added lines", () => {
     const { root } = repoWith({ "a.ts": "a\n" });
     writeFileSync(join(root, "blob.bin"), Buffer.from([0, 1, 2, 0, 255, 0]));
-    const files = filesOf(root, null);
+    const files = filesOf(root, { base: null });
     expect(files.map((f) => [f.kind, f.path, f.added])).toEqual([["A", "blob.bin", []]]);
   });
 
@@ -118,12 +118,12 @@ describe("changeDiff for uncommitted work", () => {
       write(made.root, { "t.ts": "a\nb\n", "u.ts": "u\n" });
       return made;
     };
-    const plain = filesOf(build().root, null);
+    const plain = filesOf(build().root, { base: null });
     const configured = build();
     for (const [key, value] of [["diff.noprefix", "true"], ["diff.mnemonicPrefix", "true"], ["color.ui", "always"], ["diff.external", "false"]]) {
       configured.git("config", key!, value!);
     }
-    expect(filesOf(configured.root, null)).toEqual(plain);
+    expect(filesOf(configured.root, { base: null })).toEqual(plain);
     expect(plain.length).toBe(2);
   });
 });
@@ -133,14 +133,14 @@ describe("changeDiff for one commit", () => {
     const { root, git } = repoWith({ "a.ts": "a\n", "b.ts": "b\n" });
     write(root, { "a.ts": "a\nmore\n" });
     git("commit", "-q", "-am", "second");
-    const files = filesOf(root, "HEAD");
+    const files = filesOf(root, { commit: "HEAD" });
     expect(files.map((f) => [f.kind, f.path])).toEqual([["M", "a.ts"]]);
     expect(files[0]!.added).toEqual([{ line: 2, text: "more" }]);
   });
 
   test("commit: a root commit compares with the empty tree", () => {
     const { root } = repoWith({ "a.ts": "a\n", "b.ts": "b\n" });
-    expect(filesOf(root, "HEAD").map((f) => [f.kind, f.path])).toEqual([["A", "a.ts"], ["A", "b.ts"]]);
+    expect(filesOf(root, { commit: "HEAD" }).map((f) => [f.kind, f.path])).toEqual([["A", "a.ts"], ["A", "b.ts"]]);
   });
 
   test("commit: a merge commit compares with its first parent", () => {
@@ -153,16 +153,58 @@ describe("changeDiff for one commit", () => {
     write(root, { "main-only.ts": "m\nm2\n" });
     git("commit", "-q", "-am", "main work");
     git("merge", "-q", "--no-ff", "-m", "merge", "side");
-    expect(filesOf(root, "HEAD").map((f) => [f.kind, f.path])).toEqual([["A", "side.ts"]]);
+    expect(filesOf(root, { commit: "HEAD" }).map((f) => [f.kind, f.path])).toEqual([["A", "side.ts"]]);
   });
 
   test("commit: an unknown commit is an input error", () => {
     const { root } = repoWith({ "a.ts": "a\n" });
-    expect(() => changeDiff(root, "nope")).toThrow(new InputError("not a commit: nope"));
+    expect(() => changeDiff(root, { commit: "nope" })).toThrow(new InputError("not a commit: nope"));
   });
 
   test("commit: a value starting with - is an input error", () => {
     const { root } = repoWith({ "a.ts": "a\n" });
-    expect(() => changeDiff(root, "--help")).toThrow(new InputError("not a commit: --help"));
+    expect(() => changeDiff(root, { commit: "--help" })).toThrow(new InputError("not a commit: --help"));
+  });
+});
+
+describe("changeDiff for the branch so far", () => {
+  test("base: compares the merge base with the working tree", () => {
+    const { root, git } = repoWith({ "m0.ts": "m\n" });
+    git("checkout", "-q", "-b", "feat");
+    write(root, { "b.ts": "b\n" });
+    git("add", ".");
+    git("commit", "-q", "-m", "branch");
+    git("checkout", "-q", "main");
+    write(root, { "m1.ts": "m1\n" });
+    git("add", "m1.ts");
+    git("commit", "-q", "-m", "main moves");
+    git("checkout", "-q", "feat");
+    write(root, { "b.ts": "b\nmore\n", "c.ts": "c\n" });
+    expect(filesOf(root, { base: "main" }).map((f) => [f.kind, f.path]).sort()).toEqual([["A", "b.ts"], ["A", "c.ts"]]);
+  });
+
+  test("base: HEAD as the base equals the uncommitted change", () => {
+    const { root } = repoWith({ "a.ts": "a\n" });
+    write(root, { "a.ts": "a\nb\n", "u.ts": "u\n" });
+    expect(filesOf(root, { base: "HEAD" })).toEqual(filesOf(root, { base: null }));
+    expect(filesOf(root, { base: "HEAD" }).length).toBe(2);
+  });
+
+  test("base: an unknown ref is an input error", () => {
+    const { root } = repoWith({ "a.ts": "a\n" });
+    expect(() => changeDiff(root, { base: "nope" })).toThrow(new InputError("not a commit: nope"));
+  });
+
+  test("base: a value starting with - is an input error", () => {
+    const { root } = repoWith({ "a.ts": "a\n" });
+    expect(() => changeDiff(root, { base: "--help" })).toThrow(new InputError("not a commit: --help"));
+  });
+
+  test("base: unrelated histories are an input error", () => {
+    const { root, git } = repoWith({ "a.ts": "a\n" });
+    git("checkout", "-q", "--orphan", "other");
+    git("commit", "-q", "--allow-empty", "-m", "root");
+    git("checkout", "-q", "main");
+    expect(() => changeDiff(root, { base: "other" })).toThrow(new InputError("no merge base between other and HEAD"));
   });
 });

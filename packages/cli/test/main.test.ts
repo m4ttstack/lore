@@ -478,6 +478,28 @@ describe("lore check", () => {
     expect(ids((await lore(["check", "--repo", root, "--format", "json"])).out)).toEqual([]);
   });
 
+  test("lore check --base checks the branch so far", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE });
+    gitIn(root, "checkout", "-q", "-b", "feat");
+    write(root, { "src/p.ts": USD_FILE });
+    gitIn(root, "add", ".");
+    gitIn(root, "commit", "-q", "-m", "usd");
+    expect(ids((await lore(["check", "--base", "main", "--repo", root, "--format", "json"])).out)).toEqual(["no-usd"]);
+    expect(ids((await lore(["check", "--repo", root, "--format", "json"])).out)).toEqual([]);
+  });
+
+  test("a commit and --base together are a usage error", async () => {
+    const { code, err } = await lore(["check", "HEAD", "--base", "main"]);
+    expect(code).toBe(2);
+    expect(err).toContain("give a commit or --base, not both");
+  });
+
+  test("lore select --base is still not available", async () => {
+    const { code, err } = await lore(["select", "--base", "main", "--diff", "-"]);
+    expect(code).toBe(2);
+    expect(err).toContain("--base is not available yet");
+  });
+
   test("text output uses the author preamble", async () => {
     const root = repoWith({ ".lore/a.lore": RULE });
     write(root, { "src/p.ts": USD_FILE });
@@ -582,7 +604,8 @@ describe("lore check", () => {
 
   test("--help lists lore check", async () => {
     const { out } = await lore(["--help"]);
-    expect(out).toContain("lore check [<commit>] [rules] [options]");
+    expect(out).toContain("lore check [<commit> | --base <ref>] [rules] [options]");
+    expect(out).toContain("--base <ref>");
     expect(await lore(["check", "--help"])).toEqual({ code: 0, out, err: "" });
   });
 });
