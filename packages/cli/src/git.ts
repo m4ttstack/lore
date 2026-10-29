@@ -12,14 +12,15 @@ export class GitMissingError extends InputError {
   }
 }
 
-function git(root: string, args: string[]): string {
+export function git(root: string, args: string[], okCodes: readonly number[] = [0]): string {
   try {
     // gitRoot matches git's English message, so a translated git must not answer in another language.
     // A partial clone must not fetch a missing object from its promisor remote: the command never uses the network.
     const env = { ...process.env, LC_ALL: "C", GIT_NO_LAZY_FETCH: "1" };
     return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env, maxBuffer: MAX_BUFFER, stdio: ["ignore", "pipe", "pipe"] });
   } catch (error) {
-    const { code, stderr } = error as NodeJS.ErrnoException & { stderr?: string };
+    const { code, stderr, stdout, status } = error as NodeJS.ErrnoException & { stderr?: string; stdout?: string; status?: number };
+    if (typeof status === "number" && okCodes.includes(status)) return String(stdout ?? "");
     if (code === "ENOENT") throw new GitMissingError("git is not installed");
     const reason = String(stderr ?? "").trim().split("\n")[0] ?? "";
     throw new InputError(`git ${args.join(" ")} failed${reason === "" ? "" : `: ${reason}`}`);
@@ -45,6 +46,10 @@ export function trackedPaths(root: string, ref: string | null): string[] {
   }
   if (ref.startsWith("-")) throw new InputError(`not a git ref: ${ref}`);
   return git(root, ["ls-tree", "-r", "-z", "--name-only", ref]).split("\0").filter((path) => path !== "");
+}
+
+export function untrackedPaths(root: string): string[] {
+  return git(root, ["ls-files", "-z", "--others", "--exclude-standard"]).split("\0").filter((path) => path !== "");
 }
 
 function isPartialClone(root: string): boolean {
