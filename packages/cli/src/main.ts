@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { RegexLimitError, parseWithContext, selectParsed } from "@lore/parser";
 import pkg from "../package.json";
@@ -175,6 +175,9 @@ function governedRepo(command: SelectCommand): string | null {
 }
 
 function changeRoot(command: CheckCommand): string {
+  if (command.repo !== null && !isDirectory(resolve(command.repo))) {
+    throw new InputError(`lore check needs a git working copy: ${command.repo} is not in one`);
+  }
   let root: string | null;
   try {
     root = findRepoRoot(command.repo === null ? process.cwd() : resolve(command.repo));
@@ -185,6 +188,14 @@ function changeRoot(command: CheckCommand): string {
   if (root !== null) return root;
   if (command.repo !== null) throw new InputError(`lore check needs a git working copy: ${command.repo} is not in one`);
   throw new InputError("lore check needs a git working copy: run it inside one or pass --repo");
+}
+
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }
 
 async function readDiff(source: string, io: IO): Promise<string> {

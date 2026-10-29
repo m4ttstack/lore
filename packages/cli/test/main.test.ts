@@ -588,6 +588,13 @@ describe("lore check", () => {
     expect(err).toContain("lore check needs a git working copy");
   });
 
+  test("--repo naming a path that does not exist is the same input error", async () => {
+    const missing = join(tempDir(), "no", "such", "dir");
+    const { code, err } = await lore(["check", "--repo", missing]);
+    expect(code).toBe(2);
+    expect(err).toBe(`lore: lore check needs a git working copy: ${missing} is not in one\n`);
+  });
+
   test("without a git binary the message says check needs it", async () => {
     const path = process.env.PATH;
     process.env.PATH = tempDir();
