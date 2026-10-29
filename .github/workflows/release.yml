@@ -31,7 +31,7 @@ jobs:
         run: |
           set -o pipefail
           smoke="--no-repo --remote https://github.com/acme/shop --given packages/cli/test/smoke --diff packages/cli/test/smoke/change.diff --format json"
-          bun run --filter @lore/cli build
+          bun run --filter @mattstack/lore build
           node packages/cli/dist/lore.js select $smoke | jq -e '.rules[0].id == "smoke-rule"'
           bun packages/cli/dist/lore.js select $smoke | jq -e '.rules[0].id == "smoke-rule"'
           test "$(bun packages/cli/dist/lore.js --version)" = "$(jq -r .version packages/cli/package.json)"

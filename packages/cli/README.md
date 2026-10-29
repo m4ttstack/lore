@@ -2,7 +2,16 @@
 
 The `lore` command reads Lore rule files and tells a reviewer which rules apply to a change. It never calls a forge, a model or the network. Git is the only program it runs, and only when an input needs it.
 
-It has two commands.
+It has three commands.
+
+Install it as a dev dependency, or run it without installing:
+
+```
+npm install --save-dev @mattstack/lore
+npx @mattstack/lore check
+```
+
+It needs Node 20 or later.
 
 ## lore select
 
@@ -39,6 +48,25 @@ The command reads only files git tracks in a working copy, or the files a loose 
 - `src-not-read`: a selected context's `src` target exists, but the command did not read it, so its `srcText` is null.
 - `lore-file-not-read`: a Lore or `.loreconfig` file the parser would have collected (tracked in a working copy, or held by a loose folder) could not be read (a symlink out of its place or to nothing, a directory), or a tracked Lore file lies outside a sparse-checkout cone, so any entries it holds are missing from the selection.
 
+## lore check
+
+Checks the rules against a change the author is about to make or has just made, and prints the rules the change must follow.
+
+```
+lore check [<commit>] [rules] [options]
+```
+
+The change comes from git, so no diff file is needed:
+
+- `lore check` reads uncommitted work: staged changes, unstaged changes, and untracked files that git does not ignore, all against `HEAD`.
+- `lore check <commit>` reads one commit against its first parent. A root commit is read against the empty tree.
+
+The rules come from the working tree. Without a commit, untracked `.lore` and `.loreconfig` files are read too, so a rule file that has not been added yet already applies. A context `src` stays readable only when git tracks the file. With a commit, the rules are the tracked files, as in `lore select`.
+
+Text output is written for the author, not for a reviewer. It asks the author to fix any rule the change breaks, and says that flagged lines are places to look, not verdicts. It does not ask for a verdict set. JSON output has the same shape as `lore select`.
+
+These options work as they do in `lore select`: `[rules]` (`--repo`, `--no-repo`, `--remote`, `--rules-ref`, `--given`), `--capabilities`, `--strict` and `--format text|json`. With `--no-repo` and `--repo` together, the repo supplies only the change. `--diff` is not accepted.
+
 ## lore verdicts
 
 Checks a verdict set against a selection.
@@ -58,14 +86,15 @@ lore verdicts --selection <file> [<verdicts-file> | -]
 ## Exit codes
 
 - `lore select`: `0` when the selection ran, `1` when `--strict` was given and entries were excluded.
+- `lore check`: `0` when the check ran, `1` when `--strict` was given and entries were excluded.
 - `lore verdicts`: `0` when the verdicts have no problems, `1` when they have problems.
-- Both: `2` for a usage or input error, `70` for an internal error (a bug).
+- All: `2` for a usage or input error, `70` for an internal error (a bug).
 
 ## Build
 
 ```
 bun install
-bun run --filter @lore/cli build
+bun run --filter @mattstack/lore build
 ```
 
 This writes one file, `packages/cli/dist/lore.js`. Run it with Node 20 or later, or with Bun:

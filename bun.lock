@@ -12,15 +12,13 @@
       },
     },
     "packages/cli": {
-      "name": "@lore/cli",
-      "version": "0.1.0",
+      "name": "@mattstack/lore",
+      "version": "0.2.0",
       "bin": {
         "lore": "dist/lore.js",
       },
-      "dependencies": {
-        "@lore/parser": "workspace:*",
-      },
       "devDependencies": {
+        "@lore/parser": "workspace:*",
         "esbuild": "^0.25.0",
       },
     },
@@ -193,13 +191,13 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
 
-    "@lore/cli": ["@lore/cli@workspace:packages/cli"],
-
     "@lore/language-server": ["@lore/language-server@workspace:packages/language-server"],
 
     "@lore/parser": ["@lore/parser@workspace:packages/parser"],
 
     "@lore/prettier-plugin": ["@lore/prettier-plugin@workspace:packages/prettier-plugin"],
+
+    "@mattstack/lore": ["@mattstack/lore@workspace:packages/cli"],
 
     "@nodelib/fs.scandir": ["@nodelib/fs.scandir@2.1.5", "", { "dependencies": { "@nodelib/fs.stat": "2.0.5", "run-parallel": "^1.1.9" } }, "sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g=="],
 
