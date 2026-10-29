@@ -120,7 +120,7 @@ describe("changeDiff for uncommitted work", () => {
   test("uncommitted: a moved file that is not staged is a rename", () => {
     const { root } = repoWith({ "old.ts": "one\ntwo\nthree\nfour\nfive\n" });
     renameSync(join(root, "old.ts"), join(root, "new.ts"));
-    expect(filesOf(root, { base: null }).map((f) => [f.kind, f.path, f.oldPath])).toEqual([["R", "new.ts", "old.ts"]]);
+    expect(filesOf(root, { base: null }).map((f) => [f.kind, f.path, f.kind === "R" ? f.oldPath : null])).toEqual([["R", "new.ts", "old.ts"]]);
   });
 
   test("uncommitted: the real index and git directory are unchanged", () => {
