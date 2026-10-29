@@ -68,6 +68,12 @@ describe("readLoreconfig", () => {
     });
   });
 
+  test("loose is a boolean", () => {
+    expect(readLoreconfig("loose: true\n").config?.loose).toBe(true);
+    expect(readLoreconfig("loose: false\n").config?.loose).toBe(false);
+    expect(problem("repo: github.com/acme/shop\nloose: yes\n")).toBe(2);
+  });
+
   test("a disable item's line is its dash in a block sequence, its first character in a flow sequence", () => {
     const block = readLoreconfig("disable:\n  - a\n  # note\n  -\n    b\n");
     expect(block.config?.disable.map(({ id, line }) => ({ id, line }))).toEqual([

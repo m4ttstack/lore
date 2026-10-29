@@ -114,7 +114,7 @@ describe("collect", () => {
   });
 
   test("an external file's base is the directory it stands for, its Lore root is in its own repository", () => {
-    const collected = collect(toInput(example(93)));
+    const collected = collect(toInput(example(96)));
     expect(collected.files).toEqual([
       expect.objectContaining({
         file: "external:lore/shop/apps/web/.lore/web.lore", base: "apps/web", loreRoot: "lore", tree: 0,
@@ -203,6 +203,45 @@ describe("collect", () => {
     expect(collected.warnings).toEqual([{ name: "untracked-given-folder", file: "loose:.", entry: null, line: 1 }]);
   });
 
+  const UNTRACKED = [{ name: "untracked-given-folder", file: "loose:.", entry: null, line: 1 }];
+  const looseFolder = (files: InputFile[]) =>
+    collect({ repo: [], remotes: [REMOTE], given: [{ folder: "", loose: true, files: [...files, { path: ".lore/a.lore", content: RULE }] }] });
+
+  test("a loose folder marked loose: true reports no warning", () => {
+    const collected = looseFolder([{ path: ".loreconfig", content: "repo: github.com/acme/shop\nloose: true\n" }]);
+    expect(collected.files.map((f) => f.file)).toEqual(["loose:.lore/a.lore"]);
+    expect(collected.warnings).toEqual([]);
+    expect(collected.diagnostics).toEqual([]);
+  });
+
+  test("loose: true below a loose folder's root has no effect", () => {
+    const collected = looseFolder([
+      { path: ".loreconfig", content: "repo: github.com/acme/shop\n" },
+      { path: "sub/.loreconfig", content: "loose: true\n" },
+    ]);
+    expect(collected.warnings).toEqual(UNTRACKED);
+    expect(collected.diagnostics).toEqual([]);
+  });
+
+  test("an invalid root .loreconfig in a loose folder still reports the warning", () => {
+    const collected = looseFolder([{ path: ".loreconfig", content: "loose: true\nroot: yes\n" }]);
+    expect(collected.warnings).toEqual(UNTRACKED);
+    expect(brief(collected.diagnostics)).toEqual([{ name: "invalid-loreconfig", file: "loose:.loreconfig", entry: null, line: 2 }]);
+  });
+
+  test("loose: true in a working-copy given folder has no effect", () => {
+    const collected = collect({
+      repo: [], remotes: [REMOTE],
+      given: [{ folder: "", files: [
+        { path: "shop/.loreconfig", content: "repo: github.com/acme/shop\nloose: true\n" },
+        { path: "shop/.lore/a.lore", content: RULE },
+      ] }],
+    });
+    expect(collected.files.map((f) => f.file)).toEqual(["external:shop/.lore/a.lore"]);
+    expect(collected.warnings).toEqual([]);
+    expect(collected.diagnostics).toEqual([]);
+  });
+
   test("a loose given folder is read from its root, whatever folder the caller names", () => {
     const lore = `<rule id="kept" category="documentation">\nText.\n</rule>\n`;
     const files = [
@@ -233,7 +272,7 @@ describe("disabledFor", () => {
   });
 
   test("a governed list switches off an external entry, an external list never a governed one", () => {
-    const collected = collect(toInput(example(97)));
+    const collected = collect(toInput(example(100)));
     expect(disabledFor(collected, "shared-currency-from-settings", "apps/web/src/checkout/Price.tsx", 0)).toBe(true);
     expect(disabledFor(collected, "shared-currency-from-settings", "apps/api/orders.ts", 0)).toBe(false);
     expect(disabledFor(collected, "currency-from-settings", "apps/web/src/checkout/Price.tsx", "repo")).toBe(false);
@@ -259,7 +298,7 @@ describe("disabledFor", () => {
 
 describe("parseWithContext", () => {
   test("keeps each entry's base, external ones included", () => {
-    const { model, placeOf } = parseWithContext(toInput(example(93)));
+    const { model, placeOf } = parseWithContext(toInput(example(96)));
     expect(model.entries.map((e) => ({ base: placeOf.get(e)!.base, tree: placeOf.get(e)!.tree }))).toEqual([
       { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 },
     ]);
