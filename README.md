@@ -10,8 +10,9 @@ or AI, can work out exactly which rules matter for a given change.
 
 > [!NOTE]
 > Lore is an early-stage proposal. The syntax and the name may change
-> before a first stable version. Feedback is very welcome; see
-> [Participate](#participate).
+> before a first stable version. A reference command-line tool is
+> available as a preview ([Try it](#try-it)). Feedback is very welcome;
+> see [Participate](#participate).
 
 ```html
 <scope>
@@ -182,20 +183,53 @@ Rules don't have to live in the repository they govern. A team or an
 organization can keep shared rules in their own repository and map them
 onto another with a `repo` key.
 
+Rules are read at a revision of their own. A tool can judge a change by
+the rules on the branch it merges into, so a change can't relax a rule
+in the same commit that breaks it.
+
 ## How tools use Lore
 
 Given a change, a tool:
 
-1. collects the `.lore` files tracked in the repository;
+1. collects the `.lore` files from the repository and from any shared
+   rule folders;
 2. selects every rule whose scope matches a changed file and whose
    conditions hold;
-3. finds lines worth a closer look, from the selected rules' conditions
+3. flags lines worth a closer look, from the selected rules' conditions
    and checks;
-4. hands the selected rules, hits and context to a reviewer.
+4. hands the selected rules, flagged lines and context to a reviewer;
+5. collects one verdict per selected rule, and checks that none is
+   missing.
 
-Selection is fully specified, so it is the same in every tool. How a
-reviewer reports on the rules is up to the tool. A review bot might show
-something like this:
+Selection is fully specified, so it is the same in every tool. The
+reviewer answers each selected rule with `pass`, `fail` or
+`not-applicable`. A `fail` names the line that breaks the rule, and any
+answer other than `pass` says why:
+
+```json
+{
+  "lore": "1",
+  "verdicts": [
+    {
+      "rule": "price-from-quote",
+      "verdict": "fail",
+      "evidence": [{ "file": "src/checkout/CartTotal.tsx", "line": 42 }],
+      "note": "The total is rebuilt from line items, not the quote."
+    },
+    { "rule": "money-in-minor-units", "verdict": "pass" },
+    { "rule": "tenant-scoped-queries", "verdict": "pass" },
+    {
+      "rule": "migration-with-schema",
+      "verdict": "not-applicable",
+      "note": "The change adds no migration."
+    }
+  ]
+}
+```
+
+Because every selected rule must be answered exactly once, a tool can
+tell a rule that passed from a rule nobody checked. How the results are
+shown is up to the tool. A review bot might show something like this:
 
 ```
 4 Lore rules apply to this change
@@ -206,6 +240,36 @@ something like this:
   ✓ tenant-scoped-queries
   - migration-with-schema     not applicable
 ```
+
+## Try it
+
+The reference `lore` command implements selection and verdict checking.
+It is one JavaScript file, attached to each GitHub release, and runs on
+Node 20 or later or on Bun:
+
+```
+curl -LO https://github.com/m4ttstack/lore/releases/download/cli-v0.1.1/lore.js
+```
+
+From a repository with `.lore` files, print the rules that apply to your
+branch, ready to paste into a reviewer's prompt:
+
+```
+git diff main... | node lore.js select --diff - --format text
+```
+
+Save the selection as JSON, then check a reviewer's verdicts against it:
+
+```
+git diff main... | node lore.js select --diff - --format json > selection.json
+node lore.js verdicts --selection selection.json verdicts.json
+```
+
+`lore verdicts` exits 0 when every selected rule has exactly one valid
+verdict, and lists the problems otherwise. The command never calls a
+model, a code host or the network; git is the only program it runs. The
+[CLI README](packages/cli/README.md) covers every flag, including shared
+rule folders and reading rules at a git ref.
 
 ## Where Lore fits
 
@@ -235,9 +299,15 @@ file.
    examples and schemas.
 2. **Editor support:** done: reference parser, Prettier plugin, language
    server, VS Code/Cursor and Zed extensions (not yet published).
-3. **Applying rules:** guidance for turning selected rules into a result
-   per rule, and an online playground.
-4. **Integrations** with code review tools and AI agents.
+3. **Applying rules:** in progress. The `lore` command (`select` and
+   `verdicts`) is released as a preview. Next: the verdict format as a
+   normative part of the specification, and more ways to describe a
+   change, such as a list of paths or two git refs.
+4. **Integrations** with code review tools and AI agents. A first
+   integration with an AI review pipeline is in trial.
+5. **More implementations:** a second conforming implementation in Rust,
+   standalone binaries, and an online playground. Packages go to npm once
+   the format's name is final.
 
 ### Editor support
 
