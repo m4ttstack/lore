@@ -61,6 +61,10 @@ function lock(): void {
     run("tar", ["-czf", tarball, "--exclude", ".DS_Store", "--exclude", "node_modules", "-C", devDir, "."], {
       env: { ...process.env, COPYFILE_DISABLE: "1" },
     });
+    const entries = run("tar", ["-tzf", tarball]).split("\n");
+    if (!entries.some((entry) => entry !== "" && !entry.endsWith("/"))) {
+      throw new Failure(`nothing to lock: ${devDir} holds only excluded entries`);
+    }
     const pending = `${archive}.partial`;
     run("age", ["-r", recipient, "-o", pending, tarball]);
     renameSync(pending, archive);

@@ -80,6 +80,26 @@ test("lock refuses an empty dev folder", () => {
   expect(result.stderr).toContain("nothing to lock");
 });
 
+test("lock refuses a dev folder that holds only excluded entries and keeps the old archive", () => {
+  const root = makeRoot("junk");
+  const dev = join(root, "private", "dev");
+  mkdirSync(dev);
+  writeFileSync(join(dev, "real.md"), "real\n");
+  expect(privateCli(root, "lock").status).toBe(0);
+  const before = readFileSync(join(root, "private", "dev.tar.age"));
+
+  rmSync(join(dev, "real.md"));
+  mkdirSync(join(dev, "node_modules", "pkg"), { recursive: true });
+  writeFileSync(join(dev, ".DS_Store"), "junk");
+  writeFileSync(join(dev, "node_modules", "pkg", "index.js"), "junk");
+
+  const result = privateCli(root, "lock");
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain("nothing to lock");
+  expect(readFileSync(join(root, "private", "dev.tar.age")).equals(before)).toBe(true);
+  expect(readdirSync(join(root, "private")).sort()).toEqual(["dev", "dev.tar.age"]);
+});
+
 test("unlock refuses a non-empty dev folder unless --force", () => {
   const root = makeRoot("busy");
   const dev = join(root, "private", "dev");
