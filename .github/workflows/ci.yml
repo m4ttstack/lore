@@ -26,6 +26,7 @@ jobs:
         run: git diff --exit-code -- packages/tree-sitter-lore/src test/fixtures
       - run: bun run build
       - run: bunx tsc --noEmit
+      - run: sudo apt-get install -y --no-install-recommends age
       - run: bun test
       - uses: actions/setup-node@v4
         with:
