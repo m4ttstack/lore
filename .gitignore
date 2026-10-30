@@ -5,3 +5,5 @@ packages/zed/extension.toml
 packages/zed/extension.wasm
 packages/zed/grammars/
 packages/zed/target/
+private/dev/
+private/dev.tar.age.partial

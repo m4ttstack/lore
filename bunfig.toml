@@ -1,3 +1,4 @@
 [test]
-# Zed clones the whole repository here when the dev extension is installed.
-pathIgnorePatterns = ["packages/zed/grammars/**"]
+# Zed clones the whole repository into packages/zed/grammars when the dev extension is installed.
+# private/dev holds unlocked material whose tests need their own setup.
+pathIgnorePatterns = ["packages/zed/grammars/**", "private/**"]
