@@ -8,7 +8,7 @@ export interface SelectedRule {
   summary: string;
   prose: string;
   meta: Record<string, unknown> | null;
-  hits: { file: string; line: number; text: string }[];
+  hits: { file: string; line: number; text: string; side?: "old" }[];
 }
 export interface SelectedContext {
   id: string;
@@ -23,7 +23,7 @@ export interface Selection {
   rules: SelectedRule[];
   context: SelectedContext[];
   conditional: string[];
-  change: { kind: "A" | "M" | "D" | "R"; path: string; oldPath: string | null; added: number[] }[];
+  change: { kind: "A" | "M" | "D" | "R"; path: string; oldPath: string | null; added: number[]; removed: number[] }[];
   excluded: Diagnostic[];
   warnings: Diagnostic[];
 }
@@ -72,7 +72,7 @@ export function toSelection(
     rules.push({
       id, file: entry.file, category: entry.category, severity: entry.severity ?? "advisory",
       summary: entry.summary, prose: entry.prose, meta: entry.meta,
-      hits: result.hits.filter((hit) => hit.rule === id).map(({ file, line, text }) => ({ file, line, text })),
+      hits: result.hits.filter((hit) => hit.rule === id).map(({ file, line, text, side }) => ({ file, line, text, ...(side === undefined ? {} : { side }) })),
     });
   }
   return {
@@ -85,6 +85,7 @@ export function toSelection(
       path: file.path,
       oldPath: file.kind === "R" ? file.oldPath : null,
       added: file.added.map((added) => added.line),
+      removed: file.removed.map((line) => line.line),
     })),
     excluded: result.excluded,
     warnings: [...result.warnings, ...notRead, ...unread].sort(compareDiagnostics),

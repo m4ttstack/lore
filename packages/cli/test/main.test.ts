@@ -73,7 +73,7 @@ describe("lore select", () => {
     expect(selection.rules[0]).toMatchObject({
       id: "no-usd", severity: "blocking", category: "security", hits: [{ file: "src/p.ts", line: 2, text: 'const c = "USD";' }],
     });
-    expect(selection.change).toEqual([{ kind: "M", path: "src/p.ts", oldPath: null, added: [2] }]);
+    expect(selection.change).toEqual([{ kind: "M", path: "src/p.ts", oldPath: null, added: [2], removed: [] }]);
   });
 
   test("--diff - reads the diff from stdin", async () => {

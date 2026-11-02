@@ -54,10 +54,17 @@ describe("toSelection", () => {
     expect(none.context[0]).toMatchObject({ src: null, srcText: null });
   });
 
+  test("old-side hits and removed line numbers pass through", () => {
+    const withOld = { ...result, hits: [{ rule: "money-in-minor-units", file: "src/Price.ts", line: 4, text: "total * 1.1", side: "old" as const }] };
+    const selection = toSelection(model, withOld, change, sources);
+    expect(selection.rules.find((rule) => rule.id === "money-in-minor-units")!.hits).toEqual([{ file: "src/Price.ts", line: 4, text: "total * 1.1", side: "old" }]);
+    expect(selection.change.map((file) => file.removed)).toEqual([[4], []]);
+  });
+
   test("the change lists added line numbers and an old path only for a rename", () => {
     expect(selection.change).toEqual([
-      { kind: "M", path: "src/Price.ts", oldPath: null, added: [4, 9] },
-      { kind: "R", path: "src/new.ts", oldPath: "src/old.ts", added: [] },
+      { kind: "M", path: "src/Price.ts", oldPath: null, added: [4, 9], removed: [4] },
+      { kind: "R", path: "src/new.ts", oldPath: "src/old.ts", added: [], removed: [] },
     ]);
   });
 
