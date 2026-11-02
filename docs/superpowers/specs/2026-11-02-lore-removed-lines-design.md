@@ -187,8 +187,9 @@ definition of a hit is widened to both sides.
 - **Package version.** The branch bumps `packages/cli/package.json` to
   0.3.0, as the `lore check` branch bumped to 0.2.0: a new condition key
   is a minor change for files that use it and no change for files that do
-  not. Publishing the release is Eloise's; this design and the merged
-  spec are the hand-off. *(My call, following the earlier branch.)*
+  not. Publishing the release belongs to the release owner; this design
+  and the merged spec are the hand-off. *(My call, following the earlier
+  branch.)*
 - **Copies.** A git copy with edits reports `-` lines from the copy's
   source. The parser already turns a copy into an added file, and an added
   file has no removed lines, so those lines are dropped.
@@ -218,7 +219,7 @@ runs baseline and verify.)*
    conformance examples; parser; CLI diff, selection and text output;
    language server docs; version bump; the skill last, with its scenario
    run against the built CLI. Tests first for each part, as the repo does.
-2. Eloise releases 0.3.0 from the merged main.
+2. The release owner releases 0.3.0 from the merged main.
 3. The pack that pins 0.2.0 re-pins and converts its ten rules; that
    work and its notes stay in the private archive.
 
