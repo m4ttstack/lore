@@ -184,10 +184,14 @@ definition of a hit is widened to both sides.
   line number.
 - **Language server.** The condition docs and completions gain the two
   keys with wording parallel to the added pair.
-- **Package version.** The CLI is released as `@mattstack/lore` 0.3.0: a
-  new condition key is a minor change for files that use it and no change
-  for files that do not. The release is Eloise's; this design and the
-  merged spec are the hand-off.
+- **Package version.** The branch bumps `packages/cli/package.json` to
+  0.3.0, as the `lore check` branch bumped to 0.2.0: a new condition key
+  is a minor change for files that use it and no change for files that do
+  not. Publishing the release is Eloise's; this design and the merged
+  spec are the hand-off. *(My call, following the earlier branch.)*
+- **Copies.** A git copy with edits reports `-` lines from the copy's
+  source. The parser already turns a copy into an added file, and an added
+  file has no removed lines, so those lines are dropped.
 
 ## The writing-lore skill
 
@@ -198,11 +202,22 @@ in the old code, and both conditions when the slip is a replacement. The
 "no" branch narrows to a slip that is something missing or in another
 file. The reference's condition table gains the two rows.
 
+The edit goes through the skill-writing discipline the repo's skills
+already use: the conversion scenario under `skills/writing-lore/tests/`
+gains a removed-line slip in its source skill and a rubric criterion for
+it (the rule uses `removedContains` with the old-code literal, and both
+conditions for a replacement), the baseline run shows the current skill
+miss it, and the verify run passes with the edited skill against the
+built CLI from this branch. That makes the skill the last part built,
+after the CLI. *(Settled by Matt's standing rule that every skill edit
+runs baseline and verify.)*
+
 ## Rollout
 
-1. One branch in this repo: spec text, schemas, conformance examples,
-   parser, CLI, text output, language server docs, skill. Tests first for
-   each part, as the repo does.
+1. One branch in this repo, in this order: spec text, schemas and
+   conformance examples; parser; CLI diff, selection and text output;
+   language server docs; version bump; the skill last, with its scenario
+   run against the built CLI. Tests first for each part, as the repo does.
 2. Eloise releases 0.3.0 from the merged main.
 3. The pack that pins 0.2.0 re-pins and converts its ten rules; that
    work and its notes stay in the private archive.
