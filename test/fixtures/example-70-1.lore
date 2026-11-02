@@ -1,36 +1,27 @@
 <rule id="currency-from-settings" category="functional_correctness">
 <when>
-addedContains: "'USD'"
-removedContains: ["'USD'"]
+addedContains: []
 </when>
 Display text never hard-codes a currency code.
 </rule>
 
 <rule id="price-from-quote" category="functional_correctness">
 <when>
+unchanged: []
 </when>
 A displayed price must come from the quote that produced it.
 </rule>
 
-<rule id="regen-types-after-graphql" category="functional_correctness">
+<rule id="price-imports-updated" category="functional_correctness">
 <when>
-unchanged: "/apps/web/src/__generated__/**"
+changed: ["/apps/web/src/checkout/Price.tsx"]
 </when>
-A `.graphql` change ships with regenerated types.
+When `Price.tsx` moves or changes, every import of it is updated.
 </rule>
 
-<rule id="checkout-follows-api-schema" category="backwards_compatibility">
+<rule id="price-shown-with-component" category="code_style">
 <when>
-changed: ["apps/web/../api/schema.graphql"]
+unchanged: ["/apps/web/src/checkout/Price.tsx"]
 </when>
-A checkout change made alongside an API schema change still works with
-the schema that is deployed now.
-</rule>
-
-<rule id="checkout-follows-api" category="backwards_compatibility">
-<when>
-changed: ["/apps/api/**"]
-addedContains: ["fetch("]
-</when>
-New checkout requests work with the API that is deployed now.
+A price is shown with the `Price` component, never formatted by hand.
 </rule>

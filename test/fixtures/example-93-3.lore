@@ -1,0 +1,3 @@
+<rule id="api-prices-recorded" category="data_provenance">
+Every price the API stores records the quote it came from.
+</rule>
