@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { CompletionItem, TextEdit } from "vscode-languageserver/node";
 import { complete, factsFor, type CompletionFacts } from "../src/completion";
 import { diagnose } from "../src/diagnostics";
+import { WHEN_DOCS } from "../src/docs";
 
 const NO_FACTS: CompletionFacts = { categories: ["functional_correctness", "security"], ids: [] };
 
@@ -100,7 +101,9 @@ describe("completion", () => {
     expect(labels(at("<defaults>\ncategory: |\n</defaults>\n", "lore"))).toEqual(["functional_correctness", "security"]);
     expect(labels(at("<rule id=\"a\">\n<check lang=\"|\">\n", "lore"))).toEqual(["regex", "ast-grep"]);
     expect(labels(at("<rule id=\"a\">\n  <when>\n    |\n  </when>\n</rule>\n", "lore")))
-      .toEqual(["addedContains", "addedMatches", "changed", "unchanged"]);
+      .toEqual(["addedContains", "addedMatches", "removedContains", "removedMatches", "changed", "unchanged"]);
+    expect(WHEN_DOCS.removedContains).toStartWith("Holds when a removed line");
+    expect(WHEN_DOCS.removedMatches).toStartWith("Holds when a removed line");
     expect(at("<rule id=\"a\">\n  <scope>\n    |\n  </scope>\n</rule>\n", "lore")).toEqual([]);
   });
 });
