@@ -147,8 +147,9 @@ file's added and removed lines:
   version of the file named by the nearest `M`, `D` or `R` line above it
   (for a rename, the old path) is `<text>`, read as a `+` line's text is.
 
-A `+` line follows an `A`, `M` or `R` line directly or after other `+`
-lines; a `+` line anywhere else, such as after a `D` line, is malformed,
+A `+` line follows an `A`, `M` or `R` line directly or after other `+` or
+`-` lines. A `-` line follows an `M`, `D` or `R` line directly or after
+other `+` or `-` lines. A `+` line anywhere else, such as after a `D` line, is malformed,
 and so is a `-` line after an `A` line. Under one file, `+` and `-` lines
 may come in any order. A diff has no blank lines. Any line of a changed
 file's new version that is not listed as added, and any line of its old
@@ -3551,7 +3552,8 @@ M apps/web/src/checkout/format.ts
 }
 ``````
 
-A pattern in `addedMatches` is searched for in each added line. `^`
+A pattern in `addedMatches` is searched for in each added line, and one in
+`removedMatches` in each removed line. `^`
 matches only at the start of the line's text, which here starts with
 spaces:
 
@@ -3736,7 +3738,7 @@ is not allowed in `changed`, while a leading `/` is:
 <rule id="currency-from-settings" category="functional_correctness">
 <when>
 addedContains: "'USD'"
-removedContains: ["'USD'"]
+contains: ["'USD'"]
 </when>
 Display text never hard-codes a currency code.
 </rule>
@@ -3794,13 +3796,13 @@ New checkout requests work with the API that is deployed now.
 
 ## Regex dialect
 
-`addedMatches` patterns and `regex` checks share one dialect of regular
+`addedMatches` and `removedMatches` patterns and `regex` checks share one dialect of regular
 expressions, so that every tool finds the same matches, whatever engine
 it uses. Its syntax is a subset of ECMAScript's, limited to what
 RE2-style engines support, and this section fixes its meaning as well
 as its syntax.
 
-A pattern is matched against the text of one added line at a time (see
+A pattern is matched against the text of one added or removed line at a time (see
 [Conditions](#conditions)), which holds no line break. The match is an
 unanchored search: the line matches when the pattern matches starting at
 some position in its text. Characters are Unicode code points, and
@@ -3881,7 +3883,7 @@ Anything else is `regex-outside-dialect`. That includes:
 - the empty pattern. (An empty alternative or group is allowed, as
   above; a pattern with no characters at all is not.)
 
-A pattern MUST be one line. In `addedMatches`, a pattern holding a line
+A pattern MUST be one line. In `addedMatches` or `removedMatches`, a pattern holding a line
 feed or a carriage return is `regex-not-one-line`, and
 [Checks](#checks) says when a `regex` check is `regex-not-one-line`. A
 pattern is checked for `regex-not-one-line` first, then for
@@ -3903,8 +3905,8 @@ characters so that the engine reads them literally.
 
 Each of the first five patterns is outside the dialect: a lookahead, a
 backreference, a named group, an inline flag, and a `{` that starts no
-quantifier. Escaped, the brace is accepted, in `addedMatches` and in a
-check alike:
+quantifier. Escaped, the brace is accepted, in `addedMatches`, in
+`removedMatches` and in a check alike:
 
 ``````example parse
 === .lore/checkout.lore
@@ -4081,7 +4083,7 @@ eligible, a tool runs the search over the rule's counted files (see
 the rule. A hit is a pointer to a line, never a verdict: a hit does not
 mean the rule is broken, and no hits does not mean it passed.
 
-A rule's `addedContains` and `addedMatches` conditions already point at
+A rule's added-line and removed-line conditions already point at
 the lines they find (see [Conditions](#conditions)). A check is for a
 search that should not decide whether the rule is eligible, or one that
 a condition cannot express, such as an `ast-grep` pattern.
@@ -4994,7 +4996,8 @@ that holds it.
 - An entry is switched off for a changed file when it is switched off
   for each of the file's paths that is in its scope. Such a file is not
   one of the entry's counted files: it does not make the entry eligible,
-  its added lines do not count for `addedContains` and `addedMatches`,
+  its added and removed lines do not count for the added-line and
+  removed-line conditions,
   and checks do not search it. `changed` and `unchanged` still see it
   (see [Conditions](#conditions)).
 - An entry switched off for every changed file in its scope is not
@@ -5684,7 +5687,7 @@ scratch folder cannot add rules to a review.
   **Rules revision.** A tool MAY let its caller name a revision of the
   governed repo to read Lore files, `.loreconfig` files and `src` targets
   from, instead of the revision the change leaves. The change itself, its
-  files and added lines, is unaffected. Without one, a tool reads as
+  files and added and removed lines, is unaffected. Without one, a tool reads as
   above. This exists because a change judged by its own rules can
   delete or loosen the rule in its way.
 - **A given folder.** A tool reads the files tracked in the working
@@ -5821,7 +5824,7 @@ An eligibility result is an object with four members (see
 | Member | Value |
 |---|---|
 | `eligible` | The id of every eligible entry, in ascending order. |
-| `hits` | Each hit as an object with `rule`, `file`, `line` and `text`: the rule's id, the changed file's new path, the added line's number counted from 1, and that line's text (see [Running checks](#running-checks)). |
+| `hits` | Each hit as an object with `rule`, `file`, `line` and `text`: the rule's id, the changed file's path, the line's number counted from 1, and that line's text (see [Running checks](#running-checks)); a hit on a removed line also has `side` set to `"old"` and names the file's old path. |
 | `excluded` | The document model's `errors`. |
 | `warnings` | The document model's `warnings`, with `missing-src-target`, `unsupported-check-language` and `ast-grep-no-language` added as [Eligibility](#eligibility) says. |
 
