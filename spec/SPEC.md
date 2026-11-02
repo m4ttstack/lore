@@ -145,26 +145,28 @@ file's added and removed lines:
   follows `<n>`.
 - `-<n> <text>`: a removed line. Line `<n>` (counted from 1) of the old
   version of the file named by the nearest `M`, `D` or `R` line above it
-  (for a rename, the old path) is `<text>`, read as a `+` line's text is.
+  (for a rename, the old path) is `<text>`, read as a `+` line's text
+  is.
 
-A `+` line follows an `A`, `M` or `R` line directly or after other `+` or
-`-` lines. A `-` line follows an `M`, `D` or `R` line directly or after
-other `+` or `-` lines. A `+` line anywhere else, such as after a `D` line, is malformed,
-and so is a `-` line after an `A` line. Under one file, `+` and `-` lines
-may come in any order. A diff has no blank lines. Any line of a changed
-file's new version that is not listed as added, and any line of its old
-version that is not listed as removed, is unchanged.
+A `+` line follows an `A`, `M` or `R` line directly or after other `+`
+or `-` lines. A `-` line follows an `M`, `D` or `R` line directly or
+after other `+` or `-` lines. A `+` line anywhere else, such as after a
+`D` line, is malformed, and so is a `-` line after an `A` line. Under
+one file, `+` and `-` lines may come in any order. A diff has no blank
+lines. Any line of a changed file's new version that is not listed as
+added, and any line of its old version that is not listed as removed, is
+unchanged.
 
 **What the governed repo contains.** The governed repo contains exactly
 the `=== <path>` input files and every path the diff adds, modifies or
 renames to, and all of them are tracked by version control. A changed
 file that is not also an input file has unknown content apart from its
-added lines and its old version has unknown content apart from its
-removed lines. When a changed file is also an input file, each of its
-`+<n> <text>` lines equals line `<n>` of that input. With `=== rules:<path>`
-sections, the Lore files, `.loreconfig` files and `src` targets of the
-governed repo are read from them only, and the plain input files are
-still the governed repo as the change leaves it.
+added lines. When a changed file is also an input file, each of its
+`+<n> <text>` lines equals line `<n>` of that input. The old version of
+every changed file has unknown content apart from its removed lines.
+With `=== rules:<path>` sections, the Lore files, `.loreconfig` files
+and `src` targets of the governed repo are read from them only, and the
+plain input files are still the governed repo as the change leaves it.
 This document is UTF-8 text with line feeds, so an input file can hold
 neither a carriage return nor a byte that is not valid UTF-8. The rules
 for those bytes have no conformance examples.
@@ -218,11 +220,11 @@ of the order of their members. In both kinds:
   diff and its `text` is that line's text; a hit on a removed line
   carries `"side": "old"` and names the file by its old path, and a hit
   on an added line carries no `side`.
-- **Order.** Entries are ordered by `file`, then by position in the file.
-  Diagnostics are ordered by `file`, then `line`, then `name`, then
-  `entry`, null first. `eligible`
-  is in ascending order, and hits are ordered by `rule`, then `file`,
-  then side with new before old, then `line`. Strings compare code point by code point.
+- **Order.** Entries are ordered by `file`, then by position in the
+  file. Diagnostics are ordered by `file`, then `line`, then `name`,
+  then `entry`, null first. `eligible` is in ascending order, and hits
+  are ordered by `rule`, then `file`, then side with new before old,
+  then `line`. Strings compare code point by code point.
 
 For illustration, here is an eligibility example as it is written in this
 document. It is shown inside a longer fence, so it is not numbered or
@@ -3433,25 +3435,27 @@ when every one of its conditions holds.
 - An entry's **counted files** are the changed files in its scope,
   apart from those that a `.loreconfig` `disable` list switches the entry
   off for (see [.loreconfig](#loreconfig)).
-- An **added line's text**, and a **removed line's text**, is the line as
-  it is in the file's new or old version, without its line break: the line feed, and a carriage return
-  directly before it. A line that is not valid UTF-8 is decoded for
-  matching by replacing each maximal subpart of an ill-formed sequence
-  with one U+FFFD, the practice the Unicode Standard recommends (U+FFFD
-  substitution of maximal subparts) and the WHATWG Encoding Standard's
-  UTF-8 decoder follows. A maximal subpart is the longest run of bytes,
-  starting at the first byte that cannot be decoded, that is the start of
-  some well-formed UTF-8 sequence, or that one byte when it starts none.
-  In a conformance example it is the `<text>` of a `+<n> <text>` or
-  `-<n> <text>` line. The added-line conditions see added lines only and
-  the removed-line conditions removed lines only; the unchanged lines
-  around them never count for either.
+- An **added line's text**, and a **removed line's text**, is the line
+  as it is in the file's new or old version, without its line break: the
+  line feed, and a carriage return directly before it. A line that is
+  not valid UTF-8 is decoded for matching by replacing each maximal
+  subpart of an ill-formed sequence with one U+FFFD, the practice the
+  Unicode Standard recommends (U+FFFD substitution of maximal subparts)
+  and the WHATWG Encoding Standard's UTF-8 decoder follows. A maximal
+  subpart is the longest run of bytes, starting at the first byte that
+  cannot be decoded, that is the start of some well-formed UTF-8
+  sequence, or that one byte when it starts none. In a conformance
+  example it is the `<text>` of a `+<n> <text>` or `-<n> <text>` line.
+  The added-line conditions see added lines only and the removed-line
+  conditions removed lines only; the unchanged lines around them never
+  count for either.
 - `addedContains` compares code point by code point and is
-  case-sensitive: a string is contained in a line when it occurs anywhere
-  in the line's text. `removedContains` does the same over removed lines.
-- `addedMatches` searches each line's text for each pattern, as
-  [Regex dialect](#regex-dialect) defines. `removedMatches` does the same
-  over removed lines.
+  case-sensitive: a string is contained in a line when it occurs
+  anywhere in the line's text. `removedContains` does the same over
+  removed lines.
+- `addedMatches` searches each line's text for each pattern, as [Regex
+  dialect](#regex-dialect) defines. `removedMatches` does the same over
+  removed lines.
 - `changed` and `unchanged` look at every path of every changed file in
   the change, in the entry's scope or not and whatever `disable` says.
   They are the only conditions that look past the entry's scope, because
@@ -3482,12 +3486,12 @@ finds:
 3. `empty-when`, when the mapping has no keys, as with an empty block;
 4. `unknown-condition`, when a key is not one of the six above;
 5. each condition, in the order of the table above: `invalid-when` when
-   its value is not a list of strings, or when an `addedContains` or `removedContains` string
-   is empty or holds a line feed or a carriage return; then each item of
-   the list in order. A pattern is checked
-   for `regex-not-one-line` and then `regex-outside-dialect` (see
-   [Regex dialect](#regex-dialect)), and a glob for `invalid-glob` and
-   then `glob-escapes-base` (see [Scope and globs](#scope-and-globs)).
+   its value is not a list of strings, or when an `addedContains` or
+   `removedContains` string is empty or holds a line feed or a carriage
+   return; then each item of the list in order. A pattern is checked for
+   `regex-not-one-line` and then `regex-outside-dialect` (see [Regex
+   dialect](#regex-dialect)), and a glob for `invalid-glob` and then
+   `glob-escapes-base` (see [Scope and globs](#scope-and-globs)).
 
 The shape is also given as
 [`when.schema.json`](schemas/when.schema.json); where a name above covers
@@ -3498,11 +3502,11 @@ does not know, so a file never means less than its author wrote. In the
 document model, `when` is the mapping as parsed, with its globs as
 written, or null when the entry has no `<when>`.
 
-Unchanged lines never count. `'USD'` is on an unchanged line of `Price.tsx`,
-so the first rule is not eligible. The third rule's scope holds
-`format.ts` but not `Price.tsx`, so the `parseFloat(` on the added line of
-`Price.tsx` does not count for it. The line the second rule's condition
-finds is a hit:
+Unchanged lines never count. `'USD'` is on an unchanged line of
+`Price.tsx`, so the first rule is not eligible. The third rule's scope
+holds `format.ts` but not `Price.tsx`, so the `parseFloat(` on the added
+line of `Price.tsx` does not count for it. The line the second rule's
+condition finds is a hit:
 
 ``````example eligibility
 === .lore/checkout.lore
@@ -3552,10 +3556,9 @@ M apps/web/src/checkout/format.ts
 }
 ``````
 
-A pattern in `addedMatches` is searched for in each added line, and one in
-`removedMatches` in each removed line. `^`
-matches only at the start of the line's text, which here starts with
-spaces:
+A pattern in `addedMatches` is searched for in each added line, and one
+in `removedMatches` in each removed line. `^` matches only at the start
+of the line's text, which here starts with spaces:
 
 ``````example eligibility
 === apps/web/src/checkout/.lore/prices.lore
@@ -3836,18 +3839,18 @@ New checkout requests work with the API that is deployed now.
 
 ## Regex dialect
 
-`addedMatches` and `removedMatches` patterns and `regex` checks share one dialect of regular
-expressions, so that every tool finds the same matches, whatever engine
-it uses. Its syntax is a subset of ECMAScript's, limited to what
-RE2-style engines support, and this section fixes its meaning as well
-as its syntax.
+`addedMatches` and `removedMatches` patterns and `regex` checks share
+one dialect of regular expressions, so that every tool finds the same
+matches, whatever engine it uses. Its syntax is a subset of
+ECMAScript's, limited to what RE2-style engines support, and this
+section fixes its meaning as well as its syntax.
 
-A pattern is matched against the text of one added or removed line at a time (see
-[Conditions](#conditions)), which holds no line break. The match is an
-unanchored search: the line matches when the pattern matches starting at
-some position in its text. Characters are Unicode code points, and
-matching is case-sensitive. Only whether a line matches counts, never
-which part of it.
+A pattern is matched against the text of one added or removed line at a
+time (see [Conditions](#conditions)), which holds no line break. The
+match is an unanchored search: the line matches when the pattern matches
+starting at some position in its text. Characters are Unicode code
+points, and matching is case-sensitive. Only whether a line matches
+counts, never which part of it.
 
 | Syntax | Matches |
 |---|---|
@@ -3923,12 +3926,13 @@ Anything else is `regex-outside-dialect`. That includes:
 - the empty pattern. (An empty alternative or group is allowed, as
   above; a pattern with no characters at all is not.)
 
-A pattern MUST be one line. In `addedMatches` or `removedMatches`, a pattern holding a line
-feed or a carriage return is `regex-not-one-line`, and
-[Checks](#checks) says when a `regex` check is `regex-not-one-line`. A
-pattern is checked for `regex-not-one-line` first, then for
-`regex-outside-dialect`. Both are entry-level errors, at the opening tag
-line of the `<when>` or `<check>` that holds the pattern.
+A pattern MUST be one line. In `addedMatches` or `removedMatches`, a
+pattern holding a line feed or a carriage return is
+`regex-not-one-line`, and [Checks](#checks) says when a `regex` check is
+`regex-not-one-line`. A pattern is checked for `regex-not-one-line`
+first, then for `regex-outside-dialect`. Both are entry-level errors, at
+the opening tag line of the `<when>` or `<check>` that holds the
+pattern.
 
 A tool can run the dialect on an existing engine by translating it. For
 example, an ECMAScript engine needs its `u` flag, so that it reads code
@@ -4123,10 +4127,10 @@ eligible, a tool runs the search over the rule's counted files (see
 the rule. A hit is a pointer to a line, never a verdict: a hit does not
 mean the rule is broken, and no hits does not mean it passed.
 
-A rule's added-line and removed-line conditions already point at
-the lines they find (see [Conditions](#conditions)). A check is for a
-search that should not decide whether the rule is eligible, or one that
-a condition cannot express, such as an `ast-grep` pattern.
+A rule's added-line and removed-line conditions already point at the
+lines they find (see [Conditions](#conditions)). A check is for a search
+that should not decide whether the rule is eligible, or one that a
+condition cannot express, such as an `ast-grep` pattern.
 
 A rule MAY have any number of checks. A context has none (see
 [Context](#context)).
@@ -4231,11 +4235,11 @@ deleted file has none. A **hit** names the rule, a side, the changed
 file and a line's number and text: on the new side the file's new path
 and an added line, on the old side the file's old path and a removed
 line (see [Conditions](#conditions)). A check's hits and an added-line
-condition's hits are on the new side; a removed-line condition's hits are
-on the old side. An eligible rule's hits are those of its checks and
+condition's hits are on the new side; a removed-line condition's hits
+are on the old side. An eligible rule's hits are those of its checks and
 those of its added-line and removed-line conditions. A rule has at most
-one hit per side, file and line, however many of its checks or conditions find
-that line.
+one hit per side, file and line, however many of its checks or
+conditions find that line.
 
 A `regex` check has a hit for each added line whose text its pattern
 matches, as [Regex dialect](#regex-dialect) defines.
@@ -4468,7 +4472,8 @@ eligibility from the collected files (see
 Every changed file has one or two **paths**:
 
 - An added or a modified file has one path: its path.
-- A deleted file has one path: its old path. It has no added lines. Every line of its old version is a removed line.
+- A deleted file has one path: its old path. It has no added lines.
+  Every line of its old version is a removed line.
 - A renamed file has two paths: its old path and its new path. It is in
   a scope when either path is, and `changed` and `unchanged` see both.
   Its added lines are lines of its new version and its removed lines are
@@ -4575,8 +4580,8 @@ R apps/web/src/checkout/Price.tsx -> apps/web/src/pricing/Price.tsx
 }
 ``````
 
-A hit in a renamed file names its new path, even for a rule that counts
-the file by its old path:
+A hit on an added line in a renamed file names its new path, even for a
+rule that counts the file by its old path:
 
 ``````example eligibility
 requires: regex
@@ -5754,11 +5759,11 @@ scratch folder cannot add rules to a review.
   is part of the change a reviewer sees.)
 
   **Rules revision.** A tool MAY let its caller name a revision of the
-  governed repo to read Lore files, `.loreconfig` files and `src` targets
-  from, instead of the revision the change leaves. The change itself, its
-  files and added and removed lines, is unaffected. Without one, a tool reads as
-  above. This exists because a change judged by its own rules can
-  delete or loosen the rule in its way.
+  governed repo to read Lore files, `.loreconfig` files and `src`
+  targets from, instead of the revision the change leaves. The change
+  itself, its files and added and removed lines, is unaffected. Without
+  one, a tool reads as above. This exists because a change judged by its
+  own rules can delete or loosen the rule in its way.
 - **A given folder.** A tool reads the files tracked in the working
   copy that holds it, or, for a loose folder, the files under it that
   [External folders](#external-folders) counts. It reads every
@@ -5893,7 +5898,7 @@ An eligibility result is an object with four members (see
 | Member | Value |
 |---|---|
 | `eligible` | The id of every eligible entry, in ascending order. |
-| `hits` | Each hit as an object with `rule`, `file`, `line` and `text`: the rule's id, the changed file's path, the line's number counted from 1, and that line's text (see [Running checks](#running-checks)); a hit on a removed line also has `side` set to `"old"` and names the file's old path. |
+| `hits` | Each hit as an object with `rule`, `file`, `line` and `text`: the rule's id, the changed file's new path (for a hit on a removed line, its old path), the line's number counted from 1, and that line's text (see [Running checks](#running-checks)); a hit on a removed line also has `side` set to `"old"`. |
 | `excluded` | The document model's `errors`. |
 | `warnings` | The document model's `warnings`, with `missing-src-target`, `unsupported-check-language` and `ast-grep-no-language` added as [Eligibility](#eligibility) says. |
 
