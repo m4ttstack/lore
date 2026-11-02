@@ -27,6 +27,7 @@ const INLINE_CODE = /(`+).*?\1/g;
 const FILE_LINE = /^([AMD]) (\S(?:.*\S)?)$/;
 const RENAME_LINE = /^R (\S(?:.*?\S)?) -> (\S(?:.*\S)?)$/;
 const PLUS_LINE = /^\+([1-9]\d*) (.*)$/;
+const MINUS_LINE = /^-([1-9]\d*) (.*)$/;
 
 const CAPABILITIES = new Set(["regex", "ast-grep", "loose-given-folder"]);
 const LOOSE_FOLDER_FILE = "loose:.";
@@ -201,15 +202,23 @@ function checkAgentCopy(lines: string[], agent: string | undefined): string | nu
 
 function checkDiff(ex: Example, report: (rule: string, message: string) => void): void {
   let target: string | null = null;
+  let oldTarget: string | null = null;
   for (const [i, text] of ex.diff!.split("\n").entries()) {
     const bad = (why: string) => report("diff-syntax", `diff line ${i + 1} ${why}: "${text}"`);
     const file = FILE_LINE.exec(text);
     const rename = RENAME_LINE.exec(text);
     const plus = PLUS_LINE.exec(text);
+    const minus = MINUS_LINE.exec(text);
     if (file?.[1] === "D" && ex.files.some((f) => f.path === file[2])) report("diff-agrees", `diff line ${i + 1} deletes "${file[2]}", which is an input file`);
-    if (file) target = file[1] === "D" ? null : file[2]!;
-    else if (rename) target = rename[2]!;
-    else if (!plus) bad("is malformed");
+    if (file) {
+      target = file[1] === "D" ? null : file[2]!;
+      oldTarget = file[1] === "A" ? null : file[2]!;
+    } else if (rename) {
+      target = rename[2]!;
+      oldTarget = rename[1]!;
+    } else if (minus) {
+      if (oldTarget === null) bad("is a - line without an M, D or R file line before it");
+    } else if (!plus) bad("is malformed");
     else if (target === null) bad("is a + line without an A, M or R file line before it");
     else {
       const n = Number(plus[1]);

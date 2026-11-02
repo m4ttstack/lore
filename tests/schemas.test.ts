@@ -89,3 +89,15 @@ test("eligibility accepts an empty result", () =>
   expect(checkJson("eligibility", { eligible: [], hits: [], excluded: [], warnings: [] })).toBe(true));
 test("eligibility hit requires line and text", () =>
   expect(checkJson("eligibility", { eligible: [], hits: [{ rule: "a", file: "f" }], excluded: [], warnings: [] })).toBe(false));
+
+test("when accepts removedContains and removedMatches with the added pair's item rules", () => {
+  expect(checkJson("when", { removedContains: ["??"], removedMatches: ["\\?\\?"] })).toBe(true);
+  expect(checkJson("when", { removedContains: [""] })).toBe(false);
+  expect(checkJson("when", { removedContains: ["a\nb"] })).toBe(false);
+});
+test("eligibility hit takes side old and nothing else", () => {
+  const hit = (extra: object) => checkJson("eligibility", { eligible: [], hits: [{ rule: "a", file: "f", line: 1, text: "t", ...extra }], excluded: [], warnings: [] });
+  expect(hit({ side: "old" })).toBe(true);
+  expect(hit({ side: "new" })).toBe(true);
+  expect(hit({ side: "removed" })).toBe(false);
+});

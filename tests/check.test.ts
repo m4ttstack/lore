@@ -109,6 +109,11 @@ test("diff-syntax: rejects malformed diff lines", () => {
   expect(rules(swap("M src/x.ts\n+2 two", "+2 two\nM src/x.ts"))).toContain("diff-syntax");
   expect(rules(swap("M src/x.ts\n+2 two", "D src/x.ts\n+2 two"))).toContain("diff-syntax");
   expect(rules(swap("M src/x.ts\n+2 two", "D src/old.ts\nA src/new.ts\nR src/y.ts -> src/x.ts\n+2 two"))).toEqual([]);
+  expect(rules(swap("M src/x.ts\n+2 two", "M src/x.ts\n-2 gone\n+2 two"))).toEqual([]);
+  expect(rules(swap("M src/x.ts\n+2 two", "D src/old.ts\n-1 gone"))).toEqual([]);
+  expect(rules(swap("M src/x.ts\n+2 two", "R src/y.ts -> src/x.ts\n-1 gone\n+2 two"))).toEqual([]);
+  expect(rules(swap("M src/x.ts\n+2 two", "A src/x.ts\n-1 gone"))).toContain("diff-syntax");
+  for (const line of ["-0 two", "-2two"]) expect(rules(swap("M src/x.ts\n", `M src/x.ts\n${line}\n`))).toContain("diff-syntax");
 });
 
 test("expect: missing, not JSON, or failing its schema", () => {
