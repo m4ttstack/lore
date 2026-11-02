@@ -73,7 +73,23 @@ describe("lore select", () => {
     expect(selection.rules[0]).toMatchObject({
       id: "no-usd", severity: "blocking", category: "security", hits: [{ file: "src/p.ts", line: 2, text: 'const c = "USD";' }],
     });
-    expect(selection.change).toEqual([{ kind: "M", path: "src/p.ts", oldPath: null, added: [2] }]);
+    expect(selection.change).toEqual([{ kind: "M", path: "src/p.ts", oldPath: null, added: [2], removed: [] }]);
+  });
+
+  test("a removed line is a hit on the old side, by the file's old path", async () => {
+    const rule = '<rule id="usd-gone" category="security">\n<when>\nremovedContains: ["USD"]\n</when>\nCheck what replaced USD.\n</rule>\n';
+    const root = repoWith({ ".lore/a.lore": rule });
+    const diff = join(root, "change.diff");
+    writeFileSync(diff, 'diff --git a/legacy/p.ts b/src/p.ts\nsimilarity index 80%\nrename from legacy/p.ts\nrename to src/p.ts\n--- a/legacy/p.ts\n+++ b/src/p.ts\n@@ -1,3 +1,2 @@\n a\n-const c = "USD";\n b\n');
+    const json = await lore(["select", "--repo", root, "--diff", diff, "--format", "json"]);
+    expect(json.err).toBe("");
+    expect(json.code).toBe(0);
+    expect(JSON.parse(json.out).rules[0]).toMatchObject({
+      id: "usd-gone", hits: [{ file: "legacy/p.ts", line: 2, text: 'const c = "USD";', side: "old" }],
+    });
+    const text = await lore(["select", "--repo", root, "--diff", diff, "--format", "text"]);
+    expect(text.code).toBe(0);
+    expect(text.out).toContain('- `legacy/p.ts:2` (removed) `const c = "USD";`\n');
   });
 
   test("--diff - reads the diff from stdin", async () => {

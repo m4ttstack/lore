@@ -32,8 +32,8 @@ export const result: EligibilityResult = {
 
 export const change: Change = {
   files: [
-    { kind: "M", path: "src/Price.ts", added: [{ line: 4, text: "total * 1.2" }, { line: 9, text: "price * 0.5" }] },
-    { kind: "R", oldPath: "src/old.ts", path: "src/new.ts", added: [] },
+    { kind: "M", path: "src/Price.ts", added: [{ line: 4, text: "total * 1.2" }, { line: 9, text: "price * 0.5" }], removed: [{ line: 4, text: "total * 1.1" }] },
+    { kind: "R", oldPath: "src/old.ts", path: "src/new.ts", added: [], removed: [] },
   ],
 };
 

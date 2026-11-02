@@ -15,7 +15,7 @@ describe("renderText", () => {
 
 These rules apply to your change. Fix any that your change breaks.
 
-A flagged line is a place to look, not a verdict. Read the context below before changing code. Judge only by these rules; never invent rules from other prose.`;
+A flagged line is a place to look, not a verdict. A flagged line marked (removed) is one the change removed, named by the file's old path. Read the context below before changing code. Judge only by these rules; never invent rules from other prose.`;
     const selection = toSelection(model, result, change, sources);
     const author = renderText(selection, "author");
     const reviewer = renderText(selection);
@@ -51,6 +51,21 @@ A flagged line is a place to look, not a verdict. Read the context below before 
 
     test("a path with a backtick gets a longer code span", () => {
       expect(withHit("src/we`ird.ts", "x")).toContain("- ``src/we`ird.ts:4`` `x`\n");
+    });
+
+    test("an old-side flagged line is marked removed", () => {
+      const selection = toSelection(model, { ...result, hits: [{ rule: "money-in-minor-units", file: "src/Price.ts", line: 4, text: "total * 1.1", side: "old" }] }, change, sources);
+      expect(renderText(selection)).toContain("- `src/Price.ts:4` (removed) `total * 1.1`\n");
+    });
+
+    test("the flagged-line cap counts both sides", () => {
+      const hits = Array.from({ length: 25 }, (_, i) => ({ rule: "money-in-minor-units", file: "src/Price.ts", line: i + 1, text: "x", ...(i % 2 ? { side: "old" as const } : {}) }));
+      expect(renderText(toSelection(model, { ...result, hits }, change, sources))).toContain("- and 5 more\n");
+    });
+
+    test("both preambles say a flagged line may be a removed one", () => {
+      const selection = toSelection(model, result, change, sources);
+      for (const text of [renderText(selection), renderText(selection, "author")]) expect(text).toContain("marked (removed)");
     });
 
     test("a srcText holding a line of four backticks stays inside a longer fence", () => {

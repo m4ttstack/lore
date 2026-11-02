@@ -1,6 +1,3 @@
-<rule id="checkout-currency-from-settings" category="functional_correctness">
-<when>
-addedContains: ["'USD'"]
-</when>
-Checkout display text never hard-codes a currency code.
+<rule id="changelog-updated" category="documentation">
+A change that alters what users see adds a line to the changelog.
 </rule>

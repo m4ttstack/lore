@@ -37,7 +37,7 @@ describe("parseUnifiedDiff", () => {
     expect(parseUnifiedDiff(diff)).toEqual({
       files: [{ kind: "M", path: "src/a.ts", added: [
         { line: 2, text: "new one" }, { line: 3, text: "new two" }, { line: 22, text: "late" },
-      ] }],
+      ], removed: [{ line: 2, text: "old" }] }],
     });
   });
 
@@ -47,7 +47,7 @@ describe("parseUnifiedDiff", () => {
       "@@ -0,0 +1,2 @@", "+one", "+two", "",
     ].join("\n");
     expect(parseUnifiedDiff(diff)).toEqual({
-      files: [{ kind: "A", path: "n.ts", added: [{ line: 1, text: "one" }, { line: 2, text: "two" }] }],
+      files: [{ kind: "A", path: "n.ts", added: [{ line: 1, text: "one" }, { line: 2, text: "two" }], removed: [] }],
     });
   });
 
@@ -56,14 +56,14 @@ describe("parseUnifiedDiff", () => {
       "diff --git a/gone.ts b/gone.ts", "deleted file mode 100644", "--- a/gone.ts", "+++ /dev/null",
       "@@ -1,2 +0,0 @@", "-one", "-two", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "D", path: "gone.ts", added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "D", path: "gone.ts", added: [], removed: [{ line: 1, text: "one" }, { line: 2, text: "two" }] }] });
   });
 
   test("a pure rename carries both paths", () => {
     const diff = [
       "diff --git a/old.ts b/new.ts", "similarity index 100%", "rename from old.ts", "rename to new.ts", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "R", oldPath: "old.ts", path: "new.ts", added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "R", oldPath: "old.ts", path: "new.ts", added: [], removed: [] }] });
   });
 
   test("a rename with edits keeps the added lines", () => {
@@ -72,13 +72,13 @@ describe("parseUnifiedDiff", () => {
       "--- a/old.ts", "+++ b/new.ts", "@@ -1,2 +1,2 @@", " same", "-before", "+after", "",
     ].join("\n");
     expect(parseUnifiedDiff(diff)).toEqual({
-      files: [{ kind: "R", oldPath: "old.ts", path: "new.ts", added: [{ line: 2, text: "after" }] }],
+      files: [{ kind: "R", oldPath: "old.ts", path: "new.ts", added: [{ line: 2, text: "after" }], removed: [{ line: 2, text: "before" }] }],
     });
   });
 
   test("a binary file is a changed file with no added lines", () => {
     const diff = ["diff --git a/x.png b/x.png", "index 1..2 100644", "Binary files a/x.png and b/x.png differ", ""].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "x.png", added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "x.png", added: [], removed: [] }] });
   });
 
   test("a no-newline marker is not a line", () => {
@@ -86,14 +86,14 @@ describe("parseUnifiedDiff", () => {
       "diff --git a/a.ts b/a.ts", "--- a/a.ts", "+++ b/a.ts", "@@ -1 +1 @@",
       "-old", "\\ No newline at end of file", "+new", "\\ No newline at end of file", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "a.ts", added: [{ line: 1, text: "new" }] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "a.ts", added: [{ line: 1, text: "new" }], removed: [{ line: 1, text: "old" }] }] });
   });
 
   test("CRLF input leaves no carriage return and keeps numbering", () => {
     const diff = [
       "diff --git a/a.ts b/a.ts", "--- a/a.ts", "+++ b/a.ts", "@@ -1,2 +1,3 @@", " ctx", "+added", " ctx", "",
     ].join("\r\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "a.ts", added: [{ line: 2, text: "added" }] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "a.ts", added: [{ line: 2, text: "added" }], removed: [] }] });
   });
 
   test("a quoted path is unescaped as UTF-8", () => {
@@ -101,14 +101,14 @@ describe("parseUnifiedDiff", () => {
       'diff --git "a/caf\\303\\251.ts" "b/caf\\303\\251.ts"', '--- "a/caf\\303\\251.ts"', '+++ "b/caf\\303\\251.ts"',
       "@@ -1 +1 @@", "-a", "+b", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "café.ts", added: [{ line: 1, text: "b" }] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "café.ts", added: [{ line: 1, text: "b" }], removed: [{ line: 1, text: "a" }] }] });
   });
 
   test("a path with a space survives", () => {
     const diff = [
       "diff --git a/my file.ts b/my file.ts", "--- a/my file.ts", "+++ b/my file.ts", "@@ -1 +1 @@", "-a", "+b", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "my file.ts", added: [{ line: 1, text: "b" }] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "my file.ts", added: [{ line: 1, text: "b" }], removed: [{ line: 1, text: "a" }] }] });
   });
 
   test("a plain diff -u without git headers is accepted", () => {
@@ -118,10 +118,29 @@ describe("parseUnifiedDiff", () => {
     ].join("\n");
     expect(parseUnifiedDiff(diff)).toEqual({
       files: [
-        { kind: "M", path: "p.ts", added: [{ line: 2, text: "y" }] },
-        { kind: "M", path: "q.ts", added: [{ line: 1, text: "n" }] },
+        { kind: "M", path: "p.ts", added: [{ line: 2, text: "y" }], removed: [] },
+        { kind: "M", path: "q.ts", added: [{ line: 1, text: "n" }], removed: [{ line: 1, text: "m" }] },
       ],
     });
+  });
+
+  test("numbers removed lines from each hunk's -start, with and without an old count", () => {
+    const diff = [
+      "diff --git a/a.ts b/a.ts", "--- a/a.ts", "+++ b/a.ts",
+      "@@ -3 +3,2 @@", "-gone", "+one", "+two",
+      "@@ -10,3 +11,1 @@", " ctx", "-ten", "-eleven", "",
+    ].join("\n");
+    expect(parseUnifiedDiff(diff).files[0]!.removed).toEqual([
+      { line: 3, text: "gone" }, { line: 11, text: "ten" }, { line: 12, text: "eleven" },
+    ]);
+  });
+
+  test("a copy with edits is an added file with no removed lines", () => {
+    const diff = [
+      "diff --git a/src/a.ts b/src/b.ts", "similarity index 90%", "copy from src/a.ts", "copy to src/b.ts",
+      "--- a/src/a.ts", "+++ b/src/b.ts", "@@ -1,2 +1,2 @@", " same", "-before", "+after", "",
+    ].join("\n");
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "A", path: "src/b.ts", added: [{ line: 2, text: "after" }], removed: [] }] });
   });
 
   test("an empty string is an empty change", () => {
@@ -196,7 +215,7 @@ describe("prefixes", () => {
 
   test("a rename under mnemonic prefixes keeps its unprefixed rename lines", () => {
     const diff = ["diff --git c/old.ts w/new.ts", "similarity index 100%", "rename from old.ts", "rename to new.ts", ""].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "R", oldPath: "old.ts", path: "new.ts", added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "R", oldPath: "old.ts", path: "new.ts", added: [], removed: [] }] });
   });
 
   test("a header-only mnemonic binary file takes its path from the header", () => {
@@ -222,7 +241,7 @@ describe("prefixes", () => {
 describe("copies", () => {
   test("a pure copy is an added file at the new path", () => {
     const diff = ["diff --git a/src.ts b/dst.ts", "similarity index 100%", "copy from src.ts", "copy to dst.ts", ""].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "A", path: "dst.ts", added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "A", path: "dst.ts", added: [], removed: [] }] });
   });
 
   test("a copy with edits keeps the added lines", () => {
@@ -230,28 +249,28 @@ describe("copies", () => {
       "diff --git a/src.ts b/dst.ts", "similarity index 80%", "copy from src.ts", "copy to dst.ts",
       "--- a/src.ts", "+++ b/dst.ts", "@@ -1,2 +1,2 @@", " same", "-before", "+after", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "A", path: "dst.ts", added: [{ line: 2, text: "after" }] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "A", path: "dst.ts", added: [{ line: 2, text: "after" }], removed: [] }] });
   });
 });
 
 describe("diff -ruN", () => {
   test("a binary line without a git header is a modified file", () => {
     const diff = ["diff -ruN a/x.png b/x.png", "Binary files a/x.png and b/x.png differ", ""].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "x.png", added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "x.png", added: [], removed: [] }] });
   });
 
   test("a binary line against /dev/null is an addition or a deletion", () => {
     expect(parseUnifiedDiff("Binary files /dev/null and b/n.png differ\n")).toEqual({
-      files: [{ kind: "A", path: "n.png", added: [] }],
+      files: [{ kind: "A", path: "n.png", added: [], removed: [] }],
     });
     expect(parseUnifiedDiff("Binary files a/g.png and /dev/null differ\n")).toEqual({
-      files: [{ kind: "D", path: "g.png", added: [] }],
+      files: [{ kind: "D", path: "g.png", added: [], removed: [] }],
     });
   });
 
   test("a binary path with ' and ' in it", () => {
     expect(parseUnifiedDiff("Binary files a/salt and pepper.png and b/salt and pepper.png differ\n")).toEqual({
-      files: [{ kind: "M", path: "salt and pepper.png", added: [] }],
+      files: [{ kind: "M", path: "salt and pepper.png", added: [], removed: [] }],
     });
   });
 
@@ -264,9 +283,9 @@ describe("diff -ruN", () => {
     ].join("\n");
     expect(parseUnifiedDiff(diff)).toEqual({
       files: [
-        { kind: "M", path: "p.ts", added: [{ line: 1, text: "b" }] },
-        { kind: "M", path: "x.png", added: [] },
-        { kind: "M", path: "q.ts", added: [{ line: 1, text: "d" }] },
+        { kind: "M", path: "p.ts", added: [{ line: 1, text: "b" }], removed: [{ line: 1, text: "a" }] },
+        { kind: "M", path: "x.png", added: [], removed: [] },
+        { kind: "M", path: "q.ts", added: [{ line: 1, text: "d" }], removed: [{ line: 1, text: "c" }] },
       ],
     });
   });
@@ -282,7 +301,7 @@ describe("header-only entries", () => {
     ["a quoted path", "caf\u00e9.png", 'diff --git "a/caf\\303\\251.png" "b/caf\\303\\251.png"', 'Binary files "a/caf\\303\\251.png" and "b/caf\\303\\251.png" differ'],
   ])("a binary file with %s", (_name, path, header, binary) => {
     const diff = [header, "index 1..2 100644", binary, ""].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path, added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path, added: [], removed: [] }] });
   });
 
   test.each([
@@ -290,7 +309,7 @@ describe("header-only entries", () => {
     ["a quoted path", "caf\u00e9.ts", 'diff --git "a/caf\\303\\251.ts" "b/caf\\303\\251.ts"'],
   ])("a mode-only change with %s", (_name, path, header) => {
     const diff = [header, "old mode 100644", "new mode 100755", ""].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path, added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path, added: [], removed: [] }] });
   });
 
   test.each([
@@ -299,14 +318,14 @@ describe("header-only entries", () => {
     ["an empty new file", ["new file mode 100644", "index 0000000..e69de29"], "A" as const],
   ])("%s under a directory named like a prefix keeps the whole path", (_name, body, kind) => {
     const diff = ["diff --git a/d/foo b/bar.png b/d/foo b/bar.png", ...body, ""].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind, path: "d/foo b/bar.png", added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind, path: "d/foo b/bar.png", added: [], removed: [] }] });
   });
 
   test("a pure rename with a space in both paths", () => {
     const diff = [
       "diff --git a/old name.ts b/new name.ts", "similarity index 100%", "rename from old name.ts", "rename to new name.ts", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "R", oldPath: "old name.ts", path: "new name.ts", added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "R", oldPath: "old name.ts", path: "new name.ts", added: [], removed: [] }] });
   });
 
   test("a pure rename with quoted paths", () => {
@@ -314,7 +333,7 @@ describe("header-only entries", () => {
       'diff --git "a/old\\tname.ts" "b/new\\303\\251.ts"', "similarity index 100%",
       'rename from "old\\tname.ts"', 'rename to "new\\303\\251.ts"', "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "R", oldPath: "old\tname.ts", path: "new\u00e9.ts", added: [] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "R", oldPath: "old\tname.ts", path: "new\u00e9.ts", added: [], removed: [] }] });
   });
 });
 
@@ -324,15 +343,15 @@ describe("hunk bodies", () => {
       "diff --git a/q.sql b/q.sql", "--- a/q.sql", "+++ b/q.sql", "@@ -1,3 +1,3 @@",
       " select 1;", "--- x", "+++ y", " select 2;", "",
     ].join("\n");
-    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "q.sql", added: [{ line: 2, text: "++ y" }] }] });
+    expect(parseUnifiedDiff(diff)).toEqual({ files: [{ kind: "M", path: "q.sql", added: [{ line: 2, text: "++ y" }], removed: [{ line: 2, text: "-- x" }] }] });
   });
 
   test("two files in one diff", () => {
     const one = (name: string) => [`diff --git a/${name} b/${name}`, `--- a/${name}`, `+++ b/${name}`, "@@ -1 +1 @@", "-a", "+b"];
     expect(parseUnifiedDiff([...one("one.ts"), ...one("two.ts"), ""].join("\n"))).toEqual({
       files: [
-        { kind: "M", path: "one.ts", added: [{ line: 1, text: "b" }] },
-        { kind: "M", path: "two.ts", added: [{ line: 1, text: "b" }] },
+        { kind: "M", path: "one.ts", added: [{ line: 1, text: "b" }], removed: [{ line: 1, text: "a" }] },
+        { kind: "M", path: "two.ts", added: [{ line: 1, text: "b" }], removed: [{ line: 1, text: "a" }] },
       ],
     });
   });
@@ -343,7 +362,7 @@ describe("hunk bodies", () => {
       " keep", "-old", "\\ No newline at end of file", "+new", "+more", " tail", "",
     ].join("\n");
     expect(parseUnifiedDiff(diff)).toEqual({
-      files: [{ kind: "M", path: "a.ts", added: [{ line: 2, text: "new" }, { line: 3, text: "more" }] }],
+      files: [{ kind: "M", path: "a.ts", added: [{ line: 2, text: "new" }, { line: 3, text: "more" }], removed: [{ line: 2, text: "old" }] }],
     });
   });
 });

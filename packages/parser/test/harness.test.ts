@@ -37,9 +37,18 @@ test("toInput uses https://github.com/acme/shop when the example has no remote",
 test("toChange reads A, M, D and R lines and their + lines", () => {
   const change = toChange(["A a.ts", "+1 one", "M b.ts", "+2 two", "+5 five", "D c.ts", "R a -> b", "+3 x"].join("\n"));
   expect(change.files).toEqual([
-    { kind: "A", path: "a.ts", added: [{ line: 1, text: "one" }] },
-    { kind: "M", path: "b.ts", added: [{ line: 2, text: "two" }, { line: 5, text: "five" }] },
-    { kind: "D", path: "c.ts", added: [] },
-    { kind: "R", oldPath: "a", path: "b", added: [{ line: 3, text: "x" }] },
+    { kind: "A", path: "a.ts", added: [{ line: 1, text: "one" }], removed: [] },
+    { kind: "M", path: "b.ts", added: [{ line: 2, text: "two" }, { line: 5, text: "five" }], removed: [] },
+    { kind: "D", path: "c.ts", added: [], removed: [] },
+    { kind: "R", oldPath: "a", path: "b", added: [{ line: 3, text: "x" }], removed: [] },
   ]);
+});
+
+test("toChange reads - lines onto the current file, never an added one", () => {
+  const change = toChange(["M b.ts", "-2 two", "+2 deux", "D c.ts", "-1 one", "-2"].join("\n"));
+  expect(change.files).toEqual([
+    { kind: "M", path: "b.ts", added: [{ line: 2, text: "deux" }], removed: [{ line: 2, text: "two" }] },
+    { kind: "D", path: "c.ts", added: [], removed: [{ line: 1, text: "one" }, { line: 2, text: "" }] },
+  ]);
+  expect(() => toChange(["A a.ts", "-1 one"].join("\n"))).toThrow("removed line in an added file: -1 one");
 });

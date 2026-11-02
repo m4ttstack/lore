@@ -17,7 +17,8 @@
           "rule": { "$ref": "https://lore.dev/schemas/v1/document-model.schema.json#/$defs/id" },
           "file": { "type": "string" },
           "line": { "type": "integer", "minimum": 1 },
-          "text": { "type": "string" }
+          "text": { "type": "string" },
+          "side": { "enum": ["new", "old"] }
         }
       }
     },

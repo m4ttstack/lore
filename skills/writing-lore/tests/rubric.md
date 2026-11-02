@@ -4,7 +4,7 @@ Classification (the "reviewer sees only the change" test)
 - C1 Steps 1, 2, 4, 5 and the intro (read whole skill, run tests, preview order, ask author, post format) are NOT rules; they stay in the skill.
 - C2 Item 7 (formatting) is not a Lore rule: CI/prettier enforces it ("if it can be a lint rule, it should be one").
 - C3 The pricing-deep-dive subagent delegation is not convertible; recorded as a gap / left in the skill.
-- C4 Item 6: the removal ORDER is a skill step; the slip (flag read removed while definition stays) is judgeable from the change. Handled as a rule with an honest trigger story (removed-line conditions are reserved) or explicitly deferred; not a rule that encodes step order.
+- C4 Item 6: the removal ORDER is a skill step; the slip (a flag read removed while the definition stays) is a rule with `removedContains: ["isEnabled('"]` and prose that tells the reviewer to check `flags.ts`; not an always-on rule, not an added-line stand-in, and not a rule that encodes step order.
 
 Lore mechanics
 - C5 Conditions use plain-text addedContains over addedMatches regex.

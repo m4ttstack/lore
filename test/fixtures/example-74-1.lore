@@ -1,6 +1,13 @@
-<rule id="tax-rate-from-settings" category="functional_correctness">
+<rule id="total-label-translated" category="functional_correctness">
 <when>
-addedMatches: ['^(|export )const(?:) TAX_RATE()']
+addedMatches: ['Total\sUSD']
 </when>
-The tax rate comes from the shop's settings, never from a constant.
+The total's label comes from the shop's translated strings.
+</rule>
+
+<rule id="fallback-currency-from-settings" category="functional_correctness">
+<when>
+addedMatches: ["USD'$"]
+</when>
+A fallback currency comes from the shop's settings, never from a literal.
 </rule>

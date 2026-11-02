@@ -5,11 +5,11 @@ import { compareDiagnostics, parseWithContext, parsedContextOf, type EntryPlace,
 import { RegexLimitError, shown, toRegExp } from "./regex";
 import { compareCodePoints } from "./text";
 import type {
-  AddedLine, Change, ChangedFile, Diagnostic, DocumentModel, EligibilityResult, Entry, Hit, LoreInput, SelectOptions,
+  Change, ChangedFile, ChangedLine, Diagnostic, DocumentModel, EligibilityResult, Entry, Hit, LoreInput, SelectOptions,
 } from "./types";
 
-// newPath is null for a deleted file, which has no added lines.
-interface Changed { paths: string[]; newPath: string | null; added: AddedLine[] }
+// newPath is null for a deleted file, which has no added lines; oldPath is null for an added file, which has no removed lines.
+interface Changed { paths: string[]; newPath: string | null; oldPath: string | null; added: ChangedLine[]; removed: ChangedLine[] }
 interface Selected { entry: Entry; place: EntryPlace; counted: Changed[] }
 type Place = Pick<EntryPlace, "base" | "tree">;
 type Regexes = (pattern: string) => RegExp;
@@ -75,9 +75,10 @@ function neverEligible(entry: Entry, place: EntryPlace): boolean {
 }
 
 function toChanged(file: ChangedFile): Changed {
-  if (file.kind === "R") return { paths: [file.oldPath, file.path], newPath: file.path, added: file.added };
-  if (file.kind === "D") return { paths: [file.path], newPath: null, added: [] };
-  return { paths: [file.path], newPath: file.path, added: file.added };
+  if (file.kind === "R") return { paths: [file.oldPath, file.path], newPath: file.path, oldPath: file.oldPath, added: file.added, removed: file.removed };
+  if (file.kind === "D") return { paths: [file.path], newPath: null, oldPath: file.path, added: [], removed: file.removed };
+  if (file.kind === "A") return { paths: [file.path], newPath: file.path, oldPath: null, added: file.added, removed: [] };
+  return { paths: [file.path], newPath: file.path, oldPath: file.path, added: file.added, removed: file.removed };
 }
 
 // A file counts when one of its paths is in scope and the entry is not switched off for every such path.
@@ -103,15 +104,18 @@ function conditionsHold(
   everyPath: readonly string[],
   regexes: Regexes,
 ): boolean {
-  const addedLine = (test: (text: string) => boolean) => counted.some((file) => file.added.some(({ text }) => test(text)));
+  const onLine = (side: "added" | "removed", test: (text: string) => boolean) =>
+    counted.some((file) => file[side].some(({ text }) => test(text)));
   const anyChanged = (globs: readonly string[]) => everyPath.some((path) => globs.some((glob) => matchFromBase(base, glob, path)));
   return Object.entries(when).every(([condition, values]) => {
     switch (condition) {
       case "addedContains":
-        return addedLine((text) => values.some((value) => text.includes(value)));
-      case "addedMatches": {
+      case "removedContains":
+        return onLine(condition === "addedContains" ? "added" : "removed", (text) => values.some((value) => text.includes(value)));
+      case "addedMatches":
+      case "removedMatches": {
         const patterns = values.map(regexes);
-        return addedLine((text) => patterns.some((pattern) => pattern.test(text)));
+        return onLine(condition === "addedMatches" ? "added" : "removed", (text) => patterns.some((pattern) => pattern.test(text)));
       }
       case "changed":
         return anyChanged(values);
@@ -135,6 +139,7 @@ function compileRegexes(entries: readonly Entry[], regexChecks: boolean): Regexe
   for (const entry of entries) {
     const patterns = [
       ...(entry.when?.addedMatches ?? []),
+      ...(entry.when?.removedMatches ?? []),
       ...(regexChecks ? entry.checks.filter((check) => check.lang === "regex").map((check) => check.body) : []),
     ];
     for (const pattern of patterns) {
@@ -159,7 +164,8 @@ async function runChecks(
   const hits = new Map<string, Hit>();
   const warnings: Diagnostic[] = [];
   const runs: (() => Promise<void>)[] = [];
-  const hit = (rule: string, file: string, { line, text }: AddedLine) => hits.set(`${rule}\0${file}\0${line}`, { rule, file, line, text });
+  const hit = (rule: string, file: string, { line, text }: ChangedLine, side?: "old") =>
+    hits.set(`${rule}\0${side ?? "new"}\0${file}\0${line}`, side === undefined ? { rule, file, line, text } : { rule, file, line, text, side });
   let available: Promise<boolean> | undefined;
   const astGrep = support.astGrep;
   const astGrepReady = () => (available ??= astGrep === null ? Promise.resolve(false) : astGrepAvailable(astGrep));
@@ -167,8 +173,15 @@ async function runChecks(
   for (const { entry, place, counted } of selected) {
     const searched = counted.filter((file) => file.newPath !== null && file.added.length > 0) as (Changed & { newPath: string })[];
     if (entry.kind === "rule") {
-      const found = addedLineConditions(entry.when, support.regexes);
+      const found = lineConditions(entry.when?.addedContains, entry.when?.addedMatches, support.regexes);
       if (found !== null) for (const file of searched) for (const added of file.added) if (found(added.text)) hit(entry.id, file.newPath, added);
+      const foundRemoved = lineConditions(entry.when?.removedContains, entry.when?.removedMatches, support.regexes);
+      if (foundRemoved !== null) {
+        for (const file of counted) {
+          if (file.oldPath === null) continue;
+          for (const removed of file.removed) if (foundRemoved(removed.text)) hit(entry.id, file.oldPath, removed, "old");
+        }
+      }
     }
     const unknownLanguage = new Set<string>();
     const failedFiles = new Set<string>();
@@ -211,10 +224,9 @@ async function runChecks(
   return { hits: [...hits.values()], warnings };
 }
 
-// An added line that an addedContains or addedMatches condition finds is a hit, as a check's would be.
-function addedLineConditions(when: Record<string, string[]> | null, regexes: Regexes): ((text: string) => boolean) | null {
-  const contains = when?.addedContains ?? [];
-  const patterns = (when?.addedMatches ?? []).map(regexes);
+// A line that a contains or matches condition of its side finds is a hit, as a check's would be.
+function lineConditions(contains: readonly string[] = [], matches: readonly string[] = [], regexes: Regexes): ((text: string) => boolean) | null {
+  const patterns = matches.map(regexes);
   if (contains.length === 0 && patterns.length === 0) return null;
   return (text) => contains.some((value) => text.includes(value)) || patterns.some((pattern) => pattern.test(text));
 }
@@ -267,5 +279,6 @@ function srcTargetsMissing(
 }
 
 function compareHits(a: Hit, b: Hit): number {
-  return compareCodePoints(a.rule, b.rule) || compareCodePoints(a.file, b.file) || a.line - b.line;
+  const side = (hit: Hit) => (hit.side === "old" ? 1 : 0);
+  return compareCodePoints(a.rule, b.rule) || compareCodePoints(a.file, b.file) || side(a) - side(b) || a.line - b.line;
 }

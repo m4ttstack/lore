@@ -1,13 +1,14 @@
-<rule id="total-label-translated" category="functional_correctness">
+<rule id="price-digits-from-formatter" category="functional_correctness">
 <when>
-addedMatches: ['Total\sUSD']
+addedMatches: ['\d']
 </when>
-The total's label comes from the shop's translated strings.
+Prices in labels are formatted by the shop's number formatter, never
+written as digits.
 </rule>
 
-<rule id="fallback-currency-from-settings" category="functional_correctness">
+<rule id="currency-code-from-settings" category="functional_correctness">
 <when>
-addedMatches: ["USD'$"]
+addedMatches: ['\bUSD\b']
 </when>
-A fallback currency comes from the shop's settings, never from a literal.
+Display text never spells out a currency code.
 </rule>

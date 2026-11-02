@@ -1,7 +1,7 @@
-import type { AddedLine, Change, ChangedFile } from "@lore/parser";
+import type { Change, ChangedFile, ChangedLine } from "@lore/parser";
 import { InputError } from "./errors";
 
-const HUNK = /^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+const HUNK = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
 const ESCAPES: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, "\\": 92 };
 const NULL_DEVICE = "/dev/null";
 const EMITTED_PAIRS: [string, string][] = [
@@ -23,13 +23,14 @@ interface Draft {
   minus: string | null;
   plus: string | null;
   sawMinus: boolean;
-  added: AddedLine[];
+  added: ChangedLine[];
+  removed: ChangedLine[];
 }
 
 function draft(git: boolean, headerPath: string | null, prefixes: Prefixes = null): Draft {
   return {
     git, headerPath, prefixes, renameFrom: null, renameTo: null, copyTo: null, newFile: false, deleted: false,
-    minus: null, plus: null, sawMinus: false, added: [],
+    minus: null, plus: null, sawMinus: false, added: [], removed: [],
   };
 }
 
@@ -132,13 +133,13 @@ function finish(d: Draft): ChangedFile {
   const path = d.renameTo ?? d.copyTo ?? plus ?? minus ?? strip(d.headerPath, prefixes?.[1]);
   if (path === null) throw new InputError("a diff entry has no file path");
   if (d.renameFrom !== null && d.renameTo !== null) {
-    return { kind: "R", oldPath: d.renameFrom, path, added: d.added };
+    return { kind: "R", oldPath: d.renameFrom, path, added: d.added, removed: d.removed };
   }
-  if (d.copyTo !== null) return { kind: "A", path, added: d.added };
+  if (d.copyTo !== null) return { kind: "A", path, added: d.added, removed: [] };
   const deleted = d.deleted || (d.sawMinus && d.plus === null && d.minus !== null);
   const added = d.newFile || (d.sawMinus && d.minus === null && d.plus !== null);
-  if (deleted) return { kind: "D", path, added: [] };
-  return { kind: added ? "A" : "M", path, added: d.added };
+  if (deleted) return { kind: "D", path, added: [], removed: d.removed };
+  return { kind: added ? "A" : "M", path, added: d.added, removed: added ? [] : d.removed };
 }
 
 export function parseUnifiedDiff(text: string): Change {
@@ -148,6 +149,7 @@ export function parseUnifiedDiff(text: string): Change {
   let recognized = false;
   let oldLeft = 0;
   let newLeft = 0;
+  let oldLine = 0;
   let newLine = 0;
 
   const flush = () => {
@@ -168,12 +170,15 @@ export function parseUnifiedDiff(text: string): Change {
         continue;
       }
       if (tag === "-") {
+        current.removed.push({ line: oldLine, text: line.slice(1) });
+        oldLine++;
         oldLeft--;
         continue;
       }
       if (tag === " " || line === "") {
         oldLeft--;
         newLeft--;
+        oldLine++;
         newLine++;
         continue;
       }
@@ -197,9 +202,10 @@ export function parseUnifiedDiff(text: string): Change {
     } else if (line.startsWith("@@") && current) {
       const hunk = HUNK.exec(line);
       if (!hunk) throw new InputError(`malformed hunk header: ${line}`);
-      oldLeft = hunk[1] === undefined ? 1 : Number(hunk[1]);
-      newLine = Number(hunk[2]);
-      newLeft = hunk[3] === undefined ? 1 : Number(hunk[3]);
+      oldLine = Number(hunk[1]);
+      oldLeft = hunk[2] === undefined ? 1 : Number(hunk[2]);
+      newLine = Number(hunk[3]);
+      newLeft = hunk[4] === undefined ? 1 : Number(hunk[4]);
     } else if (!current?.git && line.startsWith("Binary files ") && line.endsWith(" differ")) {
       flush();
       current = draft(false, null);

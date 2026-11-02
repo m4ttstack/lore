@@ -15,7 +15,7 @@ export const TAG_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
 export const BARE_ATTRIBUTES: ReadonlySet<string> = new Set(["disabled"]);
 export const SEVERITIES = ["blocking", "advisory"] as const;
 export const CHECK_LANGUAGES = ["regex", "ast-grep"] as const;
-export const WHEN_KEYS = ["addedContains", "addedMatches", "changed", "unchanged"] as const;
+export const WHEN_KEYS = ["addedContains", "addedMatches", "removedContains", "removedMatches", "changed", "unchanged"] as const;
 
 export const TAG_DOCS: Readonly<Record<string, string>> = {
   rule: "One thing a team expects every change to follow, with an id, a category, a severity and prose for the reviewer.",
@@ -39,6 +39,8 @@ export const ATTRIBUTE_DOCS: Readonly<Record<string, string>> = {
 export const WHEN_DOCS: Readonly<Record<string, string>> = {
   addedContains: "Holds when an added line of a counted file contains one of the strings, case-sensitive. In a rule, each such line is a hit.",
   addedMatches: "Holds when an added line of a counted file matches one of the patterns in the regex dialect. In a rule, each such line is a hit.",
+  removedContains: "Holds when a removed line of a counted file contains one of the strings, case-sensitive. In a rule, each such line is a hit on the old side.",
+  removedMatches: "Holds when a removed line of a counted file matches one of the patterns in the regex dialect. In a rule, each such line is a hit on the old side.",
   changed: "Holds when a changed file anywhere in the change matches one of the globs.",
   unchanged: "Holds when no changed file anywhere in the change matches any of the globs.",
 };

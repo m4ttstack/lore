@@ -1,19 +1,23 @@
-<rule id="totals-from-quote" category="functional_correctness">
-<check lang="structural">
-items.reduce(...)
-</check>
+<scope>
+files: ["**/*.tsx"]
+</scope>
+
+<rule id="currency-from-settings" category="functional_correctness">
 <check>
-\.reduce\(
+'(USD|EUR)'
 </check>
-Cart totals come from the quote, never from summing line items.
+<check lang="regex">
+'EUR'
+</check>
+Display text never hard-codes a currency code.
 </rule>
 
-<rule id="refund-totals-from-quote" category="functional_correctness">
-<scope>
-files: ["apps/web/src/refunds/**"]
-</scope>
-<check lang="structural">
-refund.items.reduce(...)
+<rule id="currency-symbols-from-settings" category="functional_correctness">
+<when>
+addedContains: ["$"]
+</when>
+<check>
+'USD'
 </check>
-Refund totals come from the quote, never from summing refunded items.
+Display text never hard-codes a currency symbol.
 </rule>

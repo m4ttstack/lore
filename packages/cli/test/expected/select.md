@@ -6,7 +6,7 @@ Answer every rule below with a verdict: `pass`, `fail` or `not-applicable`.
 - `fail`: the change breaks it. Give at least one location: a changed file and a line in it as the change leaves it, or, with `"side": "old"`, a file's old path and a line the change removed.
 - `not-applicable`: the rule was selected but does not bear on this change. Say why in `note`.
 
-A flagged line is a place to look, not a verdict. Read the context below before judging. Judge only by these rules; never invent rules from other prose.
+A flagged line is a place to look, not a verdict. A flagged line marked (removed) is one the change removed, named by the file's old path. Read the context below before judging. Judge only by these rules; never invent rules from other prose.
 
 Return the verdicts as one fenced code block tagged `lore-verdicts`:
 

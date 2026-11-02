@@ -1,10 +1,16 @@
-<rule id="checkout-follows-api-schema" category="backwards_compatibility">
-<scope>
-files: ["**/*.tsx"]
-</scope>
+<rule id="money-in-minor-units" category="functional_correctness">
 <when>
-changed: ["/apps/api/schema.graphql"]
+addedContains: ["parseFloat(", "toFixed("]
 </when>
-A checkout change made alongside an API schema change still works with
-the schema that is deployed now.
+<check>
+toFixed\(
+</check>
+Amounts are integers in minor units (cents).
 </rule>
+
+<context id="rounding-guide" src="docs/rounding.md">
+<when>
+addedContains: ["toFixed("]
+</when>
+Read before changing how amounts are rounded.
+</context>

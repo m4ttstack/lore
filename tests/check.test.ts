@@ -109,6 +109,11 @@ test("diff-syntax: rejects malformed diff lines", () => {
   expect(rules(swap("M src/x.ts\n+2 two", "+2 two\nM src/x.ts"))).toContain("diff-syntax");
   expect(rules(swap("M src/x.ts\n+2 two", "D src/x.ts\n+2 two"))).toContain("diff-syntax");
   expect(rules(swap("M src/x.ts\n+2 two", "D src/old.ts\nA src/new.ts\nR src/y.ts -> src/x.ts\n+2 two"))).toEqual([]);
+  expect(rules(swap("M src/x.ts\n+2 two", "M src/x.ts\n-2 gone\n+2 two"))).toEqual([]);
+  expect(rules(swap("M src/x.ts\n+2 two", "D src/old.ts\n-1 gone"))).toEqual([]);
+  expect(rules(swap("M src/x.ts\n+2 two", "R src/y.ts -> src/x.ts\n-1 gone\n+2 two"))).toEqual([]);
+  expect(rules(swap("M src/x.ts\n+2 two", "A src/x.ts\n-1 gone"))).toContain("diff-syntax");
+  for (const line of ["-0 two", "-2two"]) expect(rules(swap("M src/x.ts\n", `M src/x.ts\n${line}\n`))).toContain("diff-syntax");
 });
 
 test("expect: missing, not JSON, or failing its schema", () => {
@@ -246,6 +251,14 @@ test("order: diagnostics are ordered by file, line, name, then entry with null f
   expect(shape(withParse({ entries: [], errors: [], warnings }, md))).toEqual(["order"]);
   const excluded = [diag("bad-thing", "lore/b.lore", null, 2), diag("bad-thing", "lore/b.lore", null, 1)];
   expect(shape(withElig({ eligible: [], hits: [], excluded, warnings: [] }))).toEqual(["order"]);
+});
+
+test("order: a rule's hits in one file put the new side before the old", () => {
+  const newHit = { rule: "b-rule", file: "src/x.ts", line: 2, text: "two" };
+  const oldHit = { rule: "b-rule", file: "src/x.ts", line: 1, text: "gone", side: "old" };
+  const hits = (list: object[]) => shape(withElig({ eligible: ["b-rule"], hits: list, excluded: [], warnings: [{ name: "odd-thing", file: "lore/b.lore", entry: "b-rule", line: 1 }] }));
+  expect(hits([oldHit, newHit])).toEqual(["order"]);
+  expect(hits([newHit, oldHit])).toEqual([]);
 });
 
 test("order: entries are ordered by file, then position in the file", () => {

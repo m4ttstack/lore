@@ -9,7 +9,7 @@ Answer every rule below with a verdict: \`pass\`, \`fail\` or \`not-applicable\`
 - \`fail\`: the change breaks it. Give at least one location: a changed file and a line in it as the change leaves it, or, with \`"side": "old"\`, a file's old path and a line the change removed.
 - \`not-applicable\`: the rule was selected but does not bear on this change. Say why in \`note\`.
 
-A flagged line is a place to look, not a verdict. Read the context below before judging. Judge only by these rules; never invent rules from other prose.
+A flagged line is a place to look, not a verdict. A flagged line marked (removed) is one the change removed, named by the file's old path. Read the context below before judging. Judge only by these rules; never invent rules from other prose.
 
 Return the verdicts as one fenced code block tagged \`lore-verdicts\`:
 
@@ -21,7 +21,7 @@ const AUTHOR_PREAMBLE = `# Lore rules for this change
 
 These rules apply to your change. Fix any that your change breaks.
 
-A flagged line is a place to look, not a verdict. Read the context below before changing code. Judge only by these rules; never invent rules from other prose.`;
+A flagged line is a place to look, not a verdict. A flagged line marked (removed) is one the change removed, named by the file's old path. Read the context below before changing code. Judge only by these rules; never invent rules from other prose.`;
 
 const MAX_FLAGGED_LINES = 20;
 const MAX_LINE_CODE_POINTS = 200;
@@ -38,7 +38,7 @@ export function renderText(selection: Selection, audience: "reviewer" | "author"
       const lines = [`## Rule ${span(rule.id)} (${rule.severity}, ${rule.category ?? "no category"})`, "", rule.prose];
       if (rule.hits.length > 0) {
         lines.push("", "Flagged lines:", "");
-        for (const hit of rule.hits.slice(0, MAX_FLAGGED_LINES)) lines.push(`- ${span(`${hit.file}:${hit.line}`)} ${span(cut(hit.text))}`);
+        for (const hit of rule.hits.slice(0, MAX_FLAGGED_LINES)) lines.push(`- ${span(`${hit.file}:${hit.line}`)}${hit.side === "old" ? " (removed)" : ""} ${span(cut(hit.text))}`);
         if (rule.hits.length > MAX_FLAGGED_LINES) lines.push(`- and ${rule.hits.length - MAX_FLAGGED_LINES} more`);
       }
       sections.push(lines.join("\n"));
