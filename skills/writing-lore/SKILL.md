@@ -58,8 +58,14 @@ the change. Decide it for each rule, in this order:
    - **Yes:** `<when>` with `addedContains: [...]`, the literals written
      exactly as they appear in code. The rule is selected only when one
      appears, and those lines are flagged for the reviewer.
-   - **No** (the slip is something missing, lives in another file, or
-     shows only in removed lines): no `<when>`. The rule is selected for
+   - **Yes, but only in removed lines** (a deleted fallback, a removed
+     call, a replaced assertion): `<when>` with `removedContains: [...]`,
+     the literal as it appeared in the old code. The reviewer is pointed at
+     the removed line by the file's old path. A replacement takes both
+     conditions, `addedContains` for the new line and `removedContains`
+     for the old one, since every condition must hold.
+   - **No** (the slip is something missing, or lives in another file): no
+     `<when>`. The rule is selected for
      every change in its scope. The prose says what the reviewer must open
      or compare. Such a rule rides along on every change in its scope, so
      its scope must be narrow: one with no `<when>` at a repo or app root is

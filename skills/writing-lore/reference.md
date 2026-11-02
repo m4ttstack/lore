@@ -209,6 +209,8 @@ condition holds.
 |---|---|---|
 | `addedContains` | strings | an added line of a counted file contains one |
 | `addedMatches` | regexes ([dialect](#7-checks-check)) | an added line of a counted file matches one |
+| `removedContains` | strings | a removed line of a counted file contains one |
+| `removedMatches` | regexes ([dialect](#7-checks-check)) | a removed line of a counted file matches one |
 | `changed` | globs | any file in the whole change matches one |
 | `unchanged` | globs | no file in the whole change matches any |
 
@@ -236,7 +238,9 @@ condition holds.
 ```
 
 - Each added line `addedContains` or `addedMatches` finds is a **hit**, a
-  line flagged for the reviewer. Contexts get no hits.
+  line flagged for the reviewer, and each removed line the removed pair
+  finds is a hit on the old side, by the file's old path. Contexts get no
+  hits.
 - `addedContains` is a case-sensitive substring test. `addedMatches`
   searches one line; `^` is its start, indentation included.
 - `changed` and `unchanged` see every path in the change, in scope or not.
@@ -246,8 +250,9 @@ condition holds.
 
 Watch out:
 
-- Only added lines count; there is no removed-line condition.
-- An unknown key (`addedContain`, `removedContains`) is
+- The added-line conditions see added lines only, the removed-line
+  conditions removed lines only; unchanged lines count for neither.
+- An unknown key (`addedContain`, `contains`) is
   `unknown-condition`, never ignored. An empty `<when>` is `empty-when`; a
   value that is not a list, or an empty string, is `invalid-when`.
 - No flags: for any case, write `'[Uu][Ss][Dd]'`.
@@ -529,7 +534,7 @@ excludes nothing. The ones authors meet most:
 | `invalid-attribute-value` | unquoted value, `severity="high"` | double quotes; `blocking` or `advisory` |
 | `duplicate-id` | one id on two entries, in any collected files | rename one |
 | `unknown-category` | category neither fixed nor declared above | add it to a `.loreconfig` `categories` |
-| `unknown-condition` | `addedContain`, `removedContains` | use the four condition keys |
+| `unknown-condition` | `addedContain`, `contains` | use the six condition keys |
 | `invalid-when`, `empty-when` | a value that is not a list; no keys | `key: ["..."]` |
 | `leading-slash`, `glob-escapes-base` | `/` or `..` in a scope glob | glob from the base; move the file up |
 | `invalid-glob` | `!` prefix, `**.ts`, unclosed `[` or `{`, a `\` | `ignores`; `**/*.ts` |
@@ -541,7 +546,7 @@ excludes nothing. The ones authors meet most:
 | `empty-scope` (warning) | rule scope disjoint from file scope | fix the glob or move the rule |
 | `missing-src-target` (warning) | `src` names no tracked file | fix the path; under `--no-repo`, use `./` |
 | `untracked-given-folder` (warning) | a given folder in no git checkout | expected for a loose folder |
-| `check-needs-file` (CLI warning) | an ast-grep check, skipped by CLI 0.1.x | a regex check or `addedContains` |
+| `check-needs-file` (CLI warning) | an ast-grep check, skipped by CLI 0.1.x | a regex check, `addedContains` or `removedContains` |
 
 The full list: [Spec: Errors and warnings](../../spec/SPEC.md#errors-and-warnings).
 What each excludes: [Error reach](../../spec/SPEC.md#error-reach).
