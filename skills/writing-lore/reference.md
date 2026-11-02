@@ -241,8 +241,9 @@ condition holds.
   line flagged for the reviewer, and each removed line the removed pair
   finds is a hit on the old side, by the file's old path. Contexts get no
   hits.
-- `addedContains` is a case-sensitive substring test. `addedMatches`
-  searches one line; `^` is its start, indentation included.
+- `addedContains` and `removedContains` are case-sensitive substring
+  tests. `addedMatches` and `removedMatches` search one line at a time;
+  `^` is its start, indentation included.
 - `changed` and `unchanged` see every path in the change, in scope or not.
   A leading `/` resolves from the repo root, otherwise from the base. A
   renamed file counts by both paths.
@@ -280,10 +281,11 @@ verdict. The language is `regex` unless `lang` says otherwise.
 </rule>
 ```
 
-**Regex dialect** (also used by `addedMatches`): literals, `.`, `[...]`,
-`[^...]`, `^`, `$`, `\b`, `(x)`, `(?:x)`, `|`, `*`, `+`, `?`, `{n}`, `{n,}`,
-`{n,m}` (at most 1000), ASCII-only `\d \w \s`, `\t`, `\x41`, and `\` before
-ASCII punctuation. Case-sensitive, one added line at a time.
+**Regex dialect** (also used by `addedMatches` and `removedMatches`):
+literals, `.`, `[...]`, `[^...]`, `^`, `$`, `\b`, `(x)`, `(?:x)`, `|`, `*`,
+`+`, `?`, `{n}`, `{n,}`, `{n,m}` (at most 1000), ASCII-only `\d \w \s`,
+`\t`, `\x41`, and `\` before ASCII punctuation. Case-sensitive, one line at
+a time.
 
 Watch out:
 
