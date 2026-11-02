@@ -263,8 +263,19 @@ describe("select: removed lines", () => {
   });
 
   test("a removed line never counts for an added condition or a check", async () => {
-    const input = repo({ ".lore/a.lore": rule("no-usd", "<when>\naddedContains: [\"'USD'\"]\n</when>\n<check>\n'USD'\n</check>\n") });
-    expect((await select(input, change("M a.ts", "-1 'USD'"), ALL)).eligible).toEqual([]);
+    const added = repo({ ".lore/a.lore": rule("no-usd", "<when>\naddedContains: [\"'USD'\"]\n</when>\n") });
+    expect((await select(added, change("M a.ts", "-1 'USD'"), ALL)).eligible).toEqual([]);
+    const checked = repo({ ".lore/a.lore": rule("usd-gone", "<when>\nremovedContains: [\"'USD'\"]\n</when>\n<check>\n'USD'\n</check>\n") });
+    const result = await select(checked, change("M a.ts", "-1 'USD'"), ALL);
+    expect(result.eligible).toEqual(["usd-gone"]);
+    expect(result.hits).toEqual([{ rule: "usd-gone", file: "a.ts", line: 1, text: "'USD'", side: "old" }]);
+  });
+
+  test("a rename whose old path alone is in scope counts, with hits by the old path", async () => {
+    const input = repo({ "legacy/.lore/a.lore": rule("usd", "<when>\nremovedContains: [\"'USD'\"]\n</when>\n") });
+    const result = await select(input, change("R legacy/Price.tsx -> checkout/Price.tsx", "-3 'USD'"), ALL);
+    expect(result.eligible).toEqual(["usd"]);
+    expect(result.hits).toEqual([{ rule: "usd", file: "legacy/Price.tsx", line: 3, text: "'USD'", side: "old" }]);
   });
 });
 

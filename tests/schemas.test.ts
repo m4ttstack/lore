@@ -95,7 +95,7 @@ test("when accepts removedContains and removedMatches with the added pair's item
   expect(checkJson("when", { removedContains: [""] })).toBe(false);
   expect(checkJson("when", { removedContains: ["a\nb"] })).toBe(false);
 });
-test("eligibility hit takes side old and nothing else", () => {
+test("eligibility hit takes side new or old", () => {
   const hit = (extra: object) => checkJson("eligibility", { eligible: [], hits: [{ rule: "a", file: "f", line: 1, text: "t", ...extra }], excluded: [], warnings: [] });
   expect(hit({ side: "old" })).toBe(true);
   expect(hit({ side: "new" })).toBe(true);
