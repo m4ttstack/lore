@@ -34,7 +34,7 @@ const LOOSE_FOLDER_FILE = "loose:.";
 const CHECK_TAG = /^[ \t]*<check[ \t>]/m;
 
 interface Diagnostic { name: string; file: string; entry: string | null; line: number }
-interface Hit { rule: string; file: string; line: number; text: string }
+interface Hit { rule: string; file: string; line: number; text: string; side?: "new" | "old" }
 interface Entry { id: string; file: string }
 interface Expected { entries?: Entry[]; errors?: Diagnostic[]; warnings?: Diagnostic[]; excluded?: Diagnostic[]; eligible?: string[]; hits?: Hit[] }
 
@@ -111,7 +111,7 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
     if (ex.kind === "eligibility") {
       const eligible = value.eligible!;
       if (eligible.some((id, i) => i > 0 && compare(eligible[i - 1]!, id) >= 0)) report("sorted", "eligible is not strictly ascending");
-      if (!inOrder(value.hits!, (a, b) => compare(a.rule, b.rule) || compare(a.file, b.file) || a.line - b.line)) report("order", "hits are out of order");
+      if (!inOrder(value.hits!, (a, b) => compare(a.rule, b.rule) || compare(a.file, b.file) || Number(a.side === "old") - Number(b.side === "old") || a.line - b.line)) report("order", "hits are out of order");
       const ids = new Set([...eligible, ...value.hits!.map((h) => h.rule)]);
       for (const id of ids) {
         if (!ex.files.some((f) => f.content.includes(`id="${id}"`))) report("unknown-id", `"${id}" does not appear in the inputs`);

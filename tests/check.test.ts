@@ -253,6 +253,14 @@ test("order: diagnostics are ordered by file, line, name, then entry with null f
   expect(shape(withElig({ eligible: [], hits: [], excluded, warnings: [] }))).toEqual(["order"]);
 });
 
+test("order: a rule's hits in one file put the new side before the old", () => {
+  const newHit = { rule: "b-rule", file: "src/x.ts", line: 2, text: "two" };
+  const oldHit = { rule: "b-rule", file: "src/x.ts", line: 1, text: "gone", side: "old" };
+  const hits = (list: object[]) => shape(withElig({ eligible: ["b-rule"], hits: list, excluded: [], warnings: [{ name: "odd-thing", file: "lore/b.lore", entry: "b-rule", line: 1 }] }));
+  expect(hits([oldHit, newHit])).toEqual(["order"]);
+  expect(hits([newHit, oldHit])).toEqual([]);
+});
+
 test("order: entries are ordered by file, then position in the file", () => {
   const md = swap('<rule id="a-rule">', '<rule id="a-rule">\n<rule id="c-rule">\n=== lore/0.lore\n<rule id="z-rule">');
   const entries = (...list: object[]) => shape(withParse({ entries: list, errors: [], warnings: [] }, md));
