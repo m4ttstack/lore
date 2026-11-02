@@ -71,10 +71,12 @@ the change. Decide it for each rule, in this order:
      its scope must be narrow: one with no `<when>` at a repo or app root is
      either scoped down or recorded as a gap in the conversion notes.
 3. **A literal list cannot say it** (a word boundary, a value that varies):
-   `addedMatches` with the smallest regex that works. Every condition in a
-   `<when>` must hold, so `addedContains` and `addedMatches` are never
-   alternatives to each other: when one alternative needs a pattern, put
-   all of them in `addedMatches`, the literals escaped.
+   `addedMatches` for a slip in added lines, `removedMatches` for a slip
+   only in removed lines, each with the smallest regex that works. Every
+   condition in a `<when>` must hold, so `addedContains` and `addedMatches`
+   are never alternatives to each other, nor are `removedContains` and
+   `removedMatches`: when one alternative needs a pattern, put all of them
+   in that side's Matches list, the literals escaped.
 4. **A file changed without another** (a migration without the schema):
    `changed` and `unchanged`.
 5. **`<check>`** only points at lines in a rule that step 2 left without a
