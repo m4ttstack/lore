@@ -18,12 +18,13 @@ export interface Entry {
   meta: Record<string, unknown> | null; summary: string; prose: string; src: string | null;
 }
 export interface DocumentModel { entries: Entry[]; errors: Diagnostic[]; warnings: Diagnostic[] }
-export interface AddedLine { line: number; text: string }
+export interface ChangedLine { line: number; text: string }
+export type AddedLine = ChangedLine;
 export type ChangedFile =
-  | { kind: "A" | "M" | "D"; path: string; added: AddedLine[] }
-  | { kind: "R"; oldPath: string; path: string; added: AddedLine[] };
+  | { kind: "A" | "M" | "D"; path: string; added: ChangedLine[]; removed: ChangedLine[] }
+  | { kind: "R"; oldPath: string; path: string; added: ChangedLine[]; removed: ChangedLine[] };
 export interface Change { files: ChangedFile[] }
-export interface Hit { rule: string; file: string; line: number; text: string }
+export interface Hit { rule: string; file: string; line: number; text: string; side?: "old" }
 export interface EligibilityResult { eligible: string[]; hits: Hit[]; excluded: Diagnostic[]; warnings: Diagnostic[] }
 export type Capability = "regex" | "ast-grep";
 export interface SelectOptions {

@@ -78,7 +78,7 @@ describe("checkWhen", () => {
 
   test("an unknown key is unknown-condition, before any value check", () => {
     expect(checkWhen({ addedContain: ["'USD'"] }, LINE)).toEqual({ name: "unknown-condition", line: LINE });
-    expect(checkWhen({ addedContains: 3, removedContains: ["x"] }, LINE)).toEqual({
+    expect(checkWhen({ addedContains: 3, contains: ["x"] }, LINE)).toEqual({
       name: "unknown-condition", line: LINE,
     });
   });
@@ -96,6 +96,13 @@ describe("checkWhen", () => {
     expect(checkWhen({ addedContains: [""] }, LINE)).toEqual(invalid);
     expect(checkWhen({ addedContains: ["a\nb"] }, LINE)).toEqual(invalid);
     expect(checkWhen({ addedContains: ["a\rb"] }, LINE)).toEqual(invalid);
+  });
+
+  test("removedContains and removedMatches validate like the added pair", () => {
+    expect(checkWhen({ removedContains: ["??"], removedMatches: ["\\?\\?"] }, LINE)).toBeNull();
+    expect(checkWhen({ removedContains: [""] }, LINE)).toEqual({ name: "invalid-when", line: LINE });
+    expect(checkWhen({ removedContains: ["a\nb"] }, LINE)).toEqual({ name: "invalid-when", line: LINE });
+    expect(checkWhen({ removedMatches: ["a\nb"] }, LINE)).toEqual({ name: "regex-not-one-line", line: LINE });
   });
 });
 

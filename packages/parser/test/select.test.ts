@@ -33,14 +33,14 @@ function noAny(checks = 1): LoreInput {
 }
 
 function castIn(...paths: string[]): Change {
-  return { files: paths.map((path) => ({ kind: "M" as const, path, added: [{ line: 1, text: "x as any" }] })) };
+  return { files: paths.map((path) => ({ kind: "M" as const, path, added: [{ line: 1, text: "x as any" }], removed: [] })) };
 }
 
 const DEEP = `${"(".repeat(1001)}a${")".repeat(1001)}`;
 const deepWhen = `<when>\naddedMatches: ['${DEEP}']\n</when>\n`;
 
 describe("select: ast-grep availability", () => {
-  const totals = example(78);
+  const totals = example(79);
   const skipped = {
     eligible: ["totals-from-quote"],
     hits: [],
@@ -226,6 +226,48 @@ describe("select: checks", () => {
   });
 });
 
+describe("select: removed lines", () => {
+  test("removedContains selects on a removed line and reports it on the old side", async () => {
+    const input = repo({ ".lore/a.lore": rule("fallback-kept", '<when>\nremovedContains: ["??"]\n</when>\n') });
+    const result = await select(input, change("M a.ts", "-2 const x = y ?? ''", "+2 const x = y"), ALL);
+    expect(result.eligible).toEqual(["fallback-kept"]);
+    expect(result.hits).toEqual([{ rule: "fallback-kept", file: "a.ts", line: 2, text: "const x = y ?? ''", side: "old" }]);
+  });
+
+  test("removedMatches searches removed lines only", async () => {
+    const input = repo({ ".lore/a.lore": rule("flag-read-kept", "<when>\nremovedMatches: ['^\\s*isEnabled\\(']\n</when>\n") });
+    expect((await select(input, change("M a.ts", "+1   isEnabled('x')"), ALL)).eligible).toEqual([]);
+    expect((await select(input, change("M a.ts", "-1   isEnabled('x')"), ALL)).eligible).toEqual(["flag-read-kept"]);
+  });
+
+  test("both sides must hold, and hits order new before old without duplicates", async () => {
+    const input = repo({ ".lore/a.lore": rule("expectation-replaced", '<when>\naddedContains: ["expect("]\nremovedContains: ["expect("]\n</when>\n') });
+    expect((await select(input, change("M a.test.ts", "+5 expect(a).toBe(1)"), ALL)).eligible).toEqual([]);
+    const result = await select(input, change("M a.test.ts", "-5 expect(a).toBe(2)", "+5 expect(a).toBe(1)"), ALL);
+    expect(result.hits).toEqual([
+      { rule: "expectation-replaced", file: "a.test.ts", line: 5, text: "expect(a).toBe(1)" },
+      { rule: "expectation-replaced", file: "a.test.ts", line: 5, text: "expect(a).toBe(2)", side: "old" },
+    ]);
+  });
+
+  test("a deleted file's removed lines count and are named by its path", async () => {
+    const input = repo({ ".lore/a.lore": rule("legacy-usd", "<when>\nremovedContains: [\"'USD'\"]\n</when>\n") });
+    const result = await select(input, change("D legacy/Price.tsx", "-3 const c = 'USD'"), ALL);
+    expect(result.hits).toEqual([{ rule: "legacy-usd", file: "legacy/Price.tsx", line: 3, text: "const c = 'USD'", side: "old" }]);
+  });
+
+  test("a renamed file's removed lines are hits by its old path", async () => {
+    const input = repo({ "checkout/.lore/a.lore": rule("usd", "<when>\nremovedContains: [\"'USD'\"]\n</when>\n") });
+    const result = await select(input, change("R legacy/Price.tsx -> checkout/Price.tsx", "-3 'USD'", "+3 settings.currency"), ALL);
+    expect(result.hits.map((hit) => hit.file)).toEqual(["legacy/Price.tsx"]);
+  });
+
+  test("a removed line never counts for an added condition or a check", async () => {
+    const input = repo({ ".lore/a.lore": rule("no-usd", "<when>\naddedContains: [\"'USD'\"]\n</when>\n<check>\n'USD'\n</check>\n") });
+    expect((await select(input, change("M a.ts", "-1 'USD'"), ALL)).eligible).toEqual([]);
+  });
+});
+
 describe("select: counted files and disable", () => {
   const input = repo({
     "legacy/.loreconfig": "disable: [prices-from-quote]\n",
@@ -336,7 +378,7 @@ describe("select: missing-src-target", () => {
       rules: [{ path: ".lore/a.lore", content: context }],
       given: [], remotes: ["https://github.com/acme/shop"],
     };
-    const result = await select(input, { files: [{ kind: "M", path: "x.ts", added: [] }] });
+    const result = await select(input, { files: [{ kind: "M", path: "x.ts", added: [], removed: [] }] });
     expect(result.warnings.map((w) => [w.name, w.file])).toEqual([["missing-src-target", "rules:.lore/a.lore"]]);
   });
 

@@ -41,14 +41,22 @@ export function toChange(diff: string): Change {
       current.added.push({ line: Number(added[1]), text: added[2] ?? "" });
       continue;
     }
+    const removed = /^-(\d+)(?: (.*))?$/.exec(line);
+    if (removed) {
+      const current = files.at(-1);
+      if (!current) throw new Error(`removed line before any file: ${line}`);
+      if (current.kind === "A") throw new Error(`removed line in an added file: ${line}`);
+      current.removed.push({ line: Number(removed[1]), text: removed[2] ?? "" });
+      continue;
+    }
     const renamed = /^R (.+) -> (.+)$/.exec(line);
     if (renamed) {
-      files.push({ kind: "R", oldPath: renamed[1]!, path: renamed[2]!, added: [] });
+      files.push({ kind: "R", oldPath: renamed[1]!, path: renamed[2]!, added: [], removed: [] });
       continue;
     }
     const plain = /^([AMD]) (.+)$/.exec(line);
     if (!plain) throw new Error(`unrecognised diff line: ${line}`);
-    files.push({ kind: plain[1] as "A" | "M" | "D", path: plain[2]!, added: [] });
+    files.push({ kind: plain[1] as "A" | "M" | "D", path: plain[2]!, added: [], removed: [] });
   }
   return { files };
 }

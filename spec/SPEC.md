@@ -3586,6 +3586,46 @@ M apps/web/src/checkout/Shipping.tsx
 }
 ``````
 
+A removed line counts only for the removed-line conditions. The first
+rule's condition finds the removed fallback, which is a hit on the old
+side. The second rule's `addedContains` sees the added line only, and
+`??` is on no added line:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/reads.lore
+<rule id="fallback-kept" category="functional_correctness">
+<when>
+removedContains: ["??"]
+</when>
+A read of an optional field keeps its `??` fallback.
+</rule>
+
+<rule id="fallback-added" category="functional_correctness">
+<when>
+addedContains: ["??"]
+</when>
+A new read of an optional field has a `??` fallback.
+</rule>
+=== apps/web/src/checkout/Price.tsx
+export function Price({ quote }) {
+  const label = quote.label
+  return <span>{label}</span>
+}
+=== diff
+M apps/web/src/checkout/Price.tsx
+-2   const label = quote.label ?? ''
++2   const label = quote.label
+=== expect
+{
+  "eligible": ["fallback-kept"],
+  "hits": [
+    { "rule": "fallback-kept", "file": "apps/web/src/checkout/Price.tsx", "line": 2, "text": "  const label = quote.label ?? ''", "side": "old" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
 Each added line that the rule's condition finds is a hit. Its check also
 finds line 5, which is still one hit. The context is eligible, and has
 no hits:
@@ -4518,7 +4558,10 @@ Removing a legacy page adds a line to the migration log.
 </rule>
 === diff
 D apps/web/src/legacy/OldPrice.tsx
+-1 export const OldPrice = 1
+-2 export default OldPrice
 R apps/web/src/checkout/Price.tsx -> apps/web/src/pricing/Price.tsx
+-3   const label = 'EUR'
 +3   const label = 'USD'
 === expect
 {
@@ -4625,6 +4668,32 @@ M apps/web/src/checkout/.lore/checkout.lore
 +7 </rule>
 === expect
 { "eligible": ["lore-rules-owned", "price-from-quote"], "hits": [], "excluded": [], "warnings": [] }
+``````
+
+A renamed file's removed lines are hits by its old path, even when only
+its new path is in the rule's scope:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/currency.lore
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+removedContains: ["'USD'"]
+</when>
+A currency code is read from settings, never hard-coded.
+</rule>
+=== diff
+R apps/web/src/legacy/Price.tsx -> apps/web/src/checkout/Price.tsx
+-3   const currency = 'USD'
++3   const currency = settings.currency
+=== expect
+{
+  "eligible": ["currency-from-settings"],
+  "hits": [
+    { "rule": "currency-from-settings", "file": "apps/web/src/legacy/Price.tsx", "line": 3, "text": "  const currency = 'USD'", "side": "old" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
 ``````
 
 ## Error reach

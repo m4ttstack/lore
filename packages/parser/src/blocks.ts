@@ -9,7 +9,7 @@ export const FIXED_CATEGORIES: ReadonlySet<string> = new Set([
   "functional_correctness", "test_coverage", "security", "performance", "accessibility",
   "observability", "backwards_compatibility", "documentation", "code_style",
 ]);
-const CONDITIONS = ["addedContains", "addedMatches", "changed", "unchanged"] as const;
+const CONDITIONS = ["addedContains", "addedMatches", "removedContains", "removedMatches", "changed", "unchanged"] as const;
 
 export function checkDefaults(value: unknown, line: number): BlockProblem | null {
   const invalid = { name: "invalid-defaults", line };
@@ -50,13 +50,15 @@ export function checkWhen(value: unknown, line: number): BlockProblem | null {
     if (!Object.hasOwn(value, condition)) continue;
     const items = value[condition];
     if (!isStringList(items)) return { name: "invalid-when", line };
-    if (condition === "addedContains" && items.some((s) => s === "" || /[\n\r]/.test(s))) {
+    const contains = condition === "addedContains" || condition === "removedContains";
+    const matches = condition === "addedMatches" || condition === "removedMatches";
+    if (contains && items.some((s) => s === "" || /[\n\r]/.test(s))) {
       return { name: "invalid-when", line };
     }
     for (const item of items) {
-      const name = condition === "addedMatches" ? validateRegex(item)
-        : condition === "addedContains" ? null
-        : validateGlob(item, condition);
+      const name = condition === "changed" || condition === "unchanged" ? validateGlob(item, condition)
+        : matches ? validateRegex(item)
+        : null;
       if (name !== null) return { name, line };
     }
   }
