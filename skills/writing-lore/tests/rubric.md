@@ -4,7 +4,7 @@ Classification (the "reviewer sees only the change" test)
 - C1 Steps 1, 2, 4, 5 and the intro (read whole skill, run tests, preview order, ask author, post format) are NOT rules; they stay in the skill.
 - C2 Item 7 (formatting) is not a Lore rule: CI/prettier enforces it ("if it can be a lint rule, it should be one").
 - C3 The pricing-deep-dive subagent delegation is not convertible; recorded as a gap / left in the skill.
-- C4 Item 6: the removal ORDER is a skill step; the slip (a flag read removed while the definition stays) is a rule with `removedContains: ["isEnabled('"]` and prose that tells the reviewer to check `flags.ts`; not an always-on rule, not an added-line stand-in, and not a rule that encodes step order.
+- C4 Item 6: the removal ORDER is a skill step; the slip (a flag read removed while the definition stays) is a rule with `removedContains: ["isEnabled('"]` and prose that tells the reviewer to check `flags.ts`; not an always-on rule, not an added-line stand-in, and not a rule that encodes step order. It stays `removedContains`, not a dropped-line condition: an edit that reads a different flag adds `isEnabled('` back and is still the slip.
 
 Lore mechanics
 - C5 Conditions use plain-text addedContains over addedMatches regex.
@@ -30,3 +30,6 @@ Aftermath
 Refactor round 1 (from GREEN runs)
 - C18 A rule with no <when> is scoped inside what the source governs (no repo-root always-on rule for a checkout skill), or recorded as a gap.
 - C19 Alternatives that mix literals and a pattern sit in one addedMatches list, since every condition in a <when> must hold.
+
+Refactor round 2 (dropped-line conditions)
+- C20 Item 8: the deleted fallback is a rule scoped inside what the source governs, with `droppedContains` (or `droppedMatches`) on the fallback, because an edited line that keeps its fallback is not the slip; not `removedContains`, which selects the rule on every such edit, and not an always-on rule.
