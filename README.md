@@ -314,7 +314,7 @@ The command is also one JavaScript file, attached to each GitHub release,
 that runs on Node 20 or later or on Bun:
 
 ```
-curl -LO https://github.com/m4ttstack/lore/releases/download/cli-v0.3.0/lore.js
+curl -LO https://github.com/m4ttstack/lore/releases/download/cli-v0.4.0/lore.js
 node lore.js check
 ```
 
