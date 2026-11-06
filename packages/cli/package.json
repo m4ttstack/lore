@@ -1,6 +1,6 @@
 {
   "name": "@mattstack/lore",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "The reference command for Lore, portable domain rules for code review.",
   "license": "MIT",
   "repository": {

@@ -1,0 +1,3 @@
+<rule id="checkout-render-budget" category="web_vitals">
+The checkout page shows its first price within the page's time budget.
+</rule>

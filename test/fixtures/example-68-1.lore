@@ -1,10 +1,6 @@
-<rule id="checkout-follows-api-schema" category="backwards_compatibility">
-<scope>
-files: ["**/*.tsx"]
-</scope>
+<rule id="guard-dropped" category="functional_correctness">
 <when>
-changed: ["/apps/api/schema.graphql"]
+droppedContains: ["if (!quote)"]
 </when>
-A checkout change made alongside an API schema change still works with
-the schema that is deployed now.
+A component keeps its guard for a missing quote.
 </rule>

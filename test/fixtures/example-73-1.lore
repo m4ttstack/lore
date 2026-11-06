@@ -1,14 +1,19 @@
-<rule id="price-digits-from-formatter" category="functional_correctness">
+<scope>
+files: ["**/*.graphql"]
+</scope>
+
+<rule id="regen-types-after-graphql" category="functional_correctness">
 <when>
-addedMatches: ['\d']
+unchanged: ["/apps/web/src/__generated__/**"]
 </when>
-Prices in labels are formatted by the shop's number formatter, never
-written as digits.
+A `.graphql` change ships with regenerated types in
+`apps/web/src/__generated__/`.
 </rule>
 
-<rule id="currency-code-from-settings" category="functional_correctness">
+<rule id="regen-checkout-types-after-graphql" category="functional_correctness">
 <when>
-addedMatches: ['\bUSD\b']
+unchanged: ["__generated__/**"]
 </when>
-Display text never spells out a currency code.
+A `.graphql` change ships with regenerated types in the checkout's own
+`__generated__/` folder.
 </rule>

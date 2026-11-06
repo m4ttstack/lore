@@ -1,3 +1,6 @@
-<rule id="order-schema-versioned" category="api_contracts">
-Every change to the order schema bumps its version.
+<rule id="lore-rules-owned" category="documentation">
+<scope>
+files: ["**/.lore/**/*.lore"]
+</scope>
+Every new rule records its owner in its `<meta>`.
 </rule>

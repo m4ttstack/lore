@@ -1,0 +1,6 @@
+<rule id="web-prices-from-quote" category="functional_correctness">
+<scope>
+files: ["src/**/*.tsx"]
+</scope>
+A price the web app displays comes from the quote that produced it.
+</rule>

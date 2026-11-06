@@ -9,7 +9,7 @@ export const FIXED_CATEGORIES: ReadonlySet<string> = new Set([
   "functional_correctness", "test_coverage", "security", "performance", "accessibility",
   "observability", "backwards_compatibility", "documentation", "code_style",
 ]);
-const CONDITIONS = ["addedContains", "addedMatches", "removedContains", "removedMatches", "changed", "unchanged"] as const;
+const CONDITIONS = ["addedContains", "addedMatches", "removedContains", "removedMatches", "droppedContains", "droppedMatches", "changed", "unchanged"] as const;
 
 export function checkDefaults(value: unknown, line: number): BlockProblem | null {
   const invalid = { name: "invalid-defaults", line };
@@ -50,8 +50,8 @@ export function checkWhen(value: unknown, line: number): BlockProblem | null {
     if (!Object.hasOwn(value, condition)) continue;
     const items = value[condition];
     if (!isStringList(items)) return { name: "invalid-when", line };
-    const contains = condition === "addedContains" || condition === "removedContains";
-    const matches = condition === "addedMatches" || condition === "removedMatches";
+    const contains = condition === "addedContains" || condition === "removedContains" || condition === "droppedContains";
+    const matches = condition === "addedMatches" || condition === "removedMatches" || condition === "droppedMatches";
     if (contains && items.some((s) => s === "" || /[\n\r]/.test(s))) {
       return { name: "invalid-when", line };
     }

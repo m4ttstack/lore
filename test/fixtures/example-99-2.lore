@@ -1,3 +1,0 @@
-<rule id="refunds-logged" category="observability">
-Every refund is logged with the order it refunds.
-</rule>

@@ -1,6 +1,3 @@
-<rule id="lore-rules-owned" category="documentation">
-<scope>
-files: ["**/.lore/**/*.lore"]
-</scope>
-Every new rule records its owner in its `<meta>`.
+<rule id="changelog-updated" category="documentation">
+A change that alters what users see adds a line to the changelog.
 </rule>
