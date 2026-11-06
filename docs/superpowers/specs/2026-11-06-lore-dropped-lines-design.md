@@ -219,6 +219,9 @@ left to the builder; each case must be visible in an `expect` block.
 6. A renamed file whose edit adds the item back under the new path: not
    found.
 7. `droppedMatches` with a pattern, at least once.
+8. An edit with two removed lines that hold the item and one added line
+   that holds it: neither removed line is found. Pairing is by edit, not
+   line by line, which is the first known limit below.
 
 `when.schema.json` gains the two keys with the removed pair's item rules.
 
