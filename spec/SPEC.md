@@ -3429,6 +3429,8 @@ when every one of its conditions holds.
 | `addedMatches` | A list of patterns (see [Regex dialect](#regex-dialect)). | An added line of a counted file matches one of the patterns. |
 | `removedContains` | A list of strings. | A removed line of a counted file contains one of the strings. |
 | `removedMatches` | A list of patterns (see [Regex dialect](#regex-dialect)). | A removed line of a counted file matches one of the patterns. |
+| `droppedContains` | A list of strings. | A removed line of a counted file contains one of the strings, and no added line of the same edit contains that string. |
+| `droppedMatches` | A list of patterns (see [Regex dialect](#regex-dialect)). | A removed line of a counted file matches one of the patterns, and no added line of the same edit matches that pattern. |
 | `changed` | A list of globs. | A changed file anywhere in the change matches one of the globs. |
 | `unchanged` | A list of globs. | No changed file anywhere in the change matches any of the globs. |
 
@@ -3448,7 +3450,22 @@ when every one of its conditions holds.
   example it is the `<text>` of a `+<n> <text>` or `-<n> <text>` line.
   The added-line conditions see added lines only and the removed-line
   conditions removed lines only; the unchanged lines around them never
-  count for either.
+  count for either. The dropped-line conditions see removed lines, and
+  added lines only to decide whether the same edit added the item back.
+- Within one changed file, the unchanged lines of the old version and of
+  the new version are the same lines in the same order. A removed line
+  lies after some number of them in the old version, and an added line
+  after some number of them in the new version. An **edit** is the set
+  of that file's removed and added lines that lie after the same number
+  of unchanged lines, so two changed lines are in the same edit when no
+  unchanged line lies between them. The number follows from the line
+  numbers alone: for a removed line at old-side line `r` it is `r - 1`
+  minus the count of the file's removed lines numbered below `r`, and
+  for an added line at new-side line `a` it is `a - 1` minus the count
+  of the file's added lines numbered below `a`. A renamed file's removed
+  lines, named by its old path, and its added lines, named by its new
+  path, form edits together. A deleted file's edits have no added line.
+  An edit never spans two files.
 - `addedContains` compares code point by code point and is
   case-sensitive: a string is contained in a line when it occurs
   anywhere in the line's text. `removedContains` does the same over
@@ -3456,6 +3473,12 @@ when every one of its conditions holds.
 - `addedMatches` searches each line's text for each pattern, as [Regex
   dialect](#regex-dialect) defines. `removedMatches` does the same over
   removed lines.
+- `droppedContains` compares as `removedContains` does and
+  `droppedMatches` searches as `removedMatches` does. Each item is
+  paired on its own: a removed line that matches two items is found when
+  either of them is on no added line of its edit. Pairing is by edit,
+  not line by line: one added line that matches an item keeps every
+  removed line of that edit from being found through that item.
 - `changed` and `unchanged` look at every path of every changed file in
   the change, in the entry's scope or not and whatever `disable` says.
   They are the only conditions that look past the entry's scope, because
@@ -3467,16 +3490,24 @@ when every one of its conditions holds.
   directory its `repo` key marks), and the rest of the glob, after the
   `/`, is read as [Glob syntax](#glob-syntax) defines. A glob without a
   leading `/` resolves against the base, as in a scope.
-- With an empty list, `unchanged` always holds and the other five
+- With an empty list, `unchanged` always holds and the other seven
   conditions never do.
 - When a rule is eligible, each added line of a counted file that one of
   its `addedContains` or `addedMatches` conditions finds is a hit, as a
   check's would be (see [Running checks](#running-checks)), and each
   removed line one of its `removedContains` or `removedMatches`
   conditions finds is a hit on the old side, named by the file's old
-  path. All of the conditions together decide eligibility; each
-  added-line or removed-line condition then points at the lines it finds
-  on its own. A context has no hits.
+  path. A removed line that a `droppedContains` or `droppedMatches`
+  condition finds is a hit on the old side in the same way. All of the
+  conditions together decide eligibility; each added-line or removed-line
+  condition then points at the lines it finds on its own. A context has
+  no hits.
+
+The dropped-line conditions have known limits. An edit that adds the
+same item for another reason keeps a removal from being found. An edit
+that keeps the item but changes what it applies to is not found, so a
+rule about such a change uses `removedContains` or `removedMatches`. A
+block moved within a file or to another file is found at its old place.
 
 A tool checks a `<when>` in this order, and reports the first problem it
 finds:
@@ -3484,13 +3515,13 @@ finds:
 1. the checks of [Structured blocks](#structured-blocks);
 2. `invalid-when`, when the value is not a mapping;
 3. `empty-when`, when the mapping has no keys, as with an empty block;
-4. `unknown-condition`, when a key is not one of the six above;
+4. `unknown-condition`, when a key is not one of the eight above;
 5. each condition, in the order of the table above: `invalid-when` when
-   its value is not a list of strings, or when an `addedContains` or
-   `removedContains` string is empty or holds a line feed or a carriage
-   return; then each item of the list in order. A pattern is checked for
-   `regex-not-one-line` and then `regex-outside-dialect` (see [Regex
-   dialect](#regex-dialect)), and a glob for `invalid-glob` and then
+   its value is not a list of strings, or when an `addedContains`,
+   `removedContains` or `droppedContains` string is empty or holds a
+   line feed or a carriage return; then each item of the list in order.
+   A pattern is checked for `regex-not-one-line` and then
+   `regex-outside-dialect` (see [Regex dialect](#regex-dialect)), and a glob for `invalid-glob` and then
    `glob-escapes-base` (see [Scope and globs](#scope-and-globs)).
 
 The shape is also given as

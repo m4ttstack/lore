@@ -115,12 +115,14 @@ narrow that scope, never widen it.
 
 `<when>` adds conditions on the change itself: text in added lines
 (`addedContains`, `addedMatches`) or in removed lines (`removedContains`,
-`removedMatches`), or other files that did or didn't
+`removedMatches`), or in removed lines whose text the same edit did not add
+back (`droppedContains`, `droppedMatches`), or other files that did or didn't
 change (`changed`, `unchanged`). A rule applies only when its scope matches
 a changed file and all of its conditions hold. The added lines that
 `addedContains` or `addedMatches` find are also pointed out to the
-reviewer, as are the removed lines the removed pair finds, by the file's
-old path, so one condition both selects the rule and shows where to look.
+reviewer, as are the removed lines the removed and dropped pairs find, by
+the file's old path, so one condition both selects the rule and shows where
+to look.
 
 ```html
 <rule id="migration-with-schema" category="backwards_compatibility" severity="blocking">

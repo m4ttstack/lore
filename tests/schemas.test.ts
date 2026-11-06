@@ -95,6 +95,12 @@ test("when accepts removedContains and removedMatches with the added pair's item
   expect(checkJson("when", { removedContains: [""] })).toBe(false);
   expect(checkJson("when", { removedContains: ["a\nb"] })).toBe(false);
 });
+test("when accepts droppedContains and droppedMatches with the removed pair's item rules", () => {
+  expect(checkJson("when", { droppedContains: ["??"], droppedMatches: ["\\?\\?"] })).toBe(true);
+  expect(checkJson("when", { droppedContains: [""] })).toBe(false);
+  expect(checkJson("when", { droppedContains: ["a\nb"] })).toBe(false);
+  expect(checkJson("when", { droppedMatches: [""] })).toBe(false);
+});
 test("eligibility hit takes side new or old", () => {
   const hit = (extra: object) => checkJson("eligibility", { eligible: [], hits: [{ rule: "a", file: "f", line: 1, text: "t", ...extra }], excluded: [], warnings: [] });
   expect(hit({ side: "old" })).toBe(true);
