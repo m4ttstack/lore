@@ -3588,8 +3588,8 @@ M apps/web/src/checkout/format.ts
 ``````
 
 A pattern in `addedMatches` is searched for in each added line, and one
-in `removedMatches` in each removed line. `^` matches only at the start
-of the line's text, which here starts with spaces:
+in `removedMatches` or `droppedMatches` in each removed line. `^`
+matches only at the start of the line's text, which here starts with spaces:
 
 ``````example eligibility
 === apps/web/src/checkout/.lore/prices.lore
@@ -3870,9 +3870,9 @@ New checkout requests work with the API that is deployed now.
 
 ## Regex dialect
 
-`addedMatches` and `removedMatches` patterns and `regex` checks share
-one dialect of regular expressions, so that every tool finds the same
-matches, whatever engine it uses. Its syntax is a subset of
+`addedMatches`, `removedMatches` and `droppedMatches` patterns and
+`regex` checks share one dialect of regular expressions, so that every
+tool finds the same matches, whatever engine it uses. Its syntax is a subset of
 ECMAScript's, limited to what RE2-style engines support, and this
 section fixes its meaning as well as its syntax.
 
@@ -3957,8 +3957,8 @@ Anything else is `regex-outside-dialect`. That includes:
 - the empty pattern. (An empty alternative or group is allowed, as
   above; a pattern with no characters at all is not.)
 
-A pattern MUST be one line. In `addedMatches` or `removedMatches`, a
-pattern holding a line feed or a carriage return is
+A pattern MUST be one line. In `addedMatches`, `removedMatches` or
+`droppedMatches`, a pattern holding a line feed or a carriage return is
 `regex-not-one-line`, and [Checks](#checks) says when a `regex` check is
 `regex-not-one-line`. A pattern is checked for `regex-not-one-line`
 first, then for `regex-outside-dialect`. Both are entry-level errors, at
@@ -3981,7 +3981,7 @@ characters so that the engine reads them literally.
 Each of the first five patterns is outside the dialect: a lookahead, a
 backreference, a named group, an inline flag, and a `{` that starts no
 quantifier. Escaped, the brace is accepted, in `addedMatches`, in
-`removedMatches` and in a check alike:
+`removedMatches`, in `droppedMatches` and in a check alike:
 
 ``````example parse
 === .lore/checkout.lore
