@@ -58,12 +58,18 @@ the change. Decide it for each rule, in this order:
    - **Yes:** `<when>` with `addedContains: [...]`, the literals written
      exactly as they appear in code. The rule is selected only when one
      appears, and those lines are flagged for the reviewer.
-   - **Yes, but only in removed lines** (a deleted fallback, a removed
-     call, a replaced assertion): `<when>` with `removedContains: [...]`,
-     the literal as it appeared in the old code. The reviewer is pointed at
-     the removed line by the file's old path. A replacement takes both
-     conditions, `addedContains` for the new line and `removedContains`
-     for the old one, since every condition must hold.
+   - **Yes, but only in removed lines:** the literal as it appeared in the
+     old code, and the reviewer is pointed at the removed line by the
+     file's old path. Ask: can an edited line that still has the literal
+     ever be the slip?
+     - **Never** (a deleted fallback, a deleted branch):
+       `droppedContains: [...]`. A removed line counts only when the same
+       edit adds no line with that literal, so a rename or a reformat of
+       the line does not select the rule.
+     - **It can** (a replaced assertion, a call whose argument is swapped,
+       such as an `isEnabled('` read that now reads another flag):
+       `removedContains: [...]`. A replacement adds `addedContains` for
+       the new line, since every condition must hold.
    - **No** (the slip is something missing, or lives in another file): no
      `<when>`. The rule is selected for
      every change in its scope. The prose says what the reviewer must open
@@ -71,12 +77,14 @@ the change. Decide it for each rule, in this order:
      its scope must be narrow: one with no `<when>` at a repo or app root is
      either scoped down or recorded as a gap in the conversion notes.
 3. **A literal list cannot say it** (a word boundary, a value that varies):
-   `addedMatches` for a slip in added lines, `removedMatches` for a slip
-   only in removed lines, each with the smallest regex that works. Every
-   condition in a `<when>` must hold, so `addedContains` and `addedMatches`
-   are never alternatives to each other, nor are `removedContains` and
-   `removedMatches`: when one alternative needs a pattern, put all of them
-   in that side's Matches list, the literals escaped.
+   `addedMatches` for a slip in added lines, `removedMatches` or
+   `droppedMatches` (by the question above) for a slip only in removed
+   lines, each with the smallest regex that works. Every condition in a
+   `<when>` must hold, so `addedContains` and `addedMatches` are never
+   alternatives to each other, nor are `removedContains` and
+   `removedMatches`, nor are `droppedContains` and `droppedMatches`: when
+   one alternative needs a pattern, put all of them in that side's Matches
+   list, the literals escaped.
 4. **A file changed without another** (a migration without the schema):
    `changed` and `unchanged`.
 5. **`<check>`** only points at lines in a rule that step 2 left without a
@@ -177,6 +185,7 @@ Lore now holds: two copies drift apart.
 | One rule scoped across two trees | one rule per tree, in each tree's file |
 | A rule with no `<when>` at the repo root | scope it to where the slip happens, or record a gap |
 | `addedContains` and `addedMatches` in one `<when>` as alternatives | all alternatives in one `addedMatches` list (both conditions must hold) |
+| `removedContains` on a common construct, selected by every edit of such a line | `droppedContains`, when an edited line that keeps the construct is never the slip |
 | A rule with no `source` in `<meta>` | `source: <document>#<heading slug>` |
 | "This shipped once (!4120)" in the prose | the stakes without the reference the reviewer cannot open |
 | A procedure step written as a rule | leave it in the skill; convert only the end state |

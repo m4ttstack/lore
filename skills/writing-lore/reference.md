@@ -211,11 +211,18 @@ condition holds.
 | `addedMatches` | regexes ([dialect](#7-checks-check)) | an added line of a counted file matches one |
 | `removedContains` | strings | a removed line of a counted file contains one |
 | `removedMatches` | regexes ([dialect](#7-checks-check)) | a removed line of a counted file matches one |
+| `droppedContains` | strings | a removed line of a counted file contains one, and no added line of the same edit contains it |
+| `droppedMatches` | regexes ([dialect](#7-checks-check)) | a removed line of a counted file matches one, and no added line of the same edit matches it |
 | `changed` | globs | any file in the whole change matches one |
 | `unchanged` | globs | no file in the whole change matches any |
 
 **Counted files** are the changed files in the entry's scope that no
 `disable` list switches it off for.
+
+An **edit** is a run of changed lines (removed and added) in one file with
+no unchanged line between them; a diff hunk can hold several. A renamed
+file is one file: its removed lines under the old path and its added lines
+under the new path pair up in the same edits.
 
 ```html
 <rule id="money-in-minor-units" category="functional_correctness">
@@ -238,12 +245,38 @@ condition holds.
 ```
 
 - Each added line `addedContains` or `addedMatches` finds is a **hit**, a
-  line flagged for the reviewer, and each removed line the removed pair
-  finds is a hit on the old side, by the file's old path. Contexts get no
-  hits.
+  line flagged for the reviewer, and each removed line the removed pair or
+  the dropped pair finds is a hit on the old side, by the file's old path.
+  Contexts get no hits.
+- The dropped pair is for a construct whose deletion is the slip, when an
+  edit that keeps it is fine. With `droppedContains: ["?? 0"]` scoped to
+  `src/checkout/`, this change selects the rule with one hit, line 7 of
+  `Total.ts`; the edit in `Tax.ts` keeps `?? 0` and is not found:
+
+  ```diff
+  diff --git a/src/checkout/Tax.ts b/src/checkout/Tax.ts
+  --- a/src/checkout/Tax.ts
+  +++ b/src/checkout/Tax.ts
+  @@ -4 +4 @@
+  -  const tax = quote.tax ?? 0
+  +  const tax = quote.salesTax ?? 0
+  diff --git a/src/checkout/Total.ts b/src/checkout/Total.ts
+  --- a/src/checkout/Total.ts
+  +++ b/src/checkout/Total.ts
+  @@ -7 +7 @@
+  -  const discount = line.discount ?? 0
+  +  const discount = line.discount
+  ```
+
+  Two limits. An edit that adds the item for another reason hides the
+  removal. Pairing is by edit, not line by line: had the two lines been
+  adjacent in one file, `Tax.ts`'s added `?? 0` would hide the dropped
+  one. When an edit that keeps the item can still be the slip (a call
+  whose argument changes), use the removed pair.
 - `addedContains` and `removedContains` are case-sensitive substring
   tests. `addedMatches` and `removedMatches` search one line at a time;
-  `^` is its start, indentation included.
+  `^` is its start, indentation included. The dropped pair compares and
+  searches the same way.
 - `changed` and `unchanged` see every path in the change, in scope or not.
   A leading `/` resolves from the repo root, otherwise from the base. A
   renamed file counts by both paths.
@@ -252,7 +285,9 @@ condition holds.
 Watch out:
 
 - The added-line conditions see added lines only, the removed-line
-  conditions removed lines only; unchanged lines count for neither.
+  conditions removed lines only; unchanged lines count for neither. The
+  dropped pair sees removed lines, and added lines only to decide whether
+  the edit added the item back.
 - An unknown key (`addedContain`, `contains`) is
   `unknown-condition`, never ignored. An empty `<when>` is `empty-when`; a
   value that is not a list, or an empty string, is `invalid-when`.
@@ -536,7 +571,7 @@ excludes nothing. The ones authors meet most:
 | `invalid-attribute-value` | unquoted value, `severity="high"` | double quotes; `blocking` or `advisory` |
 | `duplicate-id` | one id on two entries, in any collected files | rename one |
 | `unknown-category` | category neither fixed nor declared above | add it to a `.loreconfig` `categories` |
-| `unknown-condition` | `addedContain`, `contains` | use the six condition keys |
+| `unknown-condition` | `addedContain`, `contains` | use the eight condition keys |
 | `invalid-when`, `empty-when` | a value that is not a list; no keys | `key: ["..."]` |
 | `leading-slash`, `glob-escapes-base` | `/` or `..` in a scope glob | glob from the base; move the file up |
 | `invalid-glob` | `!` prefix, `**.ts`, unclosed `[` or `{`, a `\` | `ignores`; `**/*.ts` |
