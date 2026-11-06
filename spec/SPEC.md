@@ -3504,10 +3504,11 @@ when every one of its conditions holds.
   A context has no hits.
 
 The dropped-line conditions have known limits. An edit that adds the
-same item for another reason keeps a removal from being found. An edit
-that keeps the item but changes what it applies to is not found, so a
-rule about such a change uses `removedContains` or `removedMatches`. A
-block moved within a file or to another file is found at its old place.
+same item for another reason keeps a removal from being found. When an
+edit keeps the item but changes what it applies to, its removed line is
+not found, so a rule about such a change uses `removedContains` or
+`removedMatches`. A block moved within a file or to another file is
+found at its old place.
 
 A tool checks a `<when>` in this order, and reports the first problem it
 finds:
@@ -3521,7 +3522,8 @@ finds:
    `removedContains` or `droppedContains` string is empty or holds a
    line feed or a carriage return; then each item of the list in order.
    A pattern is checked for `regex-not-one-line` and then
-   `regex-outside-dialect` (see [Regex dialect](#regex-dialect)), and a glob for `invalid-glob` and then
+   `regex-outside-dialect` (see [Regex dialect](#regex-dialect)), and a
+   glob for `invalid-glob` and then
    `glob-escapes-base` (see [Scope and globs](#scope-and-globs)).
 
 The shape is also given as
@@ -3588,8 +3590,10 @@ M apps/web/src/checkout/format.ts
 ``````
 
 A pattern in `addedMatches` is searched for in each added line, and one
-in `removedMatches` or `droppedMatches` in each removed line. `^`
-matches only at the start of the line's text, which here starts with spaces:
+in `removedMatches` or `droppedMatches` in each removed line; a
+`droppedMatches` pattern is also searched for in the added lines of the
+removed line's edit. `^` matches only at the start of the line's text,
+which here starts with spaces:
 
 ``````example eligibility
 === apps/web/src/checkout/.lore/prices.lore
@@ -3767,8 +3771,8 @@ M apps/web/src/checkout/Discount.tsx
 
 A deleted file's edits have no added line, so each matching removed line
 of it is found. A renamed file's removed lines pair with its added
-lines, so the edit in `Total.tsx` that keeps `'USD'` under the new path
-is not found:
+lines, so the removed line of the edit in `Total.tsx` that keeps
+`'USD'` under the new path is not found:
 
 ``````example eligibility
 === apps/web/src/.lore/currency.lore
@@ -4007,9 +4011,9 @@ New checkout requests work with the API that is deployed now.
 
 `addedMatches`, `removedMatches` and `droppedMatches` patterns and
 `regex` checks share one dialect of regular expressions, so that every
-tool finds the same matches, whatever engine it uses. Its syntax is a subset of
-ECMAScript's, limited to what RE2-style engines support, and this
-section fixes its meaning as well as its syntax.
+tool finds the same matches, whatever engine it uses. Its syntax is a
+subset of ECMAScript's, limited to what RE2-style engines support, and
+this section fixes its meaning as well as its syntax.
 
 A pattern is matched against the text of one added or removed line at a
 time (see [Conditions](#conditions)), which holds no line break. The
@@ -4294,9 +4298,9 @@ the rule. A hit is a pointer to a line, never a verdict: a hit does not
 mean the rule is broken, and no hits does not mean it passed.
 
 A rule's added-line, removed-line and dropped-line conditions already
-point at the lines they find (see [Conditions](#conditions)). A check is for a search
-that should not decide whether the rule is eligible, or one that a
-condition cannot express, such as an `ast-grep` pattern.
+point at the lines they find (see [Conditions](#conditions)). A check
+is for a search that should not decide whether the rule is eligible, or
+one that a condition cannot express, such as an `ast-grep` pattern.
 
 A rule MAY have any number of checks. A context has none (see
 [Context](#context)).
@@ -4404,9 +4408,8 @@ line (see [Conditions](#conditions)). A check's hits and an added-line
 condition's hits are on the new side; a removed-line or dropped-line
 condition's hits are on the old side. An eligible rule's hits are those
 of its checks and those of its added-line, removed-line and dropped-line
-conditions. A rule has at most
-one hit per side, file and line, however many of its checks or
-conditions find that line.
+conditions. A rule has at most one hit per side, file and line, however
+many of its checks or conditions find that line.
 
 A `regex` check has a hit for each added line whose text its pattern
 matches, as [Regex dialect](#regex-dialect) defines.
