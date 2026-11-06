@@ -136,6 +136,25 @@ to look.
 </rule>
 ```
 
+The removed pair finds every removed line that holds the text, so it also
+selects a rule when the line is edited and still holds it. The dropped
+pair finds a removed line only when the same edit adds the text back
+nowhere. An edit is a run of changed lines with no unchanged line between
+them. Use the dropped pair for a rule about something being deleted:
+
+```html
+<rule id="amounts-keep-fallback" category="functional_correctness">
+  <when>
+    droppedContains: ["?? 0"]
+  </when>
+  A read of an optional amount keeps its `?? 0` fallback. Without it, a
+  missing amount reaches the total as `undefined`.
+</rule>
+```
+
+Changing `quote.tax ?? 0` to `quote.salesTax ?? 0` does not select this
+rule. Deleting the `?? 0` does, and the removed line is pointed out.
+
 ### Checks
 
 A `<check>` is a deterministic search that points a reviewer at specific
