@@ -75,7 +75,7 @@ describe("select: ast-grep availability", () => {
     expect({ ...result, warnings: brief(result.warnings) }).toEqual(skipped);
   });
 
-  test("with the binary, example 83 finds its hit", async () => {
+  test("with the binary, the ast-grep check finds the line that sums the items", async () => {
     const result = await select(toInput(totals), toChange(totals.diff!), ALL);
     expect(result.hits).toEqual([
       { rule: "totals-from-quote", file: "apps/web/src/checkout/CartTotal.tsx", line: 4, text: "    (sum, item) => sum + item.price," },
@@ -353,6 +353,28 @@ describe("select: dropped lines", () => {
   test("a removed line in a file outside the rule's scope is not found", async () => {
     const input = repo({ "checkout/.lore/a.lore": rule("scoped", '<when>\ndroppedContains: ["??"]\n</when>\n') });
     expect((await select(input, change("M legacy/a.ts", "-2 const x = y ?? ''"), ALL)).eligible).toEqual([]);
+  });
+
+  test("a removed line in a file the entry is switched off for is not found", async () => {
+    const files = { ".lore/a.lore": rule("fallback-dropped", '<when>\ndroppedContains: ["??"]\n</when>\n') };
+    const gone = change("M legacy/a.ts", "-2 const x = y ?? ''", "+2 const x = y");
+    expect((await select(repo(files), gone, ALL)).eligible).toEqual(["fallback-dropped"]);
+    const off = repo({ ...files, "legacy/.loreconfig": "disable: [fallback-dropped]\n" });
+    expect((await select(off, gone, ALL)).eligible).toEqual([]);
+  });
+
+  test("a context with droppedContains is eligible when a line is found, and has no hits", async () => {
+    const input = repo({ ".lore/a.lore": '<context id="fallbacks">\n<when>\ndroppedContains: ["??"]\n</when>\nFallbacks.\n</context>\n' });
+    const result = await select(input, change("M a.ts", "-2 const x = y ?? ''", "+2 const x = y"), ALL);
+    expect(result.eligible).toEqual(["fallbacks"]);
+    expect(result.hits).toEqual([]);
+    expect((await select(input, change("M a.ts", "-2 const x = y ?? ''", "+2 const x = z ?? ''"), ALL)).eligible).toEqual([]);
+  });
+
+  test("a droppedMatches pattern past the regex engine's limits fails the run", async () => {
+    const input = dropped("deep-dropped", `droppedMatches: ['${DEEP}']`);
+    expect(parse(input).errors).toEqual([]);
+    await expect(select(input, change("M a.ts", "-1 a"), ALL)).rejects.toBeInstanceOf(RegexLimitError);
   });
 });
 
