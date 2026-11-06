@@ -1,10 +1,6 @@
-<scope>
-files: ["**/*.{tsx,graphql}"]
-</scope>
-
-<rule id="totals-from-quote" category="functional_correctness">
-<check lang="ast-grep">
-$LIST.reduce($$$)
-</check>
-Cart totals come from the quote, never from summing line items.
+<rule id="tax-rate-from-settings" category="functional_correctness">
+<when>
+addedMatches: ['^(|export )const(?:) TAX_RATE()']
+</when>
+The tax rate comes from the shop's settings, never from a constant.
 </rule>

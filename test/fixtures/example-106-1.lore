@@ -1,0 +1,3 @@
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>

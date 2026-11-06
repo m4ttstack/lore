@@ -40,7 +40,7 @@ const DEEP = `${"(".repeat(1001)}a${")".repeat(1001)}`;
 const deepWhen = `<when>\naddedMatches: ['${DEEP}']\n</when>\n`;
 
 describe("select: ast-grep availability", () => {
-  const totals = example(79);
+  const totals = example(83);
   const skipped = {
     eligible: ["totals-from-quote"],
     hits: [],
@@ -75,7 +75,7 @@ describe("select: ast-grep availability", () => {
     expect({ ...result, warnings: brief(result.warnings) }).toEqual(skipped);
   });
 
-  test("with the binary, example 78 finds its hit", async () => {
+  test("with the binary, example 83 finds its hit", async () => {
     const result = await select(toInput(totals), toChange(totals.diff!), ALL);
     expect(result.hits).toEqual([
       { rule: "totals-from-quote", file: "apps/web/src/checkout/CartTotal.tsx", line: 4, text: "    (sum, item) => sum + item.price," },
@@ -276,6 +276,83 @@ describe("select: removed lines", () => {
     const result = await select(input, change("R legacy/Price.tsx -> checkout/Price.tsx", "-3 'USD'"), ALL);
     expect(result.eligible).toEqual(["usd"]);
     expect(result.hits).toEqual([{ rule: "usd", file: "legacy/Price.tsx", line: 3, text: "'USD'", side: "old" }]);
+  });
+});
+
+describe("select: dropped lines", () => {
+  const dropped = (id: string, when: string) => repo({ ".lore/a.lore": rule(id, `<when>\n${when}\n</when>\n`) });
+  const FALLBACK = dropped("fallback-dropped", 'droppedContains: ["??"]');
+
+  test("an edit that adds the item back is not found, and the removed pair still is", async () => {
+    const edited = change("M a.ts", "-2 const x = y ?? ''", "+2 const x = z ?? ''");
+    expect((await select(FALLBACK, edited, ALL)).eligible).toEqual([]);
+    expect((await select(dropped("fallback-touched", 'removedContains: ["??"]'), edited, ALL)).eligible).toEqual(["fallback-touched"]);
+  });
+
+  test("an edit that does not add the item back is found, as an old-side hit", async () => {
+    const result = await select(FALLBACK, change("M a.ts", "-2 const x = y ?? ''", "+2 const x = y"), ALL);
+    expect(result.eligible).toEqual(["fallback-dropped"]);
+    expect(result.hits).toEqual([{ rule: "fallback-dropped", file: "a.ts", line: 2, text: "const x = y ?? ''", side: "old" }]);
+  });
+
+  test("an unchanged line between the removed and the added line makes two edits", async () => {
+    const input = dropped("guard-dropped", 'droppedContains: ["if (!q)"]');
+    const result = await select(input, change("M a.ts", "-3 if (!q) return null", "+4 if (!q) return fallback"), ALL);
+    expect(result.hits.map((hit) => hit.line)).toEqual([3]);
+    expect((await select(input, change("M a.ts", "-3 if (!q) return null", "+3 if (!q) return fallback"), ALL)).eligible).toEqual([]);
+  });
+
+  test("lines listed in any order give the same edits", async () => {
+    expect((await select(FALLBACK, change("M a.ts", "+2 const x = z ?? ''", "-2 const x = y ?? ''"), ALL)).eligible).toEqual([]);
+    const result = await select(FALLBACK, change("M a.ts", "+8 const cap = c.cap", "-8 const cap = c.cap ?? 9", "-7 const rate = c.rate ?? 0", "+7 const rate = c.rate"), ALL);
+    expect(result.hits.map((hit) => hit.line)).toEqual([7, 8]);
+  });
+
+  test("an edit after earlier edits of unequal size is still paired", async () => {
+    expect((await select(FALLBACK, change("M a.ts", "-2 a", "-3 b", "+2 c", "-10 const x = y ?? 0", "+9 const x = z ?? 0"), ALL)).eligible).toEqual([]);
+    const result = await select(FALLBACK, change("M a.ts", "-2 a", "-3 b", "+2 c", "-10 const x = y ?? 0", "+9 const x = y"), ALL);
+    expect(result.hits.map((hit) => hit.line)).toEqual([10]);
+  });
+
+  test("pairing is by edit, not line by line", async () => {
+    const lines = ["M a.ts", "-7 const rate = c.rate ?? 0", "-8 const cap = c.cap ?? 9", "+7 const rate = c.rate ?? 0.05", "+8 const cap = c.cap"];
+    expect((await select(FALLBACK, change(...lines), ALL)).eligible).toEqual([]);
+  });
+
+  test("each item is paired on its own", async () => {
+    const input = dropped("branch-or-fallback-dropped", "droppedMatches: ['\\?\\?', '^\\s*if \\(']");
+    const result = await select(input, change("M a.ts", "-4   if (code ?? fallback) {", "+4   if (code) {"), ALL);
+    expect(result.hits).toEqual([{ rule: "branch-or-fallback-dropped", file: "a.ts", line: 4, text: "  if (code ?? fallback) {", side: "old" }]);
+    expect((await select(input, change("M a.ts", "-4   if (code ?? fallback) {", "+4   if (code ?? other) {"), ALL)).eligible).toEqual([]);
+  });
+
+  test("a deleted file's matching lines are all found", async () => {
+    const result = await select(FALLBACK, change("D legacy/a.ts", "-1 const x = y ?? 0", "-2 const z = 1", "-3 const w = v ?? 1"), ALL);
+    expect(result.hits.map((hit) => [hit.file, hit.line])).toEqual([["legacy/a.ts", 1], ["legacy/a.ts", 3]]);
+  });
+
+  test("a renamed file pairs removed lines under the old path with added lines under the new one", async () => {
+    const input = repo({ ".lore/a.lore": rule("usd-dropped", "<when>\ndroppedContains: [\"'USD'\"]\n</when>\n") });
+    expect((await select(input, change("R legacy/P.tsx -> checkout/P.tsx", "-3 'USD'", "+3 settings.currency ?? 'USD'"), ALL)).eligible).toEqual([]);
+    const result = await select(input, change("R legacy/P.tsx -> checkout/P.tsx", "-3 'USD'", "+3 settings.currency"), ALL);
+    expect(result.hits.map((hit) => hit.file)).toEqual(["legacy/P.tsx"]);
+  });
+
+  test("a rule with both pairs has one hit per removed line", async () => {
+    const input = dropped("both", 'removedContains: ["??"]\ndroppedContains: ["??"]');
+    const result = await select(input, change("M a.ts", "-2 const x = y ?? ''", "+2 const x = y"), ALL);
+    expect(result.hits).toEqual([{ rule: "both", file: "a.ts", line: 2, text: "const x = y ?? ''", side: "old" }]);
+  });
+
+  test("every condition must hold, and an empty list never does", async () => {
+    const gone = change("M a.ts", "-2 const x = y ?? ''", "+2 const x = y");
+    expect((await select(dropped("needs-added", 'addedContains: ["parseFloat("]\ndroppedContains: ["??"]'), gone, ALL)).eligible).toEqual([]);
+    expect((await select(dropped("empty", "droppedContains: []"), gone, ALL)).eligible).toEqual([]);
+  });
+
+  test("a removed line in a file outside the rule's scope is not found", async () => {
+    const input = repo({ "checkout/.lore/a.lore": rule("scoped", '<when>\ndroppedContains: ["??"]\n</when>\n') });
+    expect((await select(input, change("M legacy/a.ts", "-2 const x = y ?? ''"), ALL)).eligible).toEqual([]);
   });
 });
 

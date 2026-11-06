@@ -3660,6 +3660,141 @@ M apps/web/src/checkout/Price.tsx
 }
 ``````
 
+A `droppedContains` condition finds a removed line only when its edit
+does not add the item back. In `Price.tsx` the edit keeps `??` on its
+added line, so only the `removedContains` rule finds that line. In
+`Total.tsx` the fallback is gone, and both rules find it:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/reads.lore
+<rule id="fallback-dropped" category="functional_correctness">
+<when>
+droppedContains: ["??"]
+</when>
+A read of an optional field keeps its `??` fallback.
+</rule>
+
+<rule id="fallback-touched" category="functional_correctness">
+<when>
+removedContains: ["??"]
+</when>
+A change to a line with a `??` fallback keeps the default it had.
+</rule>
+=== diff
+M apps/web/src/checkout/Price.tsx
+-2   const label = quote.label ?? ''
++2   const label = quote.title ?? ''
+M apps/web/src/checkout/Total.tsx
+-5   const tax = quote.tax ?? 0
++5   const tax = quote.tax
+=== expect
+{
+  "eligible": ["fallback-dropped", "fallback-touched"],
+  "hits": [
+    { "rule": "fallback-dropped", "file": "apps/web/src/checkout/Total.tsx", "line": 5, "text": "  const tax = quote.tax ?? 0", "side": "old" },
+    { "rule": "fallback-touched", "file": "apps/web/src/checkout/Price.tsx", "line": 2, "text": "  const label = quote.label ?? ''", "side": "old" },
+    { "rule": "fallback-touched", "file": "apps/web/src/checkout/Total.tsx", "line": 5, "text": "  const tax = quote.tax ?? 0", "side": "old" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+The line numbers decide the edits. In `Cart.tsx` the removed and the
+added line lie after the same two unchanged lines, so they are one edit
+and the guard is added back. In `Summary.tsx` an unchanged line lies
+between them, so they are two edits and the removed guard is found:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/guards.lore
+<rule id="guard-dropped" category="functional_correctness">
+<when>
+droppedContains: ["if (!quote)"]
+</when>
+A component keeps its guard for a missing quote.
+</rule>
+=== diff
+M apps/web/src/checkout/Cart.tsx
+-3   if (!quote) return null
++3   if (!quote) return <Empty />
+M apps/web/src/checkout/Summary.tsx
+-3   if (!quote) return null
++4   if (!quote) return <Empty />
+=== expect
+{
+  "eligible": ["guard-dropped"],
+  "hits": [
+    { "rule": "guard-dropped", "file": "apps/web/src/checkout/Summary.tsx", "line": 3, "text": "  if (!quote) return null", "side": "old" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+A `droppedMatches` condition pairs each pattern on its own. Line 4 of
+`Discount.tsx` keeps its `if (` but loses its `??`, so the `??` pattern
+finds it. Line 8 of `Coupon.tsx` lost its fallback and is still not
+found, because line 7 of the same edit adds `??`; pairing is by edit,
+not line by line:
+
+``````example eligibility
+=== apps/web/src/checkout/.lore/branches.lore
+<rule id="branch-or-fallback-dropped" category="functional_correctness">
+<when>
+droppedMatches: ['\?\?', '^\s*if \(']
+</when>
+A cleanup keeps the branches and fallbacks that still do something.
+</rule>
+=== diff
+M apps/web/src/checkout/Coupon.tsx
+-7   const rate = coupon.rate ?? 0
+-8   const cap = coupon.cap ?? Infinity
++7   const rate = coupon.rate ?? 0.05
++8   const cap = coupon.cap
+M apps/web/src/checkout/Discount.tsx
+-4   if (code ?? defaultCode) {
++4   if (code) {
+=== expect
+{
+  "eligible": ["branch-or-fallback-dropped"],
+  "hits": [
+    { "rule": "branch-or-fallback-dropped", "file": "apps/web/src/checkout/Discount.tsx", "line": 4, "text": "  if (code ?? defaultCode) {", "side": "old" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
+A deleted file's edits have no added line, so each matching removed line
+of it is found. A renamed file's removed lines pair with its added
+lines, so the edit in `Total.tsx` that keeps `'USD'` under the new path
+is not found:
+
+``````example eligibility
+=== apps/web/src/.lore/currency.lore
+<rule id="currency-literal-dropped" category="functional_correctness">
+<when>
+droppedContains: ["'USD'"]
+</when>
+Removing a hard-coded currency also removes what depended on it.
+</rule>
+=== diff
+D apps/web/src/legacy/Price.tsx
+-3 const currency = 'USD'
+R apps/web/src/legacy/Total.tsx -> apps/web/src/checkout/Total.tsx
+-6 const currency = 'USD'
++6 const currency = settings.currency ?? 'USD'
+=== expect
+{
+  "eligible": ["currency-literal-dropped"],
+  "hits": [
+    { "rule": "currency-literal-dropped", "file": "apps/web/src/legacy/Price.tsx", "line": 3, "text": "const currency = 'USD'", "side": "old" }
+  ],
+  "excluded": [],
+  "warnings": []
+}
+``````
+
 Each added line that the rule's condition finds is a hit. Its check also
 finds line 5, which is still one hit. The context is eligible, and has
 no hits:

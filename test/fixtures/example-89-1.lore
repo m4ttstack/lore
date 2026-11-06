@@ -1,7 +1,6 @@
-<rule id="price-source-recorded" category="data_provenance">
-Every stored price records the quote it came from.
+<rule id="currency-from-settings" category="functional_correctness">
+<when>
+removedContains: ["'USD'"]
+</when>
+A currency code is read from settings, never hard-coded.
 </rule>
-
-<context id="org-handbook" src="./../../handbook/review.md">
-Read for the organization's review conventions.
-</context>

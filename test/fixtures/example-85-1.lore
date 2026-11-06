@@ -1,6 +1,6 @@
-<rule id="currency-from-settings" category="functional_correctness">
+<rule id="checkout-currency-from-settings" category="functional_correctness">
 <when>
-removedContains: ["'USD'"]
+addedContains: ["'USD'"]
 </when>
-A currency code is read from settings, never hard-coded.
+Checkout display text never hard-codes a currency code.
 </rule>

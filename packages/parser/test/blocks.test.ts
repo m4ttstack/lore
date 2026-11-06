@@ -104,6 +104,14 @@ describe("checkWhen", () => {
     expect(checkWhen({ removedContains: ["a\nb"] }, LINE)).toEqual({ name: "invalid-when", line: LINE });
     expect(checkWhen({ removedMatches: ["a\nb"] }, LINE)).toEqual({ name: "regex-not-one-line", line: LINE });
   });
+
+  test("droppedContains and droppedMatches validate like the removed pair", () => {
+    expect(checkWhen({ droppedContains: ["??"], droppedMatches: ["\\?\\?"] }, LINE)).toBeNull();
+    expect(checkWhen({ droppedContains: [""] }, LINE)).toEqual({ name: "invalid-when", line: LINE });
+    expect(checkWhen({ droppedContains: ["a\nb"] }, LINE)).toEqual({ name: "invalid-when", line: LINE });
+    expect(checkWhen({ droppedMatches: ["a\nb"] }, LINE)).toEqual({ name: "regex-not-one-line", line: LINE });
+    expect(checkWhen({ removedMatches: ["a\nb"], droppedContains: [""] }, LINE)).toEqual({ name: "regex-not-one-line", line: LINE });
+  });
 });
 
 describe("checkMeta", () => {
