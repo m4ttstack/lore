@@ -35,7 +35,7 @@ Change:
 
 Output:
 
-- `--format text|json`: default is text on a terminal, json otherwise. Text shows at most 20 flagged lines per rule (then `- and N more`), each cut to 200 code points with `...` appended; json keeps every hit in full. An old-side hit is marked `(removed)` in text and carries `"side": "old"` in json.
+- `--format text|json`: default is text on a terminal, json otherwise. Text shows at most 20 flagged lines per rule (then `- and N more`), each cut to 200 code points with `...` appended; json keeps every hit in full. An old-side hit is marked `(removed)` in text and carries `"side": "old"` in json. A line a dropped-line condition finds is such a hit.
 - `--capabilities <list>`: the checks to run. Default: `regex,ast-grep`.
 - `--strict`: exit 1 when errors in the rules excluded entries.
 
