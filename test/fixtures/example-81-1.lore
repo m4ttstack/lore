@@ -1,6 +1,23 @@
-<rule id="checkout-currency-from-settings" category="functional_correctness">
+<scope>
+files: ["**/*.tsx"]
+</scope>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<check>
+'(USD|EUR)'
+</check>
+<check lang="regex">
+'EUR'
+</check>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="currency-symbols-from-settings" category="functional_correctness">
 <when>
-addedContains: ["'USD'"]
+addedContains: ["$"]
 </when>
-Checkout display text never hard-codes a currency code.
+<check>
+'USD'
+</check>
+Display text never hard-codes a currency symbol.
 </rule>

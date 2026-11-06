@@ -42,3 +42,7 @@ To remove a flag: delete its reads, then its definition in `flags.ts`, then the 
 ## 7. Keep the diff honest
 
 No unrelated formatting changes; prettier runs in CI, so formatting is enforced there.
+
+## 8. Optional amounts keep their fallback `[BLOCKING]`
+
+A read of an optional amount (`quote.tax ?? 0`, `line.discount ?? 0`) keeps its `?? 0`. The slip is a cleanup that deletes the fallback, so a missing amount reaches the total as `undefined`. A line that is edited and still has its `?? 0` is fine.

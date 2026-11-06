@@ -101,9 +101,11 @@ describe("completion", () => {
     expect(labels(at("<defaults>\ncategory: |\n</defaults>\n", "lore"))).toEqual(["functional_correctness", "security"]);
     expect(labels(at("<rule id=\"a\">\n<check lang=\"|\">\n", "lore"))).toEqual(["regex", "ast-grep"]);
     expect(labels(at("<rule id=\"a\">\n  <when>\n    |\n  </when>\n</rule>\n", "lore")))
-      .toEqual(["addedContains", "addedMatches", "removedContains", "removedMatches", "changed", "unchanged"]);
+      .toEqual(["addedContains", "addedMatches", "removedContains", "removedMatches", "droppedContains", "droppedMatches", "changed", "unchanged"]);
     expect(WHEN_DOCS.removedContains).toStartWith("Holds when a removed line");
     expect(WHEN_DOCS.removedMatches).toStartWith("Holds when a removed line");
+    expect(WHEN_DOCS.droppedContains).toContain("no added line of the same edit");
+    expect(WHEN_DOCS.droppedMatches).toContain("no added line of the same edit");
     expect(at("<rule id=\"a\">\n  <scope>\n    |\n  </scope>\n</rule>\n", "lore")).toEqual([]);
   });
 });

@@ -1,16 +1,13 @@
-<rule id="money-in-minor-units" category="functional_correctness">
+<rule id="fallback-dropped" category="functional_correctness">
 <when>
-addedContains: ["parseFloat(", "toFixed("]
+droppedContains: ["??"]
 </when>
-<check>
-toFixed\(
-</check>
-Amounts are integers in minor units (cents).
+A read of an optional field keeps its `??` fallback.
 </rule>
 
-<context id="rounding-guide" src="docs/rounding.md">
+<rule id="fallback-touched" category="functional_correctness">
 <when>
-addedContains: ["toFixed("]
+removedContains: ["??"]
 </when>
-Read before changing how amounts are rounded.
-</context>
+A change to a line with a `??` fallback keeps the default it had.
+</rule>

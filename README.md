@@ -115,12 +115,14 @@ narrow that scope, never widen it.
 
 `<when>` adds conditions on the change itself: text in added lines
 (`addedContains`, `addedMatches`) or in removed lines (`removedContains`,
-`removedMatches`), or other files that did or didn't
+`removedMatches`), text an edit removes without adding it back
+(`droppedContains`, `droppedMatches`), or other files that did or didn't
 change (`changed`, `unchanged`). A rule applies only when its scope matches
 a changed file and all of its conditions hold. The added lines that
 `addedContains` or `addedMatches` find are also pointed out to the
-reviewer, as are the removed lines the removed pair finds, by the file's
-old path, so one condition both selects the rule and shows where to look.
+reviewer, as are the removed lines the removed and dropped pairs find, by
+the file's old path, so one condition both selects the rule and shows where
+to look.
 
 ```html
 <rule id="migration-with-schema" category="backwards_compatibility" severity="blocking">
@@ -133,6 +135,25 @@ old path, so one condition both selects the rule and shows where to look.
   A new migration ships with the regenerated `db/schema.sql`.
 </rule>
 ```
+
+The removed pair finds every removed line that holds the text, so it also
+selects a rule when the line is edited and still holds it. The dropped
+pair finds a removed line only when the same edit adds the text back
+nowhere. An edit is a run of changed lines with no unchanged line between
+them. Use the dropped pair for a rule about something being deleted:
+
+```html
+<rule id="amounts-keep-fallback" category="functional_correctness">
+  <when>
+    droppedContains: ["?? 0"]
+  </when>
+  A read of an optional amount keeps its `?? 0` fallback. Without it, a
+  missing amount reaches the total as `undefined`.
+</rule>
+```
+
+Changing `quote.tax ?? 0` to `quote.salesTax ?? 0` does not select this
+rule. Deleting the `?? 0` does, and the removed line is pointed out.
 
 ### Checks
 

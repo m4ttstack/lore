@@ -13,6 +13,7 @@ interface Changed { paths: string[]; newPath: string | null; oldPath: string | n
 interface Selected { entry: Entry; place: EntryPlace; counted: Changed[] }
 type Place = Pick<EntryPlace, "base" | "tree">;
 type Regexes = (pattern: string) => RegExp;
+type LineTest = (text: string) => boolean;
 
 const DEFAULT_BINARY = "ast-grep";
 const AST_GREP_RUNS_AT_ONCE = 8;
@@ -117,6 +118,11 @@ function conditionsHold(
         const patterns = values.map(regexes);
         return onLine(condition === "addedMatches" ? "added" : "removed", (text) => patterns.some((pattern) => pattern.test(text)));
       }
+      case "droppedContains":
+      case "droppedMatches": {
+        const items = condition === "droppedContains" ? itemTests(values, [], regexes) : itemTests([], values, regexes);
+        return counted.some((file) => dropped(file, items).length > 0);
+      }
       case "changed":
         return anyChanged(values);
       case "unchanged":
@@ -125,6 +131,41 @@ function conditionsHold(
         return false;
     }
   });
+}
+
+// The number of unchanged lines before a changed line of the file; lines with the same number are in the same edit.
+function editOf(file: Changed): (side: "added" | "removed", line: ChangedLine) => number {
+  const numbers = {
+    added: file.added.map(({ line }) => line).sort((a, b) => a - b),
+    removed: file.removed.map(({ line }) => line).sort((a, b) => a - b),
+  };
+  return (side, { line }) => line - 1 - countBelow(numbers[side], line);
+}
+
+function countBelow(sorted: readonly number[], value: number): number {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (sorted[middle]! < value) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+// The file's removed lines that an item finds while no added line of the same edit matches that item.
+function dropped(file: Changed, items: readonly LineTest[]): ChangedLine[] {
+  if (items.length === 0 || file.removed.length === 0) return [];
+  const edit = editOf(file);
+  const addedBack = items.map((test) => new Set(file.added.filter(({ text }) => test(text)).map((line) => edit("added", line))));
+  return file.removed.filter((line) => items.some((test, n) => test(line.text) && !addedBack[n]!.has(edit("removed", line))));
+}
+
+function itemTests(contains: readonly string[] = [], matches: readonly string[] = [], regexes: Regexes): LineTest[] {
+  return [
+    ...contains.map((value): LineTest => (text) => text.includes(value)),
+    ...matches.map(regexes).map((pattern): LineTest => (text) => pattern.test(text)),
+  ];
 }
 
 // Each pattern of an entry that can be eligible compiles before selection, so one past the engine's limits
@@ -140,6 +181,7 @@ function compileRegexes(entries: readonly Entry[], regexChecks: boolean): Regexe
     const patterns = [
       ...(entry.when?.addedMatches ?? []),
       ...(entry.when?.removedMatches ?? []),
+      ...(entry.when?.droppedMatches ?? []),
       ...(regexChecks ? entry.checks.filter((check) => check.lang === "regex").map((check) => check.body) : []),
     ];
     for (const pattern of patterns) {
@@ -181,6 +223,11 @@ async function runChecks(
           if (file.oldPath === null) continue;
           for (const removed of file.removed) if (foundRemoved(removed.text)) hit(entry.id, file.oldPath, removed, "old");
         }
+      }
+      const droppedItems = itemTests(entry.when?.droppedContains, entry.when?.droppedMatches, support.regexes);
+      for (const file of counted) {
+        if (file.oldPath === null) continue;
+        for (const removed of dropped(file, droppedItems)) hit(entry.id, file.oldPath, removed, "old");
       }
     }
     const unknownLanguage = new Set<string>();

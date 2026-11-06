@@ -1,3 +1,10 @@
-<context id="billing-architecture" src="docs/billing.md">
-  Read before reviewing changes to how invoices are calculated.
-</context>
+<rule id="tenant-scoped-queries" category="security" severity="blocking">
+  <scope>
+    files: ["server/**/*.ts"]
+  </scope>
+  <check lang="ast-grep">
+    db.$MODEL.findMany($$$)
+  </check>
+  Every query on customer data filters by `tenantId`. A query without it can
+  return another customer's records.
+</rule>

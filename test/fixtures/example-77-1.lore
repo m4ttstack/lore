@@ -1,23 +1,14 @@
-<scope>
-files: ["**/*.tsx"]
-</scope>
-
-<rule id="currency-from-settings" category="functional_correctness">
-<check>
-'(USD|EUR)'
-</check>
-<check lang="regex">
-'EUR'
-</check>
-Display text never hard-codes a currency code.
+<rule id="price-digits-from-formatter" category="functional_correctness">
+<when>
+addedMatches: ['\d']
+</when>
+Prices in labels are formatted by the shop's number formatter, never
+written as digits.
 </rule>
 
-<rule id="currency-symbols-from-settings" category="functional_correctness">
+<rule id="currency-code-from-settings" category="functional_correctness">
 <when>
-addedContains: ["$"]
+addedMatches: ['\bUSD\b']
 </when>
-<check>
-'USD'
-</check>
-Display text never hard-codes a currency symbol.
+Display text never spells out a currency code.
 </rule>

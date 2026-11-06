@@ -1,3 +1,6 @@
-<rule id="checkout-render-budget" category="web_vitals">
-The checkout page shows its first price within the page's time budget.
+<rule id="lore-rules-owned" category="documentation">
+<scope>
+files: ["**/.lore/**/*.lore"]
+</scope>
+Every new rule records its owner in its `<meta>`.
 </rule>
