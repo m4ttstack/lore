@@ -251,7 +251,8 @@ under the new path pair up in the same edits.
 - The dropped pair is for a construct whose deletion is the slip, when an
   edit that keeps it is fine. With `droppedContains: ["?? 0"]` scoped to
   `src/checkout/`, this change selects the rule with one hit, line 7 of
-  `Total.ts`; the edit in `Tax.ts` keeps `?? 0` and is not found:
+  `Total.ts`; the edit in `Tax.ts` keeps `?? 0`, so its removed line is
+  not found:
 
   ```diff
   diff --git a/src/checkout/Tax.ts b/src/checkout/Tax.ts
@@ -269,10 +270,11 @@ under the new path pair up in the same edits.
   ```
 
   Two limits. An edit that adds the item for another reason hides the
-  removal. Pairing is by edit, not line by line: had the two lines been
-  adjacent in one file, `Tax.ts`'s added `?? 0` would hide the dropped
-  one. When an edit that keeps the item can still be the slip (a call
-  whose argument changes), use the removed pair.
+  removal. Pairing is by edit, not line by line: had `Total.ts`'s lines
+  sat directly below `Tax.ts`'s in one file, with no unchanged line
+  between, the added `?? 0` of the tax line would keep the removed
+  discount line from being found. When an edit that keeps the item can
+  still be the slip (a call whose argument changes), use the removed pair.
 - `addedContains` and `removedContains` are case-sensitive substring
   tests. `addedMatches` and `removedMatches` search one line at a time;
   `^` is its start, indentation included. The dropped pair compares and
@@ -316,7 +318,8 @@ verdict. The language is `regex` unless `lang` says otherwise.
 </rule>
 ```
 
-**Regex dialect** (also used by `addedMatches` and `removedMatches`):
+**Regex dialect** (also used by `addedMatches`, `removedMatches` and
+`droppedMatches`):
 literals, `.`, `[...]`, `[^...]`, `^`, `$`, `\b`, `(x)`, `(?:x)`, `|`, `*`,
 `+`, `?`, `{n}`, `{n,}`, `{n,m}` (at most 1000), ASCII-only `\d \w \s`,
 `\t`, `\x41`, and `\` before ASCII punctuation. Case-sensitive, one line at
