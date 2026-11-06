@@ -371,10 +371,10 @@ describe("select: dropped lines", () => {
     expect((await select(input, change("M a.ts", "-2 const x = y ?? ''", "+2 const x = z ?? ''"), ALL)).eligible).toEqual([]);
   });
 
-  test("a droppedMatches pattern past the regex engine's limits fails the run", async () => {
-    const input = dropped("deep-dropped", `droppedMatches: ['${DEEP}']`);
+  test("a droppedMatches pattern past the regex engine's limits fails the run, even with no file in scope", async () => {
+    const input = repo({ "checkout/.lore/a.lore": rule("deep-dropped", `<when>\ndroppedMatches: ['${DEEP}']\n</when>\n`) });
     expect(parse(input).errors).toEqual([]);
-    await expect(select(input, change("M a.ts", "-1 a"), ALL)).rejects.toBeInstanceOf(RegexLimitError);
+    await expect(select(input, change("M legacy/a.ts", "-1 a"), ALL)).rejects.toBeInstanceOf(RegexLimitError);
   });
 });
 
