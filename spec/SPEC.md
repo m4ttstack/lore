@@ -3499,9 +3499,9 @@ when every one of its conditions holds.
   conditions finds is a hit on the old side, named by the file's old
   path. A removed line that a `droppedContains` or `droppedMatches`
   condition finds is a hit on the old side in the same way. All of the
-  conditions together decide eligibility; each added-line or removed-line
-  condition then points at the lines it finds on its own. A context has
-  no hits.
+  conditions together decide eligibility; each added-line, removed-line
+  or dropped-line condition then points at the lines it finds on its own.
+  A context has no hits.
 
 The dropped-line conditions have known limits. An edit that adds the
 same item for another reason keeps a removal from being found. An edit
@@ -3620,7 +3620,7 @@ M apps/web/src/checkout/Shipping.tsx
 }
 ``````
 
-A removed line counts only for the removed-line conditions. The first
+A removed line never counts for an added-line condition. The first
 rule's condition finds the removed fallback, which is a hit on the old
 side. The second rule's `addedContains` sees the added line only, and
 `??` is on no added line:
@@ -4158,8 +4158,8 @@ eligible, a tool runs the search over the rule's counted files (see
 the rule. A hit is a pointer to a line, never a verdict: a hit does not
 mean the rule is broken, and no hits does not mean it passed.
 
-A rule's added-line and removed-line conditions already point at the
-lines they find (see [Conditions](#conditions)). A check is for a search
+A rule's added-line, removed-line and dropped-line conditions already
+point at the lines they find (see [Conditions](#conditions)). A check is for a search
 that should not decide whether the rule is eligible, or one that a
 condition cannot express, such as an `ast-grep` pattern.
 
@@ -4266,9 +4266,10 @@ deleted file has none. A **hit** names the rule, a side, the changed
 file and a line's number and text: on the new side the file's new path
 and an added line, on the old side the file's old path and a removed
 line (see [Conditions](#conditions)). A check's hits and an added-line
-condition's hits are on the new side; a removed-line condition's hits
-are on the old side. An eligible rule's hits are those of its checks and
-those of its added-line and removed-line conditions. A rule has at most
+condition's hits are on the new side; a removed-line or dropped-line
+condition's hits are on the old side. An eligible rule's hits are those
+of its checks and those of its added-line, removed-line and dropped-line
+conditions. A rule has at most
 one hit per side, file and line, however many of its checks or
 conditions find that line.
 
@@ -5101,10 +5102,9 @@ that holds it.
 - An entry is switched off for a changed file when it is switched off
   for each of the file's paths that is in its scope. Such a file is not
   one of the entry's counted files: it does not make the entry eligible,
-  its added and removed lines do not count for the added-line and
-  removed-line conditions,
-  and checks do not search it. `changed` and `unchanged` still see it
-  (see [Conditions](#conditions)).
+  its added and removed lines do not count for the added-line,
+  removed-line and dropped-line conditions, and checks do not search it.
+  `changed` and `unchanged` still see it (see [Conditions](#conditions)).
 - An entry switched off for every changed file in its scope is not
   eligible. A counted file elsewhere keeps it eligible.
 - A `disable` list in the governed repo also switches off entries from
