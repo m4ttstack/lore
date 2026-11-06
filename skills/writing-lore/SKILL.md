@@ -64,8 +64,8 @@ the change. Decide it for each rule, in this order:
      ever be the slip?
      - **Never** (a deleted fallback, a deleted branch):
        `droppedContains: [...]`. A removed line counts only when the same
-       edit adds no line with that literal, so a rename or a reformat of
-       the line does not select the rule.
+       edit adds no line with that literal, so an edit of the line that
+       keeps the literal, such as a rename, does not select the rule.
      - **It can** (a replaced assertion, a call whose argument is swapped,
        such as an `isEnabled('` read that now reads another flag):
        `removedContains: [...]`. A replacement adds `addedContains` for
