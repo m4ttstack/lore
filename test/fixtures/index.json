@@ -1131,5 +1131,11 @@
     "kind": "readme",
     "path": "README.md",
     "errors": []
+  },
+  "readme-6.lore": {
+    "example": null,
+    "kind": "readme",
+    "path": "README.md",
+    "errors": []
   }
 }
