@@ -16,7 +16,7 @@ const literal = (n: number): string => `MARKER_${String(n).padStart(3, "0")}`;
 const summary = (n: number): string => `Rule ${String(n).padStart(3, "0")} keeps the pricing module consistent with the shared ledger and its audit.`;
 
 mkdirSync(join(root, ".lore", "cost"), { recursive: true });
-writeFileSync(join(root, ".loreconfig"), "lore: 1\nrepo: github.com/acme/shop\n");
+writeFileSync(join(root, ".loreconfig"), "lore: 1\nrepo: github.com/acme/shop\nloose: true\n");
 for (let n = 0; n < RULES; n++) {
   const rule = `<scope>\nfiles: ["src/**"]\n</scope>\n\n<rule id="${id(n)}" category="code_style">\n<when>\naddedContains: ["${literal(n)}"]\n</when>\n${summary(n)}\n</rule>\n`;
   writeFileSync(join(root, ".lore", "cost", `${id(n)}.lore`), rule);
@@ -47,6 +47,7 @@ test("on 200 rules in scope with 10 triggered, the JSON lists the other 190 and 
   const selection = JSON.parse(out);
   expect(selection.rules).toHaveLength(TRIGGERED);
   expect(selection.alsoInScope).toHaveLength(RULES - TRIGGERED);
+  expect(selection.warnings).toEqual([]);
   expect(Buffer.byteLength(out) - Buffer.byteLength(await select("json", false))).toBe(58543);
 });
 

@@ -27,7 +27,6 @@ export async function selectParsed(input: LoreInput, parsed: ParsedInput, change
   return (await selectDetailed(input, parsed, change, options)).result;
 }
 
-// selectParsed's result, with the rules whose scope covers a changed path but whose <when> did not hold.
 export async function selectDetailed(
   input: LoreInput,
   parsed: ParsedInput,

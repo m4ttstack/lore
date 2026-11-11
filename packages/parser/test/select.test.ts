@@ -437,6 +437,12 @@ describe("selectDetailed: in scope, not triggered", () => {
     ]);
   });
 
+  test("a rename out of a folder that switches the rule off lists only the path it still counts for", async () => {
+    const rename = change("R styles/old/c.css -> styles/c.css", "+1 c");
+    const { untriggered } = await selectDetailed(input, parseWithContext(input), rename, ALL);
+    expect(untriggered).toEqual([{ id: "half-off", paths: ["styles/c.css"] }]);
+  });
+
   test("its result is what selectParsed returns", async () => {
     const { result } = await selectDetailed(input, parseWithContext(input), changed, ALL);
     expect(result.eligible).toEqual(["no-when", "usd-added"]);
