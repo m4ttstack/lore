@@ -13,3 +13,4 @@ export { namesRepo, normalizeRemote, readLoreconfig, type ConfigRead, type Disab
 export { disjoint, matchFromBase, matchGlob, resolveGlob, validateGlob, type GlobPlace } from "./glob";
 export { coveringEntries, missingSrcTargets, select, selectDetailed, selectParsed } from "./select";
 export { RegexLimitError } from "./regex";
+export { compareCodePoints } from "./text";

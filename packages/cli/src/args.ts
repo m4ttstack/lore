@@ -12,6 +12,8 @@ export interface SelectCommand {
   format: "text" | "json" | null;
   capabilities: Capability[];
   strict: boolean;
+  alsoInScope: boolean;
+  expand: string[];
 }
 export interface CheckCommand extends Omit<SelectCommand, "name" | "diff"> {
   name: "check";
@@ -28,8 +30,8 @@ export type Command =
 
 const NOT_YET = ["--paths", "--change", "--base", "--head"];
 const CAPABILITIES: Capability[] = ["regex", "ast-grep"];
-const VALUE_FLAGS = ["--repo", "--remote", "--rules-ref", "--given", "--diff", "--format", "--capabilities"];
-const REPEATABLE = ["--remote", "--given"];
+const VALUE_FLAGS = ["--repo", "--remote", "--rules-ref", "--given", "--diff", "--format", "--capabilities", "--expand"];
+const REPEATABLE = ["--remote", "--given", "--expand"];
 
 export function parseCommand(argv: string[]): Command {
   const [first, ...rest] = argv;
@@ -51,7 +53,7 @@ function parseChangeCommand(name: "select" | "check", args: string[]): Command {
     const flag = eq === -1 ? arg : arg.slice(0, eq);
     if (flag === "--help") return { name: "help" };
     if (NOT_YET.includes(flag) && !(name === "check" && flag === "--base")) throw new UsageError(`${flag} is not available yet`);
-    if (flag === "--no-repo" || flag === "--strict") {
+    if (flag === "--no-repo" || flag === "--strict" || flag === "--also-in-scope") {
       if (eq !== -1) throw new UsageError(`${flag} takes no value`);
       flags.add(flag);
       continue;
@@ -81,6 +83,7 @@ function parseChangeCommand(name: "select" | "check", args: string[]): Command {
 
   const format = one("--format");
   if (format !== null && format !== "text" && format !== "json") throw new UsageError(`--format must be text or json, not ${format}`);
+  const expand = values.get("--expand") ?? [];
   const shared: Omit<CheckCommand, "name" | "commit" | "base"> = {
     repo: one("--repo"),
     noRepo,
@@ -90,6 +93,8 @@ function parseChangeCommand(name: "select" | "check", args: string[]): Command {
     format,
     capabilities: parseCapabilities(one("--capabilities") ?? CAPABILITIES.join(",")),
     strict: flags.has("--strict"),
+    alsoInScope: flags.has("--also-in-scope") || expand.length > 0,
+    expand,
   };
   if (name === "check") return { name, commit: positional[0] ?? null, base: one("--base"), ...shared };
   const diff = one("--diff");

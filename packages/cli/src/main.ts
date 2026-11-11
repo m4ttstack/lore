@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { RegexLimitError, parseWithContext, selectParsed } from "@lore/parser";
+import { RegexLimitError, parseWithContext, selectDetailed } from "@lore/parser";
 import pkg from "../package.json";
 import { parseCommand, type CheckCommand, type SelectCommand, type VerdictsCommand } from "./args";
 import { changeDiff, type ChangeSource } from "./change";
@@ -42,6 +42,8 @@ Output:
   --format text|json     Default: text for lore check; for lore select, text on a terminal, json otherwise
   --capabilities <list>  Checks to run, default regex,ast-grep
   --strict               Exit 1 when the rules have errors that excluded entries
+  --also-in-scope        List rules whose scope covers a changed file but whose conditions did not hold
+  --expand <id>          Print one of those rules in full (repeatable; it then needs a verdict)
 
 Verdicts:
   --selection <file>     The JSON from lore select
@@ -117,12 +119,13 @@ async function selectChange(command: SelectCommand | CheckCommand, io: IO, sourc
   });
   const change = parseUnifiedDiff(await source.change());
   const parsed = parseWithContext(input);
-  const result = await selectParsed(input, parsed, change, {
+  const { result, untriggered } = await selectDetailed(input, parsed, change, {
     capabilities: command.capabilities,
     astGrepBinary: "ast-grep",
     fileContent: () => null,
   });
-  const selection = toSelection(parsed.model, result, change, entrySources(parsed, readSrc), unreadWarnings(unread, parsed.collected));
+  const listing = command.alsoInScope ? { untriggered, expand: command.expand } : undefined;
+  const selection = toSelection(parsed.model, result, change, entrySources(parsed, readSrc), unreadWarnings(unread, parsed.collected), listing);
   const format = command.format ?? (command.name === "check" || io.isTTY ? "text" : "json");
   if (format === "json") io.stdout(`${JSON.stringify(selection, null, 2)}\n`);
   else {

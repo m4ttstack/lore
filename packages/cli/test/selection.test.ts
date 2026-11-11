@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Diagnostic } from "@lore/parser";
+import type { Diagnostic, Entry } from "@lore/parser";
+import { UsageError } from "../src/errors";
 import { toSelection } from "../src/selection";
 import { change, model, sources, result } from "./fixtures";
 
@@ -98,6 +99,61 @@ describe("toSelection", () => {
       const governed: Diagnostic = { name: "lore-file-not-read", file: ".lore/broken.lore", entry: null, line: 1 };
       const external: Diagnostic = { name: "lore-file-not-read", file: "external:.lore/a.lore", entry: null, line: 1 };
       expect(toSelection(model, result, change, sources, [external, governed]).warnings).toEqual([governed, ...result.warnings, external]);
+    });
+  });
+
+  describe("with a listing", () => {
+    const base = { category: null, severity: null, disabled: false, scopes: [], when: null, checks: [], meta: null, src: null, prose: "Prose." };
+    const extra: Entry[] = [
+      { ...base, kind: "rule", id: "b-advisory", file: ".lore/x.lore", summary: "B." },
+      { ...base, kind: "rule", id: "a-advisory", file: ".lore/x.lore", summary: "A." },
+      { ...base, kind: "rule", id: "c-advisory", file: ".lore/x.lore", summary: "C." },
+      { ...base, kind: "rule", id: "z-blocking", file: ".lore/y.lore", category: "security", severity: "blocking", summary: "Z." },
+      { ...base, kind: "rule", id: "middle", file: ".lore/y.lore", summary: "Middle.", prose: "Middle prose.", meta: { owner: "x" } },
+    ];
+    const listed = { ...model, entries: [...model.entries, ...extra] };
+    const untriggered = [
+      { id: "a-advisory", paths: ["src/a.ts"] },
+      { id: "b-advisory", paths: ["src/a.ts", "src/b.ts"] },
+      { id: "c-advisory", paths: ["src/a.ts"] },
+      { id: "middle", paths: ["src/a.ts"] },
+      { id: "z-blocking", paths: ["src/a.ts"] },
+    ];
+
+    test("lists blocking before advisory, then more covered paths first, then id", () => {
+      const selection = toSelection(listed, result, change, sources, [], { untriggered, expand: [] });
+      expect(selection.alsoInScope!.map((rule) => rule.id)).toEqual(["z-blocking", "b-advisory", "a-advisory", "c-advisory", "middle"]);
+      expect(selection.alsoInScope![0]).toEqual({
+        id: "z-blocking", file: ".lore/y.lore", category: "security", severity: "blocking", summary: "Z.", paths: ["src/a.ts"],
+      });
+      expect(selection.rules.map((rule) => rule.id)).toEqual(["money-in-minor-units", "name-things"]);
+    });
+
+    test("an expanded rule joins rules in id order with no hits and leaves the listing", () => {
+      const selection = toSelection(listed, result, change, sources, [], { untriggered, expand: ["middle"] });
+      expect(selection.rules.map((rule) => rule.id)).toEqual(["middle", "money-in-minor-units", "name-things"]);
+      expect(selection.rules[0]).toEqual({
+        id: "middle", file: ".lore/y.lore", category: null, severity: "advisory", summary: "Middle.", prose: "Middle prose.",
+        meta: { owner: "x" }, hits: [], expanded: true,
+      });
+      expect(selection.alsoInScope!.map((rule) => rule.id)).not.toContain("middle");
+      expect(selection.rules[1]).not.toHaveProperty("expanded");
+    });
+
+    test.each([
+      ["an already selected rule", "name-things"],
+      ["an unknown id", "no-such-rule"],
+    ])("expanding %s is a usage error naming the id", (_name, id) => {
+      expect(() => toSelection(listed, result, change, sources, [], { untriggered, expand: ["middle", id] })).toThrow(UsageError);
+      expect(() => toSelection(listed, result, change, sources, [], { untriggered, expand: ["middle", id] })).toThrow(id);
+    });
+
+    test("an empty listing is an empty key", () => {
+      expect(toSelection(model, result, change, sources, [], { untriggered: [], expand: [] }).alsoInScope).toEqual([]);
+    });
+
+    test("without a listing the key is absent", () => {
+      expect("alsoInScope" in toSelection(model, result, change, sources)).toBe(false);
     });
   });
 });

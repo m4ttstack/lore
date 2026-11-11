@@ -1,4 +1,8 @@
-import { compareDiagnostics, type Change, type Diagnostic, type DocumentModel, type EligibilityResult, type Entry, type ParsedInput } from "@lore/parser";
+import {
+  compareCodePoints, compareDiagnostics, type Change, type Diagnostic, type DocumentModel, type EligibilityResult, type Entry, type ParsedInput,
+  type Untriggered,
+} from "@lore/parser";
+import { UsageError } from "./errors";
 
 export interface SelectedRule {
   id: string;
@@ -9,6 +13,15 @@ export interface SelectedRule {
   prose: string;
   meta: Record<string, unknown> | null;
   hits: { file: string; line: number; text: string; side?: "old" }[];
+  expanded?: true;
+}
+export interface ListedRule {
+  id: string;
+  file: string;
+  category: string | null;
+  severity: "blocking" | "advisory";
+  summary: string;
+  paths: string[];
 }
 export interface SelectedContext {
   id: string;
@@ -26,6 +39,12 @@ export interface Selection {
   change: { kind: "A" | "M" | "D" | "R"; path: string; oldPath: string | null; added: number[]; removed: number[] }[];
   excluded: Diagnostic[];
   warnings: Diagnostic[];
+  alsoInScope?: ListedRule[];
+}
+
+export interface Listing {
+  untriggered: Untriggered[];
+  expand: string[];
 }
 
 export interface EntrySources {
@@ -53,6 +72,7 @@ export function toSelection(
   change: Change,
   sources: EntrySources,
   unread: Diagnostic[] = [],
+  listing?: Listing,
 ): Selection {
   const missing = new Set(result.warnings.filter((warning) => warning.name === "missing-src-target").map((warning) => `${warning.file}\0${warning.entry}`));
   const notRead: Diagnostic[] = [];
@@ -69,13 +89,9 @@ export function toSelection(
       context.push({ id, file: entry.file, summary: entry.summary, prose: entry.prose, src: entry.src, srcText });
       continue;
     }
-    rules.push({
-      id, file: entry.file, category: entry.category, severity: entry.severity ?? "advisory",
-      summary: entry.summary, prose: entry.prose, meta: entry.meta,
-      hits: result.hits.filter((hit) => hit.rule === id).map(({ file, line, text, side }) => ({ file, line, text, ...(side === undefined ? {} : { side }) })),
-    });
+    rules.push(selectedRule(entry, result.hits.filter((hit) => hit.rule === id).map(({ file, line, text, side }) => ({ file, line, text, ...(side === undefined ? {} : { side }) }))));
   }
-  return {
+  const selection: Selection = {
     lore: "1",
     rules,
     context,
@@ -90,4 +106,28 @@ export function toSelection(
     excluded: result.excluded,
     warnings: [...result.warnings, ...notRead, ...unread].sort(compareDiagnostics),
   };
+  if (listing === undefined) return selection;
+  const listed = listing.untriggered.map(({ id, paths }) => {
+    const entry = entries.get(id)!;
+    return { id, file: entry.file, category: entry.category, severity: entry.severity ?? "advisory", summary: entry.summary, paths };
+  });
+  const unknown = listing.expand.find((id) => !listed.some((rule) => rule.id === id));
+  if (unknown !== undefined) throw new UsageError(`--expand ${unknown}: not a rule in scope whose conditions did not hold`);
+  const expand = new Set(listing.expand);
+  for (const { id } of listed.filter((rule) => expand.has(rule.id))) rules.push({ ...selectedRule(entries.get(id)!, []), expanded: true });
+  rules.sort((a, b) => compareCodePoints(a.id, b.id));
+  selection.alsoInScope = listed.filter((rule) => !expand.has(rule.id)).sort(compareListed);
+  return selection;
+}
+
+function selectedRule(entry: Entry, hits: SelectedRule["hits"]): SelectedRule {
+  return {
+    id: entry.id, file: entry.file, category: entry.category, severity: entry.severity ?? "advisory",
+    summary: entry.summary, prose: entry.prose, meta: entry.meta, hits,
+  };
+}
+
+function compareListed(a: ListedRule, b: ListedRule): number {
+  if (a.severity !== b.severity) return a.severity === "blocking" ? -1 : 1;
+  return b.paths.length - a.paths.length || compareCodePoints(a.id, b.id);
 }
