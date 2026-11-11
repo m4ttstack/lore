@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Selection } from "../src/selection";
-import { checkVerdicts } from "../src/verdicts";
+import { InputError } from "../src/errors";
+import { checkVerdicts, readSelection } from "../src/verdicts";
 
 const rule = (id: string) => ({
   id, file: ".lore/a.lore", category: null, severity: "advisory" as const, summary: id, prose: id, meta: null, hits: [],
@@ -180,5 +181,53 @@ describe("checkVerdicts", () => {
     const problems = checkVerdicts(selection, set(5, { rule: "alpha", verdict: "fail" }, pass("alpha"), pass("zzz")));
     expect(problems.length).toBeGreaterThan(0);
     for (const { detail } of problems) expect(detail).toMatch(/^[^\n–—]+$/);
+  });
+});
+
+describe("listed rules", () => {
+  const listed = (id: string) => ({ id, file: ".lore/a.lore", category: null, severity: "advisory" as const, summary: id, paths: ["src/mod.ts"] });
+  const withListing: Selection = {
+    ...selection,
+    rules: [rule("alpha"), { ...rule("wide"), expanded: true }],
+    alsoInScope: [listed("gamma"), listed("delta")],
+  };
+  const listedNames = (verdictSet: unknown) => checkVerdicts(withListing, verdictSet).map((p) => `${p.rule}:${p.name}`);
+
+  test("a verdict for a listed rule is accepted and none is required", () => {
+    expect(listedNames(set(pass("alpha"), pass("wide"), pass("gamma")))).toEqual([]);
+  });
+
+  test("a verdict for a listed rule is checked like any other", () => {
+    expect(listedNames(set(pass("alpha"), pass("wide"), { rule: "gamma", verdict: "fail", note: "n" }))).toEqual([
+      "gamma:fail-without-evidence",
+    ]);
+    expect(listedNames(set(pass("alpha"), pass("wide"), pass("delta"), pass("delta")))).toEqual(["delta:duplicate-verdict"]);
+  });
+
+  test("an expanded rule needs a verdict", () => {
+    expect(listedNames(set(pass("alpha")))).toEqual(["wide:missing-verdict"]);
+  });
+
+  test("without the alsoInScope key a verdict for a rule outside the selection is unselected", () => {
+    const { alsoInScope: _omitted, ...saved } = withListing;
+    expect(checkVerdicts(saved, set(pass("alpha"), pass("wide"), pass("gamma"))).map((p) => `${p.rule}:${p.name}`)).toEqual([
+      "gamma:unselected-verdict",
+    ]);
+  });
+});
+
+describe("readSelection", () => {
+  const saved = JSON.parse(JSON.stringify(selection));
+
+  test("reads a selection with or without alsoInScope", () => {
+    expect(readSelection(saved)).toEqual(saved);
+    const listing = { ...saved, alsoInScope: [{ id: "gamma", file: ".lore/a.lore", category: null, severity: "advisory", summary: "g", paths: [] }] };
+    expect(readSelection(listing)).toEqual(listing);
+  });
+
+  test("rejects an alsoInScope that is not an array of rules", () => {
+    for (const alsoInScope of [{}, "x", null, [{ id: 3 }]]) {
+      expect(() => readSelection({ ...saved, alsoInScope })).toThrow(new InputError("the selection file is not a lore select selection"));
+    }
   });
 });

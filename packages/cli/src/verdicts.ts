@@ -19,6 +19,7 @@ export function checkVerdicts(selection: Selection, verdictSet: unknown): Verdic
   if (!Array.isArray(verdictSet.verdicts)) return invalidSet('The verdict set\'s "verdicts" must be an array.');
 
   const selected = new Set(selection.rules.map((rule) => rule.id));
+  const listed = new Set((selection.alsoInScope ?? []).map((rule) => rule.id));
   const newPaths = new Set(selection.change.filter((file) => file.kind !== "D").map((file) => file.path));
   const oldPaths = new Set<string>();
   for (const file of selection.change) {
@@ -34,7 +35,7 @@ export function checkVerdicts(selection: Selection, verdictSet: unknown): Verdic
       return;
     }
     const { rule } = verdict;
-    if (!selected.has(rule)) report("unselected-verdict", rule, `"${rule}" is not a selected rule.`);
+    if (!selected.has(rule) && !listed.has(rule)) report("unselected-verdict", rule, `"${rule}" is not a selected rule.`);
     else if (seen.has(rule)) report("duplicate-verdict", rule, `"${rule}" has more than one verdict.`);
     seen.add(rule);
     if (verdict.verdict === "fail" && verdict.evidence.length === 0) {
@@ -66,7 +67,9 @@ export function readSelection(value: unknown): Selection {
       (file) =>
         isObject(file) && CHANGE_KINDS.includes(file.kind as string) && typeof file.path === "string" &&
         (file.oldPath === null || typeof file.oldPath === "string"),
-    )
+    ) ||
+    (value.alsoInScope !== undefined &&
+      !(Array.isArray(value.alsoInScope) && value.alsoInScope.every((rule) => isObject(rule) && typeof rule.id === "string")))
   ) {
     throw new InputError("the selection file is not a lore select selection");
   }
