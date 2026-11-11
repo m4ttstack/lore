@@ -5,7 +5,7 @@ import { compareDiagnostics, parseWithContext, parsedContextOf, type EntryPlace,
 import { RegexLimitError, shown, toRegExp } from "./regex";
 import { compareCodePoints } from "./text";
 import type {
-  Change, ChangedFile, ChangedLine, Diagnostic, DocumentModel, EligibilityResult, Entry, Hit, LoreInput, SelectOptions,
+  Change, ChangedFile, ChangedLine, Diagnostic, DocumentModel, EligibilityResult, Entry, Hit, LoreInput, SelectOptions, Untriggered,
 } from "./types";
 
 // newPath is null for a deleted file, which has no added lines; oldPath is null for an added file, which has no removed lines.
@@ -24,6 +24,16 @@ export async function select(input: LoreInput, change: Change, options: SelectOp
 
 // select for a caller that parsed the input already; parsed must come from parseWithContext(input).
 export async function selectParsed(input: LoreInput, parsed: ParsedInput, change: Change, options: SelectOptions = {}): Promise<EligibilityResult> {
+  return (await selectDetailed(input, parsed, change, options)).result;
+}
+
+// selectParsed's result, with the rules whose scope covers a changed path but whose <when> did not hold.
+export async function selectDetailed(
+  input: LoreInput,
+  parsed: ParsedInput,
+  change: Change,
+  options: SelectOptions = {},
+): Promise<{ result: EligibilityResult; untriggered: Untriggered[] }> {
   const { model, collected, placeOf } = parsed;
   const capabilities = new Set(options.capabilities ?? []);
   const candidates = model.entries.filter((entry) => !neverEligible(entry, placeOf.get(entry)!));
@@ -32,11 +42,15 @@ export async function selectParsed(input: LoreInput, parsed: ParsedInput, change
   const everyPath = changed.flatMap((file) => file.paths);
 
   const selected: Selected[] = [];
+  const untriggered: Untriggered[] = [];
   for (const entry of candidates) {
     const place = placeOf.get(entry)!;
     const counted = changed.filter((file) => counts(collected, entry, place, file.paths));
     if (counted.length === 0) continue;
-    if (entry.when !== null && !conditionsHold(entry.when, place.base, counted, everyPath, regexes)) continue;
+    if (entry.when !== null && !conditionsHold(entry.when, place.base, counted, everyPath, regexes)) {
+      if (entry.kind === "rule") untriggered.push({ id: entry.id, paths: countedPaths(collected, entry, place, counted) });
+      continue;
+    }
     selected.push({ entry, place, counted });
   }
 
@@ -48,12 +62,13 @@ export async function selectParsed(input: LoreInput, parsed: ParsedInput, change
     regexes,
   });
   const warnings = [...model.warnings, ...srcTargetsMissing(model, placeOf, collected, input, changed), ...checks.warnings];
-  return {
+  const result = {
     eligible: selected.map(({ entry }) => entry.id).sort(compareCodePoints),
     hits: checks.hits.sort(compareHits),
     excluded: model.errors,
     warnings: warnings.sort(compareDiagnostics),
   };
+  return { result, untriggered: untriggered.sort((a, b) => compareCodePoints(a.id, b.id)) };
 }
 
 export function coveringEntries(input: LoreInput, model: DocumentModel, path: string): Entry[] {
@@ -86,6 +101,11 @@ function toChanged(file: ChangedFile): Changed {
 function counts(collected: Collected, entry: Entry, place: Place, paths: readonly string[]): boolean {
   const scoped = paths.filter((path) => inScope(entry, place.base, path));
   return scoped.length > 0 && !scoped.every((path) => disabledFor(collected, entry.id, path, place.tree));
+}
+
+function countedPaths(collected: Collected, entry: Entry, place: Place, counted: readonly Changed[]): string[] {
+  const paths = counted.flatMap((file) => file.paths).filter((path) => inScope(entry, place.base, path) && !disabledFor(collected, entry.id, path, place.tree));
+  return [...new Set(paths)].sort(compareCodePoints);
 }
 
 function inScope(entry: Entry, base: string, path: string): boolean {

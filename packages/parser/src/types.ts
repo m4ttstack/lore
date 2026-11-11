@@ -26,6 +26,8 @@ export type ChangedFile =
 export interface Change { files: ChangedFile[] }
 export interface Hit { rule: string; file: string; line: number; text: string; side?: "old" }
 export interface EligibilityResult { eligible: string[]; hits: Hit[]; excluded: Diagnostic[]; warnings: Diagnostic[] }
+// paths: the changed paths the rule counts for, sorted by code point.
+export interface Untriggered { id: string; paths: string[] }
 export type Capability = "regex" | "ast-grep";
 export interface SelectOptions {
   capabilities?: Capability[];
