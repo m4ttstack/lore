@@ -148,6 +148,16 @@ describe("toSelection", () => {
       expect(() => toSelection(listed, result, change, sources, [], { untriggered, expand: ["middle", id] })).toThrow(id);
     });
 
+    test("expanding an already selected rule says it is already selected", () => {
+      expect(() => toSelection(listed, result, change, sources, [], { untriggered, expand: ["name-things"] }))
+        .toThrow("--expand name-things: the rule is already selected");
+    });
+
+    test("expanding an unknown id keeps the listing message", () => {
+      expect(() => toSelection(listed, result, change, sources, [], { untriggered, expand: ["no-such-rule"] }))
+        .toThrow("--expand no-such-rule: not a rule in scope whose conditions did not hold");
+    });
+
     test("an empty listing is an empty key", () => {
       expect(toSelection(model, result, change, sources, [], { untriggered: [], expand: [] }).alsoInScope).toEqual([]);
     });

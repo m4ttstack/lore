@@ -112,7 +112,10 @@ export function toSelection(
     return { id, file: entry.file, category: entry.category, severity: entry.severity ?? "advisory", summary: entry.summary, paths };
   });
   const unknown = listing.expand.find((id) => !listed.some((rule) => rule.id === id));
-  if (unknown !== undefined) throw new UsageError(`--expand ${unknown}: not a rule in scope whose conditions did not hold`);
+  if (unknown !== undefined) {
+    if (rules.some((rule) => rule.id === unknown)) throw new UsageError(`--expand ${unknown}: the rule is already selected`);
+    throw new UsageError(`--expand ${unknown}: not a rule in scope whose conditions did not hold`);
+  }
   const expand = new Set(listing.expand);
   for (const { id } of listed.filter((rule) => expand.has(rule.id))) rules.push({ ...selectedRule(entries.get(id)!, []), expanded: true });
   rules.sort((a, b) => compareCodePoints(a.id, b.id));

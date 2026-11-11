@@ -207,6 +207,10 @@ A flagged line is a place to look, not a verdict. A flagged line marked (removed
       expect(ruleLines(renderText(withListing(base, [listed("edge", { summary: "a".repeat(160) })])))[0]).toBe(`- \`edge\` (advisory, no category): ${"a".repeat(160)}`);
     });
 
+    test("a listed rule with an empty summary ends after its severity and category", () => {
+      expect(ruleLines(renderText(withListing(base, [listed("bare", { summary: "" })])))[0]).toBe("- `bare` (advisory, no category)");
+    });
+
     test("a summary with a backtick is printed unchanged and the id gets a safe code span", () => {
       const text = renderText(withListing(base, [listed("we`ird", { summary: "Never call `eval` here." })]));
       expect(text).toContain("- ``we`ird`` (advisory, no category): Never call `eval` here.\n");

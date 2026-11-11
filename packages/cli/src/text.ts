@@ -91,7 +91,8 @@ function warningLine(warning: Diagnostic): string {
 function listingSection(listed: ListedRule[], audience: "reviewer" | "author"): string {
   const lines = ["## Also in scope, not triggered", "", LISTING_PARAGRAPH[audience], ""];
   for (const rule of listed.slice(0, MAX_LISTED_RULES)) {
-    lines.push(`- ${span(rule.id)} (${rule.severity}, ${rule.category ?? "no category"}): ${cut(rule.summary, MAX_SUMMARY_CODE_POINTS)}`);
+    const summary = rule.summary === "" ? "" : `: ${cut(rule.summary, MAX_SUMMARY_CODE_POINTS)}`;
+    lines.push(`- ${span(rule.id)} (${rule.severity}, ${rule.category ?? "no category"})${summary}`);
   }
   if (listed.length > MAX_LISTED_RULES) lines.push(`- and ${listed.length - MAX_LISTED_RULES} more; \`--format json\` lists them all`);
   return lines.join("\n");
