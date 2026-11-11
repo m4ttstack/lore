@@ -228,7 +228,7 @@ A tool may also show the reviewer the rules whose scope matched a changed
 file but whose conditions did not hold, one line each. No verdict is
 required for those, and a reviewer who thinks one is relevant can ask for
 it in full. The reference command does this with `--also-in-scope` and
-`--expand <id>`.
+`--expand <id>`, which need lore 0.5.0 or later.
 
 Selection is fully specified, so it is the same in every tool. The
 reviewer answers each selected rule with `pass`, `fail` or

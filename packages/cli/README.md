@@ -41,6 +41,8 @@ Output:
 - `--also-in-scope`: also list the rules whose scope covers a changed file but whose conditions did not hold. See [Rules in scope, not triggered](#rules-in-scope-not-triggered).
 - `--expand <id>`: print one of those rules in full. Repeatable. Implies `--also-in-scope`.
 
+The two options need lore 0.5.0 or later.
+
 `--paths`, `--change`, `--base` and `--head` are not available yet.
 
 ast-grep checks are skipped in this version: each one reports the warning `check-needs-file`, and its rule stays eligible.
@@ -74,7 +76,7 @@ These options work as they do in `lore select`: `[rules]` (`--repo`, `--no-repo`
 
 ## Rules in scope, not triggered
 
-A rule whose scope covers a changed file is selected only when its `<when>` holds. With `--also-in-scope`, `lore select` and `lore check` also list the rules whose scope covers a changed file but whose `<when>` did not hold. A rule with no `<when>`, a disabled rule, and a rule excluded by an error are never listed. Without the option, the output is the same as before.
+A rule whose scope covers a changed file is selected only when its `<when>` holds. With `--also-in-scope`, `lore select` and `lore check` also list the rules whose scope covers a changed file but whose `<when>` did not hold. A context, a rule with no `<when>`, a disabled rule, and a rule excluded by an error are never listed. Without the option, the output is the same as before.
 
 In JSON the selection gains a last key, `alsoInScope`, which is not capped:
 
@@ -93,7 +95,7 @@ In text a section `## Also in scope, not triggered` follows the rules and contex
 - `no-eur` (advisory, code_style): Do not hardcode EUR.
 ```
 
-It shows at most 40 rules, then `` - and N more; `--format json` lists them all ``. When nothing is selected, the output says so and then prints the section; for `lore select` the verdict format follows it. When the listing is empty, the output is the same as without the option.
+It shows at most 40 rules, then `` - and N more; `--format json` lists them all ``. When nothing is selected, the output says so and then prints the section; for `lore select` the verdict format follows it. When the listing is empty, the text output is the same as without the option; JSON carries an empty `alsoInScope`.
 
 `--expand <id>` moves a listed rule into `rules`. It is printed in full like a selected rule, with no flagged lines, marked `"expanded": true` in JSON and `expanded` in its text heading, and it needs a verdict. An id that is not in the listing (already selected, disabled, unknown or out of scope) is a usage error, exit 2.
 
@@ -101,7 +103,7 @@ A listed rule needs no verdict. `lore verdicts` accepts one for it and checks it
 
 ### Cost, and when to turn it on
 
-`packages/cli/test/listing-cost.test.ts` measures a set of 200 rules, each with a summary of about 80 characters, on a change that puts all 200 in scope and triggers 10. The text section is 45 lines and 5,326 bytes, because the cap holds it at 40 rules. The `alsoInScope` key adds 58,543 bytes to the JSON, because it lists all 190.
+`packages/cli/test/listing-cost.test.ts` measures a set of 200 rules, each with a summary of about 80 characters, on a change that puts all 200 in scope and triggers 10. The text section is 45 lines and 5,326 bytes, because the cap holds it at 40 rules. The `alsoInScope` key adds 58,543 bytes to the JSON, because it lists all 190. The change is one file; each entry's `paths` grows with the changed files the rule covers, so the JSON cost grows with rules times covered files.
 
 Turn the option on where a missed rule costs more than a few dozen extra lines of reading, and for rule sets whose triggers are literal strings. Leave it off for small sets with no triggers, where it prints nothing.
 

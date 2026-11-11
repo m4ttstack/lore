@@ -129,7 +129,7 @@ it, or give it a verdict directly.
   entry's existing summary (its first paragraph, joined), cut to 160
   code points.
 - Order: blocking before advisory, then rules covering more changed
-  files first, then id.
+  paths first (a rename with both paths in scope counts twice), then id.
 - At most 40 lines; the rest are counted in a final line.
 - For the author audience (`check`) the paragraph reads: "These rules
   cover files you changed, but nothing in your change triggered them.
