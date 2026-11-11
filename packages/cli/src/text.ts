@@ -50,7 +50,7 @@ export function renderText(selection: Selection, audience: "reviewer" | "author"
     sections.push(selection.excluded.length === 0 ? opener : `${opener} ${EXCLUDED}`);
     if (listed.length > 0) {
       sections.push(listingSection(listed, audience));
-      if (audience === "reviewer") sections.push(VERDICT_MEANINGS, VERDICT_FORMAT);
+      if (audience === "reviewer") sections.push(VERDICT_FORMAT, VERDICT_MEANINGS);
     }
   } else {
     sections.push(audience === "author" ? AUTHOR_PREAMBLE : PREAMBLE);

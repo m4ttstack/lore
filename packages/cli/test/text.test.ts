@@ -160,15 +160,15 @@ A flagged line is a place to look, not a verdict. A flagged line marked (removed
       "- `tidy-imports` (advisory, no category): Summary of tidy-imports.",
     ].join("\n");
     const verdictBlock = [
-      "- `pass`: the change keeps the rule.",
-      "- `fail`: the change breaks it. Give at least one location: a changed file and a line in it as the change leaves it, or, with `\"side\": \"old\"`, a file's old path and a line the change removed.",
-      "- `not-applicable`: the rule was selected but does not bear on this change. Say why in `note`.",
-      "",
       "Return the verdicts as one fenced code block tagged `lore-verdicts`:",
       "",
       "```lore-verdicts",
       '{ "lore": "1", "verdicts": [{ "rule": "<id>", "verdict": "fail", "evidence": [{ "file": "<path>", "line": 12 }], "note": "<why>" }] }',
       "```",
+      "",
+      "- `pass`: the change keeps the rule.",
+      "- `fail`: the change breaks it. Give at least one location: a changed file and a line in it as the change leaves it, or, with `\"side\": \"old\"`, a file's old path and a line the change removed.",
+      "- `not-applicable`: the rule was selected but does not bear on this change. Say why in `note`.",
     ].join("\n");
     const withListing = (selection: Selection, alsoInScope: ListedRule[]): Selection => ({ ...selection, alsoInScope });
     const ruleLines = (text: string) => text.split("\n").filter((line) => /^- `[^`]+` \((blocking|advisory), /.test(line));
