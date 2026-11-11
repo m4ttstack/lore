@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { extractExamples } from "../../../tools/check/extract";
-import { coveringEntries, missingSrcTargets, parse, parseWithContext, select, selectParsed } from "../src/index";
+import { coveringEntries, missingSrcTargets, parse, parseWithContext, select, selectDetailed, selectParsed } from "../src/index";
 import { RegexLimitError } from "../src/regex";
 import type { Change, Diagnostic, LoreInput, SelectOptions } from "../src/types";
 import { astGrepBinary, stubAstGrep, toChange, toInput } from "./harness";
@@ -398,6 +398,55 @@ describe("select: counted files and disable", () => {
     const plain = repo({ "legacy/.lore/a.lore": rule("legacy-removals-logged") + rule("legacy-usd", "<when>\naddedContains: [\"'USD'\"]\n</when>\n") });
     const result = await select(plain, change("D legacy/Price.tsx"), ALL);
     expect(result.eligible).toEqual(["legacy-removals-logged"]);
+  });
+});
+
+describe("selectDetailed: in scope, not triggered", () => {
+  const eur = "<when>\naddedContains: [\"EUR\"]\n</when>\n";
+  const input = repo({
+    "checkout/.lore/c.lore": '<scope>\nfiles: ["**/*.ts"]\n</scope>\n' +
+      rule("usd-added", "<when>\naddedContains: [\"USD\"]\n</when>\n") +
+      rule("eur-added", eur) +
+      rule("no-when") +
+      `<context id="eur-context">\n${eur}Euros.\n</context>\n` +
+      rule("eur-disabled", eur, " disabled") +
+      rule("eur-in-md", `<scope>\nfiles: ["**/*.md"]\n</scope>\n${eur}`),
+    "legacy/.lore/l.lore": rule("legacy-eur", eur),
+    "gone/.lore/g.lore": rule("gone-eur", eur),
+    ".lore/r.lore": rule("tsx-eur", `<scope>\nfiles: ["**/*.tsx"]\n</scope>\n${eur}`),
+    "styles/.loreconfig": "disable: [all-off]\n",
+    "styles/old/.loreconfig": "disable: [half-off]\n",
+    "styles/.lore/s.lore": rule("half-off", eur) + rule("all-off", eur),
+  });
+  const changed = change(
+    "M checkout/Total.ts", '+1 const c = "USD";',
+    "R legacy/Price.tsx -> shop/Price.tsx", "+3 price",
+    "D gone/Old.ts", "-1 old",
+    "M styles/old/b.css", "+1 b",
+    "M styles/a.css", "+1 a",
+  );
+
+  test("lists the rules in scope whose <when> did not hold, with the paths each counts for", async () => {
+    const { untriggered } = await selectDetailed(input, parseWithContext(input), changed, ALL);
+    expect(untriggered).toEqual([
+      { id: "eur-added", paths: ["checkout/Total.ts"] },
+      { id: "gone-eur", paths: ["gone/Old.ts"] },
+      { id: "half-off", paths: ["styles/a.css"] },
+      { id: "legacy-eur", paths: ["legacy/Price.tsx"] },
+      { id: "tsx-eur", paths: ["legacy/Price.tsx", "shop/Price.tsx"] },
+    ]);
+  });
+
+  test("a rename out of a folder that switches the rule off lists only the path it still counts for", async () => {
+    const rename = change("R styles/old/c.css -> styles/c.css", "+1 c");
+    const { untriggered } = await selectDetailed(input, parseWithContext(input), rename, ALL);
+    expect(untriggered).toEqual([{ id: "half-off", paths: ["styles/c.css"] }]);
+  });
+
+  test("its result is what selectParsed returns", async () => {
+    const { result } = await selectDetailed(input, parseWithContext(input), changed, ALL);
+    expect(result.eligible).toEqual(["no-when", "usd-added"]);
+    expect(result).toEqual(await selectParsed(input, parseWithContext(input), changed, ALL));
   });
 });
 

@@ -38,6 +38,10 @@ Output:
 - `--format text|json`: default is text on a terminal, json otherwise. Text shows at most 20 flagged lines per rule (then `- and N more`), each cut to 200 code points with `...` appended; json keeps every hit in full. An old-side hit is marked `(removed)` in text and carries `"side": "old"` in json. A line a `droppedContains` or `droppedMatches` condition finds is such a hit.
 - `--capabilities <list>`: the checks to run. Default: `regex,ast-grep`.
 - `--strict`: exit 1 when errors in the rules excluded entries.
+- `--also-in-scope`: also list the rules whose scope covers a changed file but whose conditions did not hold. See [Rules in scope, not triggered](#rules-in-scope-not-triggered).
+- `--expand <id>`: print one of those rules in full. Repeatable. Implies `--also-in-scope`.
+
+The two options need lore 0.5.0 or later.
 
 `--paths`, `--change`, `--base` and `--head` are not available yet.
 
@@ -68,7 +72,40 @@ Text output is written for the author, not for a reviewer. It asks the author to
 
 The default format is text, on a terminal or not, so an agent that runs `lore check` reads the author text; `--format json` prints the selection.
 
-These options work as they do in `lore select`: `[rules]` (`--repo`, `--no-repo`, `--remote`, `--rules-ref`, `--given`), `--capabilities`, `--strict` and `--format text|json`. With `--no-repo` and `--repo` together, the repo supplies only the change. `--diff` is not accepted.
+These options work as they do in `lore select`: `[rules]` (`--repo`, `--no-repo`, `--remote`, `--rules-ref`, `--given`), `--capabilities`, `--strict`, `--also-in-scope`, `--expand <id>` and `--format text|json`. With `--no-repo` and `--repo` together, the repo supplies only the change. `--diff` is not accepted.
+
+## Rules in scope, not triggered
+
+A rule whose scope covers a changed file is selected only when its `<when>` holds. With `--also-in-scope`, `lore select` and `lore check` also list the rules whose scope covers a changed file but whose `<when>` did not hold. A context, a rule with no `<when>`, a disabled rule, and a rule excluded by an error are never listed. Without the option, the output is the same as before.
+
+In JSON the selection gains a last key, `alsoInScope`, which is not capped:
+
+```json
+"alsoInScope": [
+  { "id": "no-eur", "file": ".lore/b.lore", "category": "code_style", "severity": "advisory",
+    "summary": "Do not hardcode EUR.", "paths": ["src/p.ts"] }
+]
+```
+
+`paths` holds the changed paths the rule's scope covers, sorted. Entries are sorted blocking before advisory, then by more covered paths first, then by id.
+
+In text a section `## Also in scope, not triggered` follows the rules and contexts and comes before the warnings. It opens with a short paragraph, then has one line per rule in the same order, with the summary cut to 160 code points:
+
+```
+- `no-eur` (advisory, code_style): Do not hardcode EUR.
+```
+
+It shows at most 40 rules, then `` - and N more; `--format json` lists them all ``. When nothing is selected, the output says so and then prints the section; for `lore select` the verdict format follows it. When the listing is empty, the text output is the same as without the option; JSON carries an empty `alsoInScope`.
+
+`--expand <id>` moves a listed rule into `rules`. It is printed in full like a selected rule, with no flagged lines, marked `"expanded": true` in JSON and `expanded` in its text heading, and it needs a verdict. An id that is not in the listing (already selected, disabled, unknown or out of scope) is a usage error, exit 2.
+
+A listed rule needs no verdict. `lore verdicts` accepts one for it and checks it like any other verdict. A selection saved without `alsoInScope` works as before.
+
+### Cost, and when to turn it on
+
+`packages/cli/test/listing-cost.test.ts` measures a set of 200 rules, each with a summary of about 80 characters, on a change that puts all 200 in scope and triggers 10. The text section is 45 lines and 5,326 bytes, because the cap holds it at 40 rules. The `alsoInScope` key adds 58,543 bytes to the JSON, because it lists all 190. The change is one file; each entry's `paths` grows with the changed files the rule covers, so the JSON cost grows with rules times covered files.
+
+Turn the option on where a missed rule costs more than a few dozen extra lines of reading, and for rule sets whose triggers are literal strings. Leave it off for small sets with no triggers, where it prints nothing.
 
 ## lore verdicts
 

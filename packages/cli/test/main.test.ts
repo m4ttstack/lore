@@ -291,6 +291,109 @@ async function selectWith(given: string[]): Promise<{ code: number; selection: {
   return { code, selection: JSON.parse(out) };
 }
 
+describe("rules in scope but not triggered", () => {
+  const PLAIN = 'diff --git a/src/p.ts b/src/p.ts\n--- a/src/p.ts\n+++ b/src/p.ts\n@@ -1 +1,2 @@\n a\n+const c = 1;\n';
+  const OTHER = '<rule id="no-eur" category="code_style">\n<when>\naddedContains: ["EUR"]\n</when>\nDo not hardcode EUR.\n</rule>\n';
+  const plain = (): { root: string; diff: string } => {
+    const { root, diff } = project({ ".lore/b.lore": OTHER });
+    writeFileSync(diff, PLAIN);
+    return { root, diff };
+  };
+  const EXPECTED = `{
+  "lore": "1",
+  "rules": [],
+  "context": [],
+  "conditional": [],
+  "change": [
+    {
+      "kind": "M",
+      "path": "src/p.ts",
+      "oldPath": null,
+      "added": [
+        2
+      ],
+      "removed": []
+    }
+  ],
+  "excluded": [],
+  "warnings": []
+}
+`;
+
+  test("--also-in-scope adds the listing to the JSON", async () => {
+    const { root, diff } = plain();
+    const { code, out, err } = await lore(["select", "--repo", root, "--diff", diff, "--format", "json", "--also-in-scope"]);
+    expect(err).toBe("");
+    expect(code).toBe(0);
+    expect(JSON.parse(out).alsoInScope).toEqual([
+      { id: "no-usd", file: ".lore/a.lore", category: "security", severity: "blocking", summary: "Do not hardcode USD.", paths: ["src/p.ts"] },
+      { id: "no-eur", file: ".lore/b.lore", category: "code_style", severity: "advisory", summary: "Do not hardcode EUR.", paths: ["src/p.ts"] },
+    ]);
+  });
+
+  test("without the option the JSON is unchanged", async () => {
+    const { root, diff } = plain();
+    expect(await lore(["select", "--repo", root, "--diff", diff, "--format", "json"])).toEqual({ code: 0, out: EXPECTED, err: "" });
+  });
+
+  test("--expand is repeatable and moves each rule into rules", async () => {
+    const { root, diff } = plain();
+    const { code, out, err } = await lore(["select", "--repo", root, "--diff", diff, "--format", "json", "--expand", "no-usd", "--expand=no-eur"]);
+    expect(err).toBe("");
+    expect(code).toBe(0);
+    const selection = JSON.parse(out);
+    expect(selection.rules.map((rule: { id: string; expanded: boolean }) => [rule.id, rule.expanded])).toEqual([["no-eur", true], ["no-usd", true]]);
+    expect(selection.alsoInScope).toEqual([]);
+  });
+
+  test("lore check accepts --also-in-scope", async () => {
+    const root = repoWith({ ".lore/a.lore": RULE, "src/p.ts": "a\n" });
+    write(root, { "src/p.ts": "a\nconst c = 1;\n" });
+    const { code, out, err } = await lore(["check", "--repo", root, "--format", "json", "--also-in-scope"]);
+    expect(err).toBe("");
+    expect(code).toBe(0);
+    expect(JSON.parse(out).alsoInScope.map((rule: { id: string }) => rule.id)).toEqual(["no-usd"]);
+  });
+
+  const outside = (): { root: string; diff: string } => {
+    const { root, diff } = project({
+      ".lore/b.lore": OTHER.replace("no-eur", "off-eur").replace('category="code_style"', 'category="code_style" disabled'),
+      ".lore/c.lore": `<scope>\nfiles: ["**/*.md"]\n</scope>\n${OTHER.replace("no-eur", "md-eur")}`,
+    });
+    return { root, diff };
+  };
+
+  test.each([
+    ["an already selected rule", "no-usd"],
+    ["a disabled rule", "off-eur"],
+    ["an unknown id", "not-a-rule"],
+    ["a rule whose scope misses the change", "md-eur"],
+  ])("--expand of %s exits 2 naming it", async (_name, id) => {
+    const { root, diff } = outside();
+    const { code, out, err } = await lore(["select", "--repo", root, "--diff", diff, "--format", "json", "--expand", id]);
+    expect(code).toBe(2);
+    expect(out).toBe("");
+    expect(err).toContain(id);
+  });
+
+  test("an id given to --expand twice gives the rule once", async () => {
+    const { root, diff } = plain();
+    const { code, out, err } = await lore(["select", "--repo", root, "--diff", diff, "--format", "json", "--expand", "no-eur", "--expand", "no-eur"]);
+    expect(err).toBe("");
+    expect(code).toBe(0);
+    expect(JSON.parse(out).rules.map((rule: { id: string }) => rule.id)).toEqual(["no-eur"]);
+  });
+
+  test.each([
+    ["--expand without a value", ["select", "--diff", "-", "--expand"], "--expand needs a value"],
+    ["--also-in-scope with a value", ["select", "--diff", "-", "--also-in-scope=yes"], "--also-in-scope takes no value"],
+  ])("%s is a usage error", async (_name, argv, mention) => {
+    const { code, err } = await lore(argv);
+    expect(code).toBe(2);
+    expect(err).toContain(mention);
+  });
+});
+
 describe("nested loose folders", () => {
   test("--given rules --given rules/team reads the inner folder's rules once, with no duplicate-id", async () => {
     const rules = tempDir();
@@ -446,6 +549,12 @@ describe("help and version", () => {
     });
     expect(columns.length).toBeGreaterThan(8);
     expect(new Set(columns).size).toBe(1);
+  });
+
+  test("the help lists --also-in-scope and --expand", async () => {
+    const { out } = await lore(["--help"]);
+    expect(out).toContain("  --also-in-scope        List rules whose scope covers a changed file but whose conditions did not hold\n");
+    expect(out).toContain("  --expand <id>          Print one of those rules in full (repeatable; it then needs a verdict)\n");
   });
 
   test("the exit codes are stated per command", async () => {
@@ -674,6 +783,16 @@ describe("lore verdicts", () => {
       code: 0, out: '{\n  "problems": []\n}\n', err: "",
     });
     expect((await lore(["verdicts", "--selection", file("selection.json"), file("good.json")])).code).toBe(0);
+  });
+
+  test("a verdict for a rule in a saved listing is accepted", async () => {
+    const root = tempDir();
+    const listing = { ...selection, alsoInScope: [{ id: "b", file: ".lore/a.lore", category: null, severity: "advisory", summary: "B.", paths: ["src/p.ts"] }] };
+    write(root, { "selection.json": JSON.stringify(listing) });
+    const stdin = JSON.stringify({ lore: "1", verdicts: [{ rule: "a", verdict: "pass" }, { rule: "b", verdict: "pass" }] });
+    expect(await lore(["verdicts", "--selection", join(root, "selection.json")], { stdin })).toEqual({
+      code: 0, out: '{\n  "problems": []\n}\n', err: "",
+    });
   });
 
   test("exits 1 and lists the problems", async () => {

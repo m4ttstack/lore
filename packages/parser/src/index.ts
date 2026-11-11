@@ -11,5 +11,6 @@ export { FIXED_CATEGORIES } from "./blocks";
 export { EXTERNAL, LOOSE, RULES, collect, disabledFor, type Collected, type CollectedFile, type ConfigFile, type Tree, type TreeInfo } from "./collect";
 export { namesRepo, normalizeRemote, readLoreconfig, type ConfigRead, type DisableItem, type LoreConfig } from "./loreconfig";
 export { disjoint, matchFromBase, matchGlob, resolveGlob, validateGlob, type GlobPlace } from "./glob";
-export { coveringEntries, missingSrcTargets, select, selectParsed } from "./select";
+export { coveringEntries, missingSrcTargets, select, selectDetailed, selectParsed } from "./select";
 export { RegexLimitError } from "./regex";
+export { compareCodePoints } from "./text";

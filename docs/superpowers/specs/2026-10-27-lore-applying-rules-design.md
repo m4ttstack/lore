@@ -387,3 +387,13 @@ change to `lore verdicts` too.
 - How `--repo` lists tracked paths (`git ls-files` or `git ls-tree`) and
   how the parser's input is shaped to avoid reading content it does not
   need.
+
+## Listing in-scope rules
+
+From CLI 0.5.0, `lore select` and `lore check` can also list the rules
+whose scope covers a changed file but whose `<when>` did not hold, and
+print any of them in full. Eligibility is unchanged. `lore verdicts` also
+accepts a verdict for a listed rule, checked like any other, without
+requiring one, and an expanded rule needs a verdict like any selected
+rule. See
+[the in-scope listing design](2026-11-10-lore-in-scope-listing-design.md).
