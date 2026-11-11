@@ -392,6 +392,8 @@ change to `lore verdicts` too.
 
 From CLI 0.5.0, `lore select` and `lore check` can also list the rules
 whose scope covers a changed file but whose `<when>` did not hold, and
-print any of them in full. Eligibility and verdicts as described here are
-unchanged. See
+print any of them in full. Eligibility is unchanged. `lore verdicts` also
+accepts a verdict for a listed rule, checked like any other, without
+requiring one, and an expanded rule needs a verdict like any selected
+rule. See
 [the in-scope listing design](2026-11-10-lore-in-scope-listing-design.md).
