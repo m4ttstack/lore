@@ -103,7 +103,7 @@ A listed rule needs no verdict. `lore verdicts` accepts one for it and checks it
 
 ### Cost, and when to turn it on
 
-`packages/cli/test/listing-cost.test.ts` measures a set of 200 rules, each with a summary of about 80 characters, on a change that puts all 200 in scope and triggers 10. The text section is 45 lines and 5,326 bytes, because the cap holds it at 40 rules. The `alsoInScope` key adds 58,543 bytes to the JSON, because it lists all 190. The change is one file; each entry's `paths` grows with the changed files the rule covers, so the JSON cost grows with rules times covered files.
+`packages/cli/test/listing-cost.test.ts` measures a set of 200 rules, each with a summary of about 80 characters, on a change that puts all 200 in scope and triggers 10. The text section is 45 lines and 5,379 bytes, because the cap holds it at 40 rules. The `alsoInScope` key adds 58,543 bytes to the JSON, because it lists all 190. The change is one file; each entry's `paths` grows with the changed files the rule covers, so the JSON cost grows with rules times covered files.
 
 Turn the option on where a missed rule costs more than a few dozen extra lines of reading, and for rule sets whose triggers are literal strings. Leave it off for small sets with no triggers, where it prints nothing.
 

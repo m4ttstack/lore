@@ -148,7 +148,7 @@ A flagged line is a place to look, not a verdict. A flagged line marked (removed
       listed("tidy-imports"),
     ];
     const reviewerParagraph =
-      "These rules cover files in this change, but nothing in the change triggered them. No verdict is needed for them. If one looks relevant to what the change does, run the command again with `--expand <id>` to read it, or give it a verdict directly.";
+      "These rules cover files in this change, but nothing in the change triggered them. No verdict is needed for them. If one looks relevant to what the change does, give it a verdict directly. To read the whole rule first, run the command again with `--expand <id>`, or ask whoever ran it for that rule.";
     const authorParagraph = "These rules cover files you changed, but nothing in your change triggered them. Read any that look relevant with `--expand <id>`.";
     const section = [
       "## Also in scope, not triggered",
