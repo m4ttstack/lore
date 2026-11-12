@@ -255,4 +255,9 @@ describe("context src", () => {
     expect(model(context("<context id=\"a\">")).entries[0]?.src).toBeNull();
     expect(model(rule("<rule id=\"a\" category=\"security\">")).entries[0]?.src).toBeNull();
   });
+
+  test("an entry without a source block has sources: []", () => {
+    expect(model(rule("<rule id=\"a\" category=\"security\">")).entries[0]?.sources).toEqual([]);
+    expect(model(context("<context id=\"a\">")).entries[0]?.sources).toEqual([]);
+  });
 });

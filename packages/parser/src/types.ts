@@ -11,11 +11,13 @@ export interface Range { start: Position; end: Position }
 export interface Diagnostic { name: string; file: string; entry: string | null; line: number; range?: Range }
 export interface Scope { files: string[]; ignores: string[] }
 export interface Check { lang: string; body: string }
+export interface Source { file: string; heading: string | null; phrase: string | null }
 export interface Entry {
   kind: "rule" | "context"; id: string; file: string;
   category: string | null; severity: "blocking" | "advisory" | null; disabled: boolean;
   scopes: Scope[]; when: Record<string, string[]> | null; checks: Check[];
   meta: Record<string, unknown> | null; summary: string; prose: string; src: string | null;
+  sources: Source[];
 }
 export interface DocumentModel { entries: Entry[]; errors: Diagnostic[]; warnings: Diagnostic[] }
 export interface ChangedLine { line: number; text: string }

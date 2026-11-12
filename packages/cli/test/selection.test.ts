@@ -23,6 +23,7 @@ describe("toSelection", () => {
       summary: "Money is integer minor units.",
       prose: "Money is stored as integer minor units.\nNever multiply a price by a float.",
       meta: { owner: "pricing" },
+      sources: [],
       hits: [
         { file: "src/Price.ts", line: 4, text: "total * 1.2" },
         { file: "src/Price.ts", line: 9, text: "price * 0.5" },
@@ -103,7 +104,7 @@ describe("toSelection", () => {
   });
 
   describe("with a listing", () => {
-    const base = { category: null, severity: null, disabled: false, scopes: [], when: null, checks: [], meta: null, src: null, prose: "Prose." };
+    const base = { category: null, severity: null, disabled: false, scopes: [], when: null, checks: [], meta: null, src: null, sources: [], prose: "Prose." };
     const extra: Entry[] = [
       { ...base, kind: "rule", id: "b-advisory", file: ".lore/x.lore", summary: "B." },
       { ...base, kind: "rule", id: "a-advisory", file: ".lore/x.lore", summary: "A." },
@@ -134,7 +135,7 @@ describe("toSelection", () => {
       expect(selection.rules.map((rule) => rule.id)).toEqual(["middle", "money-in-minor-units", "name-things"]);
       expect(selection.rules[0]).toEqual({
         id: "middle", file: ".lore/y.lore", category: null, severity: "advisory", summary: "Middle.", prose: "Middle prose.",
-        meta: { owner: "x" }, hits: [], expanded: true,
+        meta: { owner: "x" }, sources: [], hits: [], expanded: true,
       });
       expect(selection.alsoInScope!.map((rule) => rule.id)).not.toContain("middle");
       expect(selection.rules[1]).not.toHaveProperty("expanded");

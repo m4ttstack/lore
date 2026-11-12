@@ -27,7 +27,7 @@
     "entry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "id", "file", "category", "severity", "disabled", "scopes", "when", "checks", "meta", "summary", "prose", "src"],
+      "required": ["kind", "id", "file", "category", "severity", "disabled", "scopes", "when", "checks", "meta", "summary", "prose", "src", "sources"],
       "properties": {
         "kind": { "enum": ["rule", "context"] },
         "id": { "$ref": "#/$defs/id" },
@@ -63,7 +63,20 @@
         "meta": { "anyOf": [{ "$ref": "https://lore.dev/schemas/v1/meta.schema.json" }, { "type": "null" }] },
         "summary": { "type": "string" },
         "prose": { "type": "string" },
-        "src": { "type": ["string", "null"] }
+        "src": { "type": ["string", "null"] },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["file", "heading", "phrase"],
+            "properties": {
+              "file": { "type": "string" },
+              "heading": { "type": ["string", "null"] },
+              "phrase": { "type": ["string", "null"] }
+            }
+          }
+        }
       },
       "if": { "properties": { "kind": { "const": "context" } }, "required": ["kind"] },
       "then": { "properties": { "category": { "type": "null" }, "severity": { "type": "null" }, "checks": { "type": "array", "maxItems": 0 } } },

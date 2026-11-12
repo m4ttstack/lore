@@ -301,7 +301,8 @@ customer sees one total and is charged another.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote\nthat produced it.\n\nRecomputing a price from its inputs drops quote-level discounts, so the\ncustomer sees one total and is charged another.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -334,7 +335,8 @@ expires.
       "when": null, "checks": [], "meta": null,
       "summary": "A checkout page that shows a quoted price also shows when the quote expires.",
       "prose": "A checkout page that shows a quoted price also shows when the quote\nexpires.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -384,7 +386,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -450,7 +453,8 @@ Displayed dates are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "Displayed dates are formatted with the shop's locale.",
       "prose": "Displayed dates are formatted with the shop's locale.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -550,7 +554,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -583,7 +588,8 @@ Product names are stored as written: `Fish & Chips`, never `Fish &amp; Chips`.
       "when": { "addedContains": ["&amp;"] }, "checks": [], "meta": null,
       "summary": "Product names are stored as written: `Fish & Chips`, never `Fish &amp; Chips`.",
       "prose": "Product names are stored as written: `Fish & Chips`, never `Fish &amp; Chips`.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -808,7 +814,8 @@ Displayed times are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -899,7 +906,8 @@ addedContains: ["'USD'"]
       "when": null, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.\n\n<when>\naddedContains: [\"'USD'\"]\n</when>",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -932,7 +940,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "Lore syntax shown in a rule's prose sits in a fenced code block, so its closing tags do not end the rule.",
       "prose": "Lore syntax shown in a rule's prose sits in a fenced code block, so its\nclosing tags do not end the rule.\n\n```\n<rule id=\"price-from-quote\">\nA displayed price must come from the quote that produced it.\n</rule>\n```",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -962,7 +971,8 @@ The rule continues here.
       "when": null, "checks": [], "meta": null,
       "summary": "An entry ends at its closing tag at column 0. An indented closing tag, like the next line, is prose:",
       "prose": "An entry ends at its closing tag at column 0. An indented closing tag,\nlike the next line, is prose:\n\n  </rule>\n\nThe rule continues here.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1000,7 +1010,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "<!-- Agreed in the 2026 pricing review. --> A displayed price must come from the quote that produced it.",
       "prose": "<!-- Agreed in the 2026 pricing review. -->\nA displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "currency-from-settings", "file": ".lore/checkout.lore",
@@ -1009,7 +1020,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "<!-- Check new code only. --> <when> addedContains: [\"'USD'\"] </when> Display text never hard-codes a currency code.",
       "prose": "<!-- Check new code only. -->\n<when>\naddedContains: [\"'USD'\"]\n</when>\nDisplay text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1036,7 +1048,8 @@ addedContains: ["'USD'"]
       "when": { "addedContains": ["'USD'"] }, "checks": [], "meta": null,
       "summary": "",
       "prose": "",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1118,7 +1131,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.\n\n<rule id=\"currency-from-settings\" category=\"functional_correctness\">\nDisplay text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1150,7 +1164,8 @@ four spaces becomes empty, and the trailing blank lines are dropped:
       "when": null, "checks": [], "meta": null,
       "summary": "The order page shows the total from the quote that produced it.",
       "prose": "The order page shows the total\n  from the quote that produced it.\n\nA total rebuilt from line items drops quote-level discounts.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1181,7 +1196,8 @@ A tilde fence works as well as a backtick fence.
       "when": null, "checks": [], "meta": null,
       "summary": "A tilde fence works as well as a backtick fence.",
       "prose": "A tilde fence works as well as a backtick fence.\n\n~~~~\n~~~\n</rule>\n~~~~",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1266,7 +1282,8 @@ It uses the shop's `currency` setting.
       "when": { "addedContains": ["'USD'"] }, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.\n\nIt uses the shop's `currency` setting.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "currency-indented", "file": ".lore/indented.lore",
@@ -1275,7 +1292,8 @@ It uses the shop's `currency` setting.
       "when": { "addedContains": ["'USD'"] }, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.\n\nIt uses the shop's `currency` setting.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "currency-tabs", "file": ".lore/tabs.lore",
@@ -1284,7 +1302,8 @@ It uses the shop's `currency` setting.
       "when": { "addedContains": ["'USD'"] }, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.\n\nIt uses the shop's `currency` setting.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1315,7 +1334,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1425,7 +1445,8 @@ Error messages come from the message catalog, never from string literals.
       "when": null, "checks": [], "meta": null,
       "summary": "Visible labels come from the message catalog, never from string literals.",
       "prose": "Visible labels come from the message catalog, never from string literals.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "errors-from-messages", "file": ".lore/yaml.lore",
@@ -1434,7 +1455,8 @@ Error messages come from the message catalog, never from string literals.
       "when": null, "checks": [], "meta": null,
       "summary": "Error messages come from the message catalog, never from string literals.",
       "prose": "Error messages come from the message catalog, never from string literals.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1467,7 +1489,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1528,7 +1551,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1566,7 +1590,8 @@ A price is never written as a number literal in display code.
       "when": { "addedMatches": ["\\d+\\.\\d{2}"] }, "checks": [], "meta": null,
       "summary": "A price is never written as a number literal in display code.",
       "prose": "A price is never written as a number literal in display code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1605,7 +1630,8 @@ New checkout code carries no `TODO #checkout` markers.
       "meta": { "owner": "checkout", "source": "docs/review.md#todos" },
       "summary": "New checkout code carries no `TODO #checkout` markers.",
       "prose": "New checkout code carries no `TODO #checkout` markers.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1652,7 +1678,8 @@ with a currency symbol.
       "when": { "addedMatches": ["[A-Z]+_PRICE", "[$€£]"] }, "checks": [], "meta": null,
       "summary": "Prices come from the quote, never from a module constant or a literal with a currency symbol.",
       "prose": "Prices come from the quote, never from a module constant or a literal\nwith a currency symbol.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1704,7 +1731,8 @@ Displayed dates are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1739,7 +1767,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": {},
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1780,7 +1809,8 @@ Display text never hard-codes a currency code.
       "meta": { "reviewed": "yes", "legacy": "off", "enforced": true, "owner": null, "since": 2026 },
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1819,7 +1849,8 @@ Metadata nested 101 deep is not.
       "meta": { "teams": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]] },
       "summary": "Metadata nested 100 deep is read.",
       "prose": "Metadata nested 100 deep is read.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1887,7 +1918,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "price-test-per-currency", "file": "apps/web/src/checkout/.lore/pricing.lore",
@@ -1896,7 +1928,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "A change to price formatting adds a test for each supported currency.",
       "prose": "A change to price formatting adds a test for each supported currency.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "context", "id": "checkout-architecture", "file": "apps/web/src/checkout/.lore/pricing.lore",
@@ -1905,7 +1938,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "Read before judging any change to how a price is computed.",
       "prose": "Read before judging any change to how a price is computed.",
-      "src": "apps/web/src/checkout/ARCHITECTURE.md"
+      "src": "apps/web/src/checkout/ARCHITECTURE.md",
+      "sources": []
     }
   ],
   "errors": [],
@@ -2030,7 +2064,8 @@ A checkout page that shows a quoted price also shows when the quote expires.
       "when": null, "checks": [], "meta": null,
       "summary": "A checkout page that shows a quoted price also shows when the quote expires.",
       "prose": "A checkout page that shows a quoted price also shows when the quote expires.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2079,7 +2114,8 @@ Displayed dates are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "Displayed dates are formatted with the shop's locale.",
       "prose": "Displayed dates are formatted with the shop's locale.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2117,7 +2153,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2219,7 +2256,8 @@ Displayed dates use the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "Displayed dates are formatted with the shop's locale.",
       "prose": "Displayed dates are formatted with the shop's locale.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2306,7 +2344,8 @@ A displayed price must come from the quote that produced it.
       },
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2391,7 +2430,8 @@ Display text never hard-codes a currency code.
       "meta": { "owner": "checkout" },
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "currency-children-reversed", "file": ".lore/checkout.lore",
@@ -2402,7 +2442,8 @@ Display text never hard-codes a currency code.
       "meta": { "owner": "checkout" },
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2435,7 +2476,8 @@ Display text never hard-codes a currency code.
       "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2486,7 +2528,8 @@ Displayed dates are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "Displayed dates are formatted with the shop's locale.",
       "prose": "Displayed dates are formatted with the shop's locale.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2536,7 +2579,8 @@ discounts.
       "when": null, "checks": [], "meta": null,
       "summary": "Every price the checkout page shows comes from the quote: - each line item's price; - the order total.",
       "prose": "Every price the checkout page shows comes from the quote:\n- each line item's price;\n- the order total.\n\nA helper that recomputes a price from its inputs drops quote-level\ndiscounts.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2622,7 +2666,8 @@ Any price shown after that comes from a new quote.
       "when": null, "checks": [], "meta": null,
       "summary": "Read before judging any change to how a price is computed.",
       "prose": "Read before judging any change to how a price is computed.",
-      "src": "apps/web/src/checkout/ARCHITECTURE.md"
+      "src": "apps/web/src/checkout/ARCHITECTURE.md",
+      "sources": []
     },
     {
       "kind": "context", "id": "pricing-glossary", "file": "apps/web/src/checkout/.lore/context.lore",
@@ -2631,7 +2676,8 @@ Any price shown after that comes from a new quote.
       "when": null, "checks": [], "meta": null,
       "summary": "",
       "prose": "",
-      "src": "apps/web/src/checkout/.lore/glossary.md"
+      "src": "apps/web/src/checkout/.lore/glossary.md",
+      "sources": []
     },
     {
       "kind": "context", "id": "quote-lifecycle", "file": "apps/web/src/checkout/.lore/context.lore",
@@ -2640,7 +2686,8 @@ Any price shown after that comes from a new quote.
       "when": null, "checks": [], "meta": null,
       "summary": "A quote is created when the cart is priced and expires after 30 minutes. Any price shown after that comes from a new quote.",
       "prose": "A quote is created when the cart is priced and expires after 30 minutes.\nAny price shown after that comes from a new quote.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2681,7 +2728,8 @@ Read the repository's top-level files.
       "when": null, "checks": [], "meta": null,
       "summary": "Read for how the shop is built and deployed.",
       "prose": "Read for how the shop is built and deployed.",
-      "src": "README.md"
+      "src": "README.md",
+      "sources": []
     }
   ],
   "errors": [
@@ -2833,7 +2881,8 @@ Every stored quote records the cart it priced.
       "when": null, "checks": [], "meta": null,
       "summary": "Every stored price records the quote it came from.",
       "prose": "Every stored price records the quote it came from.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2867,7 +2916,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "context", "id": "checkout-architecture", "file": ".lore/checkout.lore",
@@ -2876,7 +2926,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "Read before judging any change to how a price is computed.",
       "prose": "Read before judging any change to how a price is computed.",
-      "src": "ARCHITECTURE.md"
+      "src": "ARCHITECTURE.md",
+      "sources": []
     }
   ],
   "errors": [],
@@ -2908,7 +2959,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -3136,7 +3188,8 @@ Cart totals come from the quote, never from summing line items.
       "when": null, "checks": [], "meta": null,
       "summary": "A documentation change links the changelog entry it describes.",
       "prose": "A documentation change links the changelog entry it describes.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "money-type-for-prices", "file": ".lore/checkout.lore",
@@ -3145,7 +3198,8 @@ Cart totals come from the quote, never from summing line items.
       "when": null, "checks": [], "meta": null,
       "summary": "Prices are typed as `Money`, never as `number`.",
       "prose": "Prices are typed as `Money`, never as `number`.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "cart-total-from-quote", "file": "apps/web/src/.lore/checkout.lore",
@@ -3154,7 +3208,8 @@ Cart totals come from the quote, never from summing line items.
       "when": null, "checks": [], "meta": null,
       "summary": "Cart totals come from the quote, never from summing line items.",
       "prose": "Cart totals come from the quote, never from summing line items.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -3233,7 +3288,8 @@ Every price the checkout page shows comes from the quote.
       "when": null, "checks": [], "meta": null,
       "summary": "Cart totals come from the quote, never from summing line items.",
       "prose": "Cart totals come from the quote, never from summing line items.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -3402,7 +3458,8 @@ The product page shows the price from the product's current quote.
       "when": null, "checks": [], "meta": null,
       "summary": "The product page shows the price from the product's current quote.",
       "prose": "The product page shows the price from the product's current quote.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -3994,7 +4051,8 @@ New checkout requests work with the API that is deployed now.
       "when": { "changed": ["/apps/api/**"], "addedContains": ["fetch("] }, "checks": [], "meta": null,
       "summary": "New checkout requests work with the API that is deployed now.",
       "prose": "New checkout requests work with the API that is deployed now.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -4181,7 +4239,8 @@ classes.
       "meta": null,
       "summary": "Components never set inline styles; they use the design system's classes.",
       "prose": "Components never set inline styles; they use the design system's\nclasses.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -4385,7 +4444,8 @@ Cart totals come from the quote, never from summing line items.
       "meta": null,
       "summary": "Cart totals come from the quote, never from summing line items.",
       "prose": "Cart totals come from the quote, never from summing line items.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -5604,7 +5664,8 @@ A price the checkout displays comes from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A price the checkout displays comes from the quote that produced it.",
       "prose": "A price the checkout displays comes from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "context", "id": "web-architecture", "file": "external:lore/shop/apps/web/.lore/web.lore",
@@ -5613,7 +5674,8 @@ A price the checkout displays comes from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "",
       "prose": "",
-      "src": "apps/web/docs/architecture.md"
+      "src": "apps/web/docs/architecture.md",
+      "sources": []
     },
     {
       "kind": "context", "id": "review-handbook", "file": "external:lore/shop/apps/web/.lore/web.lore",
@@ -5622,7 +5684,8 @@ A price the checkout displays comes from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "",
       "prose": "",
-      "src": "external:lore/handbook.md"
+      "src": "external:lore/handbook.md",
+      "sources": []
     }
   ],
   "errors": [],
@@ -6047,6 +6110,7 @@ governed repo, apart from a file-relative `src` in an external folder
 | `summary` | The first paragraph of the prose (see [Entries](#entries)). |
 | `prose` | The entry's prose, which for a context is its body (see [Entries](#entries)). |
 | `src` | A context's resolved `src`, or null when it has none (see [Context](#context)). Always null for a rule. |
+| `sources` | The sources the entry cites, each as an object with `file`, `heading` and `phrase`. Always `[]` until a source is read. |
 
 ### Diagnostics
 

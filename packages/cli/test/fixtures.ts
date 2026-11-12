@@ -1,7 +1,7 @@
 import type { Change, DocumentModel, EligibilityResult, Entry } from "@lore/parser";
 import type { EntrySources } from "../src/selection";
 
-const base = { category: null, severity: null, disabled: false, scopes: [], when: null, checks: [], meta: null, src: null };
+const base = { category: null, severity: null, disabled: false, scopes: [], when: null, checks: [], meta: null, src: null, sources: [] };
 
 export const rule: Entry = {
   ...base, kind: "rule", id: "money-in-minor-units", file: ".lore/pricing.lore", category: "data_lineage", severity: "blocking",

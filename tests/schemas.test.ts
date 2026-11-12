@@ -62,7 +62,7 @@ test("every registry entry has a unique kebab name", () => {
 const ruleEntry = {
   kind: "rule", id: "currency-from-settings", file: "lore/pricing.lore", category: "functional_correctness",
   severity: "blocking", disabled: false, scopes: [{ files: ["apps/web/**"], ignores: [] }], when: null,
-  checks: [], meta: null, summary: "Read currency from settings.", prose: "Read currency from settings.", src: null,
+  checks: [], meta: null, summary: "Read currency from settings.", prose: "Read currency from settings.", src: null, sources: [],
 };
 const model = (entry: object) => ({ entries: [entry], errors: [], warnings: [] });
 

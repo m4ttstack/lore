@@ -80,6 +80,7 @@ export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): E
     meta: (values.get("meta") as Entry["meta"] | undefined) ?? null,
     summary: summaryOf(prose), prose: prose.join("\n"),
     src: resolved.src,
+    sources: [],
   };
   const scopeLine = node.children.find((child) => child.name === "scope")?.openLine;
   return {

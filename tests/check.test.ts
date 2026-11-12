@@ -231,7 +231,7 @@ test("agent-copy: the For agents quote must equal AGENT.md", () => {
 
 const ruleEntry = (id: string, file = "lore/a.lore") => ({
   kind: "rule", id, file, category: "code_style", severity: "advisory", disabled: false,
-  scopes: [{ files: ["**"], ignores: [] }], when: null, checks: [], meta: null, summary: "", prose: "", src: null,
+  scopes: [{ files: ["**"], ignores: [] }], when: null, checks: [], meta: null, summary: "", prose: "", src: null, sources: [],
 });
 const diag = (name: string, file: string, entry: string | null, line: number) => ({ name, file, entry, line });
 const withParse = (value: object, md = clean) => swap(parseExpect, JSON.stringify(value), md);

@@ -1,6 +1,6 @@
 import {
   compareCodePoints, compareDiagnostics, type Change, type Diagnostic, type DocumentModel, type EligibilityResult, type Entry, type ParsedInput,
-  type Untriggered,
+  type Source, type Untriggered,
 } from "@lore/parser";
 import { UsageError } from "./errors";
 
@@ -12,6 +12,7 @@ export interface SelectedRule {
   summary: string;
   prose: string;
   meta: Record<string, unknown> | null;
+  sources: Source[];
   hits: { file: string; line: number; text: string; side?: "old" }[];
   expanded?: true;
 }
@@ -126,7 +127,7 @@ export function toSelection(
 function selectedRule(entry: Entry, hits: SelectedRule["hits"]): SelectedRule {
   return {
     id: entry.id, file: entry.file, category: entry.category, severity: entry.severity ?? "advisory",
-    summary: entry.summary, prose: entry.prose, meta: entry.meta, hits,
+    summary: entry.summary, prose: entry.prose, meta: entry.meta, sources: entry.sources, hits,
   };
 }
 
