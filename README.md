@@ -190,6 +190,31 @@ pass or fail.
 </context>
 ```
 
+### Where a rule came from
+
+A rule is often written from a document, such as a review guide or a
+decision record. A `<source>` names it: a `file`, and optionally a
+`heading` in a Markdown file or a `phrase` that appears in it.
+
+```html
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+  <source>
+    file: docs/checkout-review.md
+    heading: Money is integer minor units
+  </source>
+  Amounts are integers in minor units (cents).
+</rule>
+```
+
+`lore audit` reports a source that no longer resolves, and one whose text
+has changed since the rule was last reviewed against it. `lore review`
+records that review. A source with only a `file` is flagged by any edit to
+that file, so name a heading or a phrase wherever the file has one. The
+[CLI README](packages/cli/README.md) covers both commands. They, the block
+and the `audit` key in `.loreconfig` need lore 0.6.0 or later: an older
+tool leaves out a rule with a `<source>` and ignores a `.loreconfig` with
+an `audit` key, so upgrade every tool that reads the rules first.
+
 ### Configuration
 
 An optional `.loreconfig` file applies to its directory and everything

@@ -8060,6 +8060,9 @@ version of this specification it follows. It reads, in full:
 4. Report each selected `<rule>` by id as pass, fail or not applicable, with
    evidence such as a file and line. Treat a `<check>` as a hint, not a verdict.
 5. Never invent rules from prose outside `.lore` files.
+6. When you write a rule from a document, name it in a `<source>`: its `file`,
+   and a `heading` or `phrase` when it has one. CI can run `lore audit` to flag
+   a source that has moved or changed.
 ```
 
 An agent that follows these steps selects rules by reading them, so it
@@ -8088,3 +8091,9 @@ be wrapped and scoped first and classified later.
 **Agents.** Paste [`AGENT.md`](AGENT.md), heading included, into the
 instruction file your agents read: `AGENTS.md` at the repository root, or
 the file a particular agent reads instead.
+
+**Sources.** Cite the document a rule was written from in its
+`<source>`, and run `lore audit` in CI. It reports a source that no
+longer resolves, and one whose text changed since the rule was last
+reviewed (see [Sources](#sources) and
+[Auditing sources](#auditing-sources)).

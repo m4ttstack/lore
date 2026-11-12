@@ -11,3 +11,6 @@
 4. Report each selected `<rule>` by id as pass, fail or not applicable, with
    evidence such as a file and line. Treat a `<check>` as a hint, not a verdict.
 5. Never invent rules from prose outside `.lore` files.
+6. When you write a rule from a document, name it in a `<source>`: its `file`,
+   and a `heading` or `phrase` when it has one. CI can run `lore audit` to flag
+   a source that has moved or changed.
