@@ -6,12 +6,33 @@ import { countLineFeeds, readBlock } from "./yaml";
 
 export interface DisableItem { id: string; line: number; range: Range }
 
+export const FINDINGS = [
+  "source-missing", "source-unchecked", "ambiguous-heading", "source-changed",
+  "never-reviewed", "review-overdue", "orphan-review", "meta-source",
+] as const;
+export type FindingName = (typeof FINDINGS)[number];
+export type Level = "error" | "warn" | "off";
+
+export const DEFAULT_LEVELS: Readonly<Record<FindingName, Level>> = {
+  "source-missing": "error",
+  "source-unchecked": "error",
+  "ambiguous-heading": "warn",
+  "source-changed": "warn",
+  "never-reviewed": "warn",
+  "review-overdue": "warn",
+  "orphan-review": "warn",
+  "meta-source": "off",
+};
+
+export interface AuditConfig { maxAgeDays?: number; levels: Partial<Record<FindingName, Level>> }
+
 export interface LoreConfig {
   root: boolean;
   loose?: boolean;
   repo: { value: string; line: number } | null;
   categories: string[];
   disable: DisableItem[];
+  audit: AuditConfig | null;
 }
 
 export type ConfigRead = { lines: string[] } & ({ config: LoreConfig } | { config: null; problem: number });
@@ -33,7 +54,7 @@ export function readLoreconfig(content: string): ConfigRead {
 
   const source = lines.join("\n");
   const lineAt = (offset: number) => 1 + countLineFeeds(source, offset);
-  const config: LoreConfig = { root: false, repo: null, categories: [], disable: [] };
+  const config: LoreConfig = { root: false, repo: null, categories: [], disable: [], audit: null };
   const contents = read.document!.contents;
   const pairs: Pair[] = isMap(contents) ? contents.items : [];
   for (const pair of pairs) {
@@ -68,6 +89,12 @@ export function readLoreconfig(content: string): ConfigRead {
           return { id: field[n]!, line: itemLine, range: lineRange(lines, itemLine) };
         });
         break;
+      case "audit": {
+        const audit = readAudit(field);
+        if (audit === null) return fail(line);
+        config.audit = audit;
+        break;
+      }
       default:
         return fail(line);
     }
@@ -102,6 +129,38 @@ export function namesRepo(repo: string, remotes: readonly string[]): boolean {
 
 function asciiLower(value: string): string {
   return value.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+}
+
+function readAudit(value: unknown): AuditConfig | null {
+  if (!isMapping(value)) return null;
+  const audit: AuditConfig = { levels: {} };
+  for (const [key, field] of Object.entries(value)) {
+    if (key === "maxAgeDays") {
+      if (typeof field !== "number" || !Number.isSafeInteger(field) || field < 1) return null;
+      audit.maxAgeDays = field;
+    } else if (key === "levels") {
+      if (!isMapping(field)) return null;
+      for (const [name, level] of Object.entries(field)) {
+        if (!isFinding(name) || !isLevel(level)) return null;
+        audit.levels[name] = level;
+      }
+    } else {
+      return null;
+    }
+  }
+  return audit;
+}
+
+function isMapping(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFinding(name: string): name is FindingName {
+  return (FINDINGS as readonly string[]).includes(name);
+}
+
+function isLevel(value: unknown): value is Level {
+  return value === "error" || value === "warn" || value === "off";
 }
 
 function isListOf(value: unknown, pattern: RegExp): value is string[] {

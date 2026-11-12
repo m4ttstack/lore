@@ -1,5 +1,5 @@
 import { FIXED_CATEGORIES } from "./blocks";
-import { namesRepo, readLoreconfig, type DisableItem } from "./loreconfig";
+import { DEFAULT_LEVELS, FINDINGS, namesRepo, readLoreconfig, type AuditConfig, type DisableItem, type FindingName, type Level } from "./loreconfig";
 import { compareCodePoints, lineRange } from "./text";
 import type { Diagnostic, GivenFolder, InputFile, LoreInput } from "./types";
 
@@ -26,8 +26,11 @@ export interface ConfigFile {
   root: boolean;
   categories: string[];
   disable: DisableItem[];
+  audit: AuditConfig | null;
   trees: Tree[];
 }
+
+export interface AuditSettings { maxAgeDays: number | null; levels: Record<FindingName, Level> }
 
 export interface TreeInfo { repository: number; marked: string }
 
@@ -91,6 +94,16 @@ export function disabledFor(collected: Collected, entryId: string, path: string,
   return listsId(applying(own, stands, loreRootOf(own, stands, marked)), entryId);
 }
 
+export function auditSettingsFor(collected: Collected, dir: string, repository: Repository, loreRoot: string): AuditSettings {
+  const settings: AuditSettings = { maxAgeDays: null, levels: { ...DEFAULT_LEVELS } };
+  for (const { audit } of applying(configsOf(collected, repository), dir, loreRoot)) {
+    if (audit === null) continue;
+    if (audit.maxAgeDays !== undefined) settings.maxAgeDays = audit.maxAgeDays;
+    for (const finding of FINDINGS) settings.levels[finding] = audit.levels[finding] ?? settings.levels[finding];
+  }
+  return settings;
+}
+
 function collectSource(source: Source, remotes: readonly string[], out: Collected): void {
   const { configs, excluded, marks } = readConfigs(source, remotes, out.diagnostics);
   const roots: { marked: string; tree: Tree }[] = source.folders === null
@@ -145,7 +158,7 @@ function readConfigs(
       report("invalid-loreconfig", read.problem);
       continue;
     }
-    const { root, repo, categories, disable } = read.config;
+    const { root, repo, categories, disable, audit } = read.config;
     if (repo !== null) {
       const problem = source.folders === null ? "repo-inside-repo"
         : marked.some((above) => above !== dir && within(dir, above)) ? "nested-repo"
@@ -158,7 +171,7 @@ function readConfigs(
       marked.push(dir);
       if (source.folders!.some((folder) => within(dir, folder)) && namesRepo(repo.value, remotes)) marks.push(dir);
     }
-    configs.set(dir, { file: name, dir, repository: source.repository, root, categories, disable });
+    configs.set(dir, { file: name, dir, repository: source.repository, root, categories, disable, audit });
   }
   return { configs, excluded, marks };
 }

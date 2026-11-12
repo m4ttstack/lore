@@ -5705,6 +5705,7 @@ a mapping whose keys are all optional:
 | `loose` | `true` or `false` | `true` in the `.loreconfig` at the root of a loose folder says the folder is meant to be loose (see [External folders](#external-folders)). Without it, `false`. |
 | `categories` | A list of categories | Categories declared for this directory and below (see [Categories](#categories)). |
 | `disable` | A list of ids | Entries switched off for changed files in this directory and below (see [Disable](#disable)). |
+| `audit` | A mapping | The age limit and finding levels that audits use for this directory and below (see [Audit settings](#audit-settings)). |
 
 An empty `.loreconfig`, or one that holds only comments, is an empty
 mapping and sets nothing. The shape is also given as
@@ -6019,6 +6020,112 @@ M apps/web/src/checkout/Price.tsx
   "warnings": [
     { "name": "unknown-disabled-id", "file": ".loreconfig", "entry": null, "line": 3 }
   ]
+}
+``````
+
+### Audit settings
+
+`audit` sets how a tool that audits sources reports its findings for a
+directory and below. It is a mapping with two optional keys:
+
+- `maxAgeDays`: a positive integer, the number of days after which a
+  review is overdue. Without it, no age limit is set.
+- `levels`: a mapping from a finding name to a level. A level is
+  `error`, `warn` or `off`. The finding names, and the level each has
+  when nothing sets it, are:
+
+| Finding | Default level |
+|---|---|
+| `source-missing` | `error` |
+| `source-unchecked` | `error` |
+| `ambiguous-heading` | `warn` |
+| `source-changed` | `warn` |
+| `never-reviewed` | `warn` |
+| `review-overdue` | `warn` |
+| `orphan-review` | `warn` |
+| `meta-source` | `off` |
+
+Anything else under `audit` is `invalid-loreconfig`: a key other than
+those two, a `maxAgeDays` that is not a positive integer, a `levels`
+that is not a mapping, a finding name not in the table, or a level not
+named above. The problem is reported at the line of the `audit` key.
+
+Each setting is looked up on its own. `maxAgeDays`, and the level of
+each finding, takes its value from the nearest `.loreconfig` that sets
+it, on the way up from a directory to its Lore root (see
+[Lore root](#lore-root)); a setting that none sets has its default. A
+`.loreconfig` above the Lore root is not consulted. A finding that
+belongs to no rule takes the settings of the directory that holds the
+Lore root.
+
+The root `.loreconfig` sets an age limit and turns one finding off.
+`apps/web/` raises one finding to an error and leaves the rest as the
+root set them:
+
+``````example parse
+=== .loreconfig
+audit:
+  maxAgeDays: 180
+  levels:
+    never-reviewed: off
+=== apps/web/.loreconfig
+audit:
+  levels:
+    source-changed: error
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null,
+      "sources": []
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A level that is not `error`, `warn` or `off` makes the whole
+`.loreconfig` invalid. It is ignored and reported at the `audit` line:
+
+``````example parse
+=== .loreconfig
+lore: 1
+audit:
+  levels:
+    source-changed: fatal
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null,
+      "sources": []
+    }
+  ],
+  "errors": [
+    { "name": "invalid-loreconfig", "file": ".loreconfig", "entry": null, "line": 2 }
+  ],
+  "warnings": []
 }
 ``````
 

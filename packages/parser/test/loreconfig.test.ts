@@ -54,7 +54,7 @@ describe("readLoreconfig", () => {
   test("an empty or comment-only file sets nothing", () => {
     for (const content of ["", "# nothing here\n"]) {
       const read = readLoreconfig(content);
-      expect(read.config).toEqual({ root: false, repo: null, categories: [], disable: [] });
+      expect(read.config).toEqual({ root: false, repo: null, categories: [], disable: [], audit: null });
     }
   });
 
@@ -65,6 +65,7 @@ describe("readLoreconfig", () => {
       repo: { value: "github.com/acme/shop", line: 3 },
       categories: ["data_provenance"],
       disable: [expect.objectContaining({ id: "a-b", line: 5 })],
+      audit: null,
     });
   });
 
@@ -130,7 +131,37 @@ describe("readLoreconfig", () => {
 
   test("a byte order mark and CRLF line breaks are read as in a Lore file", () => {
     expect(readLoreconfig("﻿root: true\r\ndisable: [a]\r\n").config).toEqual({
-      root: true, repo: null, categories: [], disable: [expect.objectContaining({ id: "a", line: 2 })],
+      root: true, repo: null, categories: [], disable: [expect.objectContaining({ id: "a", line: 2 })], audit: null,
     });
+  });
+
+  test("audit reads maxAgeDays and levels", () => {
+    const read = readLoreconfig("lore: 1\naudit:\n  maxAgeDays: 180\n  levels:\n    source-changed: error\n    never-reviewed: off\n");
+    expect(read.config?.audit).toEqual({ maxAgeDays: 180, levels: { "source-changed": "error", "never-reviewed": "off" } });
+  });
+
+  test("audit keys are optional", () => {
+    expect(readLoreconfig("audit: {}\n").config?.audit).toEqual({ levels: {} });
+    expect(readLoreconfig("audit:\n  maxAgeDays: 30\n").config?.audit).toEqual({ maxAgeDays: 30, levels: {} });
+    expect(readLoreconfig("audit:\n  levels: { meta-source: warn }\n").config?.audit).toEqual({ levels: { "meta-source": "warn" } });
+  });
+
+  test("a bad audit value is reported at the audit key", () => {
+    const bad = [
+      "audit:\n  maxAgeDays: 0\n",
+      "audit:\n  maxAgeDays: 1.5\n",
+      'audit:\n  maxAgeDays: "180"\n',
+      "audit:\n  maxAgeDays: -3\n",
+      "audit:\n  owner: me\n",
+      "audit:\n  levels:\n    source-gone: error\n",
+      "audit:\n  levels:\n    source-changed: fatal\n",
+      "audit:\n  levels:\n    source-changed: true\n",
+      "audit:\n  levels: [source-changed]\n",
+      "audit:\n  levels:\n",
+      "audit: []\n",
+      "audit:\n",
+      "audit: warn\n",
+    ];
+    for (const content of bad) expect(problem(`root: true\n${content}`)).toBe(2);
   });
 });
