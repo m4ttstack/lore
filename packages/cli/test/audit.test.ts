@@ -201,6 +201,17 @@ describe("lore audit", () => {
     expect((await lore(["audit", "--repo", root, "--strict"])).code).toBe(1);
   });
 
+  test("a rule under a directory repo-inside-repo excludes is no orphan-review", async () => {
+    const root = shop({
+      "apps/web/.loreconfig": "repo: github.com/acme/shop\n",
+      "apps/web/.lore/web.lore": ruleCiting("web-rule", `/${SOURCE.file}`),
+      "lore-reviews.lock": LOCK + lockFor("web-rule", SOURCE, DOC).split("\n")[1] + "\n",
+    });
+    expect(await lore(["audit", "--repo", root])).toEqual({
+      code: 0, out: "rules with a source: 1, without: 1\n", err: "lore: excluded repo-inside-repo in apps/web/.loreconfig line 1\n",
+    });
+  });
+
   test("--format json is an audit result plus the excluded entries", async () => {
     const root = shop({ ".lore/bad.lore": BROKEN, ".lore/b.lore": ruleCiting("notes-rule", "docs/notes.md", null) });
     const { code, out, err } = await lore(["audit", "--repo", root, "--format", "json"]);

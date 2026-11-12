@@ -45,6 +45,10 @@ export interface Collected {
   // Indexed by Repository number: the index in input.given of the first folder of that repository.
   repositoryGiven: number[];
   configsByRepository: ReadonlyMap<Repository, ReadonlyMap<string, ConfigFile>>;
+  // Each .loreconfig whose error may leave Lore files at or below its directory uncollected: one that excludes its
+  // directory in the governed repo or an external folder, and one of a given folder's repository, outside every marked
+  // directory, that marks nothing because it has a problem.
+  hiding: { file: string; repository: Repository }[];
 }
 
 type Config = Omit<ConfigFile, "trees">;
@@ -63,7 +67,7 @@ const NO_CONFIGS: Configs = new Map();
 export function collect(input: LoreInput): Collected {
   const given = repositories(input.given);
   const collected: Collected = {
-    files: [], configs: [], diagnostics: [], warnings: [], trees: [],
+    files: [], configs: [], diagnostics: [], warnings: [], trees: [], hiding: [],
     repositoryFiles: given.map(({ files }) => files), repositoryGiven: given.map(({ at }) => at), configsByRepository: new Map(),
   };
   const governed = input.rules === undefined
@@ -109,7 +113,7 @@ export function loreRootIn(collected: Collected, dir: string, repository: Reposi
 }
 
 function collectSource(source: Source, remotes: readonly string[], out: Collected): void {
-  const { configs, excluded, marks } = readConfigs(source, remotes, out.diagnostics);
+  const { configs, excluded, marks } = readConfigs(source, remotes, out);
   const roots: { marked: string; tree: Tree }[] = source.folders === null
     ? [{ marked: ROOT, tree: "repo" }]
     : marks.map((marked) => ({ marked, tree: out.trees.push({ repository: source.repository as number, marked }) - 1 }));
@@ -141,7 +145,7 @@ function collectSource(source: Source, remotes: readonly string[], out: Collecte
 function readConfigs(
   source: Source,
   remotes: readonly string[],
-  diagnostics: Diagnostic[],
+  out: Pick<Collected, "diagnostics" | "hiding">,
 ): { configs: Configs; excluded: string[]; marks: string[] } {
   const configs = new Map<string, Config>();
   const excluded: string[] = [];
@@ -157,9 +161,10 @@ function readConfigs(
     const name = source.prefix + file.path;
     const read = readLoreconfig(file.content);
     const report = (problem: string, line: number) =>
-      diagnostics.push({ name: problem, file: name, entry: null, line, range: lineRange(read.lines, line) });
+      out.diagnostics.push({ name: problem, file: name, entry: null, line, range: lineRange(read.lines, line) });
     if (read.config === null) {
       report("invalid-loreconfig", read.problem);
+      if (source.folders !== null && !marked.some((above) => within(dir, above))) out.hiding.push({ file: name, repository: source.repository });
       continue;
     }
     const { root, repo, categories, disable, audit } = read.config;
@@ -170,6 +175,7 @@ function readConfigs(
       if (problem !== null) {
         report(problem, repo.line);
         excluded.push(dir);
+        if (source.folders === null || marks.some((above) => within(dir, above))) out.hiding.push({ file: name, repository: source.repository });
         continue;
       }
       marked.push(dir);

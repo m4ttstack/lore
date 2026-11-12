@@ -205,6 +205,60 @@ describe("audit", () => {
     expect(result.excluded.map((d) => [d.name, d.entry])).toEqual([["invalid-attribute-value", ID]]);
     expect(result.summary).toEqual({ counts: {}, rulesWithSource: 0, rulesWithoutSource: 0 });
   });
+
+  describe("a .loreconfig error that may hide Lore files keeps every record of the Lore root that could hold them", () => {
+    const WEB = record(source({ file: "docs/review.md" }), { rule: "web-rule" });
+    const GONE = record(AT_HEADING, { rule: "gone-rule" });
+    const names = (files: Record<string, string>) => run(files).findings.map((f) => [f.name, f.rule, f.file]);
+
+    test("repo-inside-repo, which excludes its directory", () => {
+      const files = {
+        [LORE]: rule(HEADING),
+        "apps/web/.loreconfig": "repo: github.com/acme/shop\n",
+        "apps/web/.lore/web.lore": rule("file: /docs/review.md", "web-rule"),
+        "docs/review.md": DOC,
+        [LOCK]: lock(record(AT_HEADING), WEB, GONE),
+      };
+      expect(names(files)).toEqual([]);
+      expect(run(files).excluded.map((d) => d.name)).toEqual(["repo-inside-repo"]);
+    });
+
+    test("nested-repo, which excludes its directory in an external folder", () => {
+      const files = {
+        "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+        "external:lore/shop/.lore/a.lore": rule("file: /docs/review.md\nheading: Money is integer minor units"),
+        "external:lore/shop/apps/web/.loreconfig": "repo: github.com/acme/web\n",
+        "external:lore/shop/apps/web/.lore/web.lore": rule("file: /docs/review.md", "web-rule"),
+        "docs/review.md": DOC,
+        "external:lore/shop/lore-reviews.lock": lock(record(AT_HEADING), WEB, GONE),
+      };
+      expect(names(files)).toEqual([]);
+    });
+
+    test("invalid-loreconfig in a given folder's repository, which marks nothing, under a shared Lore root", () => {
+      const files = {
+        "external:lore/.loreconfig": "root: true\n",
+        "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+        "external:lore/shop/.lore/a.lore": rule("file: /docs/review.md\nheading: Money is integer minor units"),
+        "external:lore/web/.loreconfig": "repo: github.com/acme/shop\nroot: yes\n",
+        "external:lore/web/.lore/web.lore": rule("file: /docs/review.md", "web-rule"),
+        "docs/review.md": DOC,
+        "external:lore/lore-reviews.lock": lock(record(AT_HEADING), WEB, GONE),
+      };
+      expect(names(files)).toEqual([]);
+    });
+
+    test("not invalid-loreconfig in the governed repo, which leaves every Lore file collected", () => {
+      const files = {
+        [LORE]: rule(HEADING),
+        "apps/web/.loreconfig": "root: yes\n",
+        "apps/web/.lore/web.lore": rule("file: /docs/review.md", "web-rule"),
+        "docs/review.md": DOC,
+        [LOCK]: lock(record(AT_HEADING), WEB, GONE),
+      };
+      expect(names(files)).toEqual([["orphan-review", "gone-rule", LOCK]]);
+    });
+  });
 });
 
 describe("lockPathFor", () => {
@@ -238,6 +292,16 @@ describe("lockRefsHolding", () => {
     expect(lockRefsHolding(collected, "apps/web/.loreconfig", "repo")).toEqual([{ tree: "repo", path: "apps/web/lore-reviews.lock" }]);
     expect(lockRefsHolding(collected, "external:lore/shop/.lore/gone.lore", 0)).toEqual([{ tree: 0, path: "external:lore/shop/lore-reviews.lock" }]);
     expect(lockRefsHolding(collected, "external:lore/other/.lore/gone.lore", 0)).toEqual([]);
+  });
+
+  test("names, for a .loreconfig no tree reaches, the lock file its directory's Lore root would have if it were marked", () => {
+    const { collected } = parseWithContext(toInput(example({
+      "external:lore/.loreconfig": "root: true\n",
+      "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+      "external:lore/shop/.lore/c.lore": rule("file: docs/review.md", "shared-rule"),
+    })));
+    expect(lockRefsHolding(collected, "external:lore/web/.loreconfig", 0)).toEqual([{ tree: 0, path: "external:lore/lore-reviews.lock" }]);
+    expect(lockRefsHolding(collected, "external:lore/web/.lore/gone.lore", 0)).toEqual([]);
   });
 });
 

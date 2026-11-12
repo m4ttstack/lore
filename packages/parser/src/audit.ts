@@ -40,6 +40,7 @@ export interface AuditOptions {
 type Found = Omit<Finding, "level">;
 
 const DAY_MS = 86_400_000;
+const CONFIG_NAME = ".loreconfig";
 
 export function lockPathFor(place: EntryPlace): LockRef {
   return { tree: place.tree, path: lockPath(place.prefix, place.loreRoot) };
@@ -51,13 +52,20 @@ export function lockRefs(parsed: ParsedInput): LockRef[] {
 }
 
 // The lock files of the Lore roots that would hold a file at this prefixed path, in each tree of its repository that reaches it.
+// A .loreconfig that no tree reaches may be what would have marked its directory, so it also names the lock file that
+// directory's Lore root would have, in each tree of its repository.
 export function lockRefsHolding(collected: Collected, file: string, repository: Repository): LockRef[] {
   const prefix = [EXTERNAL, LOOSE, RULES].find((candidate) => file.startsWith(candidate)) ?? "";
-  const dir = dirOf(file.slice(prefix.length));
-  const trees: { tree: Tree; marked: string }[] = repository === "repo"
-    ? [{ tree: "repo", marked: "" }]
-    : collected.trees.flatMap((info, tree) => (info.repository === repository && within(dir, info.marked) ? [{ tree, marked: info.marked }] : []));
-  return trees.map(({ tree, marked }) => ({ tree, path: lockPath(prefix, loreRootIn(collected, dir, repository, marked)) }));
+  const path = file.slice(prefix.length);
+  const dir = dirOf(path);
+  if (repository === "repo") return [{ tree: "repo", path: lockPath(prefix, loreRootIn(collected, dir, repository, "")) }];
+  const trees = collected.trees.flatMap((info, tree) => (info.repository === repository ? [{ tree, marked: info.marked }] : []));
+  const reaching = trees.filter(({ marked }) => within(dir, marked));
+  if (reaching.length > 0 || path.split("/").at(-1) !== CONFIG_NAME) {
+    return reaching.map(({ tree, marked }) => ({ tree, path: lockPath(prefix, loreRootIn(collected, dir, repository, marked)) }));
+  }
+  const unmarked = lockPath(prefix, loreRootIn(collected, dir, repository, dir));
+  return trees.map(({ tree }) => ({ tree, path: unmarked }));
 }
 
 export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
@@ -133,8 +141,9 @@ function orphans(parsed: ParsedInput, options: AuditOptions): Finding[] {
 }
 
 // The records of each lock file that name no rule source of the model. A record is no orphan while the rule it names
-// might only be excluded: an excluded entry with no readable id hides every rule of its Lore root. A withheld lock file,
-// or one no collected Lore file maps to, has none.
+// might only be excluded: an excluded Lore file, an excluded entry with no readable id, and a .loreconfig error that may
+// leave Lore files uncollected hide every rule of the Lore roots that could hold them. A withheld lock file, or one no
+// collected Lore file maps to, has none.
 export function orphanRecords(
   parsed: ParsedInput, locks: readonly LockFile[], withheld: readonly LockRef[] = [],
 ): { lock: LockFile; records: ReviewRecord[] }[] {
@@ -151,6 +160,9 @@ export function orphanRecords(
   for (const error of model.errors) {
     const file = collected.files.find((candidate) => candidate.file === error.file);
     if (file !== undefined) setIn(excluded, lockKey(fileLock(file))).add(error.entry);
+  }
+  for (const { file, repository } of collected.hiding) {
+    for (const ref of lockRefsHolding(collected, file, repository)) setIn(excluded, lockKey(ref)).add(null);
   }
 
   const found: { lock: LockFile; records: ReviewRecord[] }[] = [];

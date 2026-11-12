@@ -326,6 +326,45 @@ describe("records that are not provably orphans are kept", () => {
     expect(lockOf(root)).toBe(writeReviews([GONE, KEPT, record("money-in-minor-units", MONEY, DOC, TODAY)]));
   });
 
+  test("rules under a directory repo-inside-repo excludes keep their records through a review of another rule and --prune", async () => {
+    const web = record("web-rule", MONEY);
+    const lock = writeReviews([GONE, record("money-in-minor-units", MONEY), web]);
+    const root = shop({
+      "apps/web/.loreconfig": "repo: github.com/acme/shop\n",
+      "apps/web/.lore/web.lore": ruleCiting("web-rule", `/${MONEY.file}`),
+      "lore-reviews.lock": lock,
+    });
+    const excluded = "lore: excluded repo-inside-repo in apps/web/.loreconfig line 1\n";
+    expect(await lore(["review", "money-in-minor-units", "--repo", root])).toEqual({
+      code: 0, out: "reviewed money-in-minor-units (1 source)\n", err: excluded,
+    });
+    const after = writeReviews([GONE, record("money-in-minor-units", MONEY, DOC, TODAY), web]);
+    expect(lockOf(root)).toBe(after);
+    expect(lockOf(root).split("\n")).toContain(JSON.stringify(web));
+    expect(await lore(["review", "--prune", "--repo", root])).toEqual({ code: 0, out: "", err: excluded });
+    expect(lockOf(root)).toBe(after);
+  });
+
+  test("rules under a directory nested-repo excludes in a given folder keep their records through --prune and a review", async () => {
+    const root = shop();
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    const web = record("web-rule", MONEY);
+    const lock = writeReviews([GONE, record("shared-rule", MONEY), web]);
+    const folder = repoWith({
+      "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+      "lore/shop/.lore/a.lore": ruleCiting("shared-rule", `/${MONEY.file}`),
+      "lore/shop/apps/web/.loreconfig": "repo: github.com/acme/web\n",
+      "lore/shop/apps/web/.lore/web.lore": ruleCiting("web-rule", `/${MONEY.file}`),
+      "lore/shop/lore-reviews.lock": lock,
+    });
+    const args = ["--repo", root, "--given", join(folder, "lore")];
+    const excluded = "lore: excluded nested-repo in external:lore/shop/apps/web/.loreconfig line 1\n";
+    expect(await lore(["review", "--prune", ...args])).toEqual({ code: 0, out: "", err: excluded });
+    expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(lock);
+    expect(await lore(["review", "shared-rule", ...args])).toEqual({ code: 0, out: "reviewed shared-rule (1 source)\n", err: excluded });
+    expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(writeReviews([GONE, record("shared-rule", MONEY, DOC, TODAY), web]));
+  });
+
   test("a refused rule's records for a source it no longer has are left as they were", async () => {
     const root = shop({ ".lore/dates.lore": ruleCiting("dates-are-iso", DATES.file, "Times"), "lore-reviews.lock": writeReviews([record("dates-are-iso", DATES)]) });
     const { code } = await lore(["review", "dates-are-iso", "--repo", root]);
