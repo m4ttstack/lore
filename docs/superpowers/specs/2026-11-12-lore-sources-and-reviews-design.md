@@ -7,10 +7,9 @@ Date: 2026-11-12. Status: for approval. Tracker: LORE-13.
 A rule usually comes from somewhere: a section of a review guide, an
 architecture note, a decision record. Teams write that down today as a
 `source:` line in `<meta>`, which no tool reads. When the document is
-edited, the pointer goes stale and nothing says so. In one docs cleanup
-on a governed repo, 9 of the 20 pointers into the edited files named a
-heading that had been renamed, moved or removed, and it was found only
-because someone went looking.
+edited, the pointer goes stale and nothing says so. A single docs
+cleanup can leave many pointers naming headings that were renamed,
+moved or removed, and they are found only when someone goes looking.
 
 Rules also carry no record of when a person last confirmed they still
 match their source. A date in `<meta>` would only record a claim.
