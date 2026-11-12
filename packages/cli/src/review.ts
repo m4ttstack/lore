@@ -74,7 +74,12 @@ export function review(parsed: ParsedInput, built: BuiltInput, command: ReviewCo
     writes.push({ ref, text });
     if (pruned.length > 0) out.push(`pruned ${count(pruned.length, "record", "records")} from ${ref.path}\n`);
   }
-  for (const { ref, text } of writes) writeAtomically(onDisk(ref), ref.path, text);
+  for (const { ref, text } of writes) {
+    writeAtomically(onDisk(ref), ref.path, text);
+    if (built.tracks(ref, collected) === false) {
+      err.push(`lore: ${ref.path} is not tracked by git; lore audit reads it once it is tracked (for example after git add)\n`);
+    }
+  }
   return { out: out.join(""), err: err.join(""), refused: refused.size > 0 };
 }
 

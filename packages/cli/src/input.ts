@@ -27,6 +27,9 @@ export interface BuiltInput {
   // Where a file of a tree lies in the working tree: its place's root and its path there. Undefined under --rules-ref
   // or --no-repo for a governed-repo path.
   onDisk(ref: LockRef, collected: Collected): { root: string; path: string } | undefined;
+  // Whether git tracked a file of a tree when the input was built; null for a loose folder, which is in no working copy,
+  // and wherever onDisk is undefined.
+  tracks(ref: LockRef, collected: Collected): boolean | null;
 }
 export interface UnreadFile {
   // With its source's prefix: "loose:" or "external:" for a given folder, none for the governed repo.
@@ -115,6 +118,10 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     const at = located(ref.tree, ref.path, collected);
     return at === undefined || at.ref !== null ? undefined : { root: at.root, path: at.path };
   };
+  const tracks = (ref: LockRef, collected: Collected): boolean | null => {
+    const at = located(ref.tree, ref.path, collected);
+    return at === undefined || at.ref !== null || ref.path.startsWith(LOOSE) ? null : at.listed.has(at.path);
+  };
   const readSourceContent = (place: { tree: Tree }, file: string, collected: Collected): SourceContent | undefined => {
     const bytes = readBytes(place.tree, file, collected);
     return bytes === undefined || bytes === null ? bytes : decode(bytes);
@@ -140,7 +147,7 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     ...[...repositories.values(), ...looseFolders.values()].flatMap((place) =>
       place.unread.filter((path) => reached(path, place.folders)).map((path) => ({ file: place.prefix + path, given: givenPlaces.indexOf(place) }))),
   ];
-  return { input, readSrc, unread, readSourceContent, readLock, onDisk };
+  return { input, readSrc, unread, readSourceContent, readLock, onDisk, tracks };
 }
 
 // A listed path whose file cannot be read safely (a symlink out of the place, a skipped sparse-checkout file) could not be looked at.

@@ -81,6 +81,7 @@ function shop(extra: Record<string, string> = {}): string {
 }
 
 const lockOf = (root: string, path = "lore-reviews.lock"): string => readFileSync(join(root, path), "utf8");
+const untracked = (lock: string): string => `lore: ${lock} is not tracked by git; lore audit reads it once it is tracked (for example after git add)\n`;
 
 describe("parsing lore review", () => {
   test("reads rule ids, --date, --repo and --given", () => {
@@ -105,7 +106,7 @@ describe("lore review", () => {
   test("writes the rule's record with today's date and the fingerprint, and creates the lock file", async () => {
     const root = shop();
     expect(await lore(["review", "money-in-minor-units", "--repo", root])).toEqual({
-      code: 0, out: "reviewed money-in-minor-units (1 source)\n", err: "",
+      code: 0, out: "reviewed money-in-minor-units (1 source)\n", err: untracked("lore-reviews.lock"),
     });
     expect(lockOf(root)).toBe(writeReviews([record("money-in-minor-units", MONEY, DOC, TODAY)]));
     expect(readdirSync(root).filter((name) => name.startsWith("lore-reviews"))).toEqual(["lore-reviews.lock"]);
@@ -137,7 +138,7 @@ describe("lore review", () => {
   test("--file reviews every rule of that file that has a source, and skips the others", async () => {
     const root = shop({ ".lore/checkout.lore": `${RULE}\n${PLAIN}\n${DATES_RULE}` });
     expect(await lore(["review", "--file", ".lore/checkout.lore", "--repo", root])).toEqual({
-      code: 0, out: "reviewed money-in-minor-units (1 source)\nreviewed dates-are-iso (1 source)\n", err: "",
+      code: 0, out: "reviewed money-in-minor-units (1 source)\nreviewed dates-are-iso (1 source)\n", err: untracked("lore-reviews.lock"),
     });
     expect(lockOf(root)).toBe(writeReviews([record("money-in-minor-units", MONEY, DOC, TODAY), record("dates-are-iso", DATES, DOC, TODAY)]));
   });
@@ -170,14 +171,16 @@ describe("lore review", () => {
     const { code, out, err } = await lore(["review", "dates-are-iso", "--repo", root]);
     expect(code).toBe(0);
     expect(out).toBe("reviewed dates-are-iso (1 source)\n");
-    expect(err).toBe("lore: warn  ambiguous-heading  dates-are-iso  docs/checkout-review.md#Dates\n");
+    expect(err).toBe(`lore: warn  ambiguous-heading  dates-are-iso  docs/checkout-review.md#Dates\n${untracked("lore-reviews.lock")}`);
     expect(lockOf(root)).toBe(writeReviews([record("dates-are-iso", DATES, twice, TODAY)]));
   });
 
   test("a rule in an untracked Lore file can be reviewed", async () => {
     const root = shop();
     write(root, { ".lore/new.lore": DATES_RULE });
-    expect(await lore(["review", "dates-are-iso", "--repo", root])).toEqual({ code: 0, out: "reviewed dates-are-iso (1 source)\n", err: "" });
+    expect(await lore(["review", "dates-are-iso", "--repo", root])).toEqual({
+      code: 0, out: "reviewed dates-are-iso (1 source)\n", err: untracked("lore-reviews.lock"),
+    });
     expect(lockOf(root)).toBe(writeReviews([record("dates-are-iso", DATES, DOC, TODAY)]));
   });
 
@@ -188,13 +191,31 @@ describe("lore review", () => {
     expect(lockOf(root)).toBe(writeReviews([record("money-in-minor-units", MONEY, DOC, TODAY), record("dates-are-iso", DATES, DOC, TODAY)]));
   });
 
+  test("a lock file git does not track is named each time it is written, and a staged one is not", async () => {
+    const root = shop({ ".lore/dates.lore": DATES_RULE });
+    expect((await lore(["review", "money-in-minor-units", "--repo", root])).err).toBe(untracked("lore-reviews.lock"));
+    expect((await lore(["review", "dates-are-iso", "--repo", root])).err).toBe(untracked("lore-reviews.lock"));
+    expect((await lore(["audit", "--repo", root])).out).toContain("never-reviewed  dates-are-iso");
+    git(root, "add", "lore-reviews.lock");
+    expect(await lore(["review", "dates-are-iso", "--date", "2026-11-13", "--repo", root])).toEqual({
+      code: 0, out: "reviewed dates-are-iso (1 source)\n", err: "",
+    });
+    expect((await lore(["audit", "--repo", root])).out).not.toContain("never-reviewed");
+  });
+
+  test("a run that writes nothing names no lock file, tracked or not", async () => {
+    const root = shop();
+    expect((await lore(["review", "money-in-minor-units", "--repo", root])).code).toBe(0);
+    expect(await lore(["review", "--prune", "--repo", root])).toEqual({ code: 0, out: "", err: "" });
+  });
+
   test("a rule in a given folder with a ./ source writes that folder's lock file", async () => {
     const root = shop();
     git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
     const guided = '<rule id="guide-rule" category="functional_correctness">\n<source>\nfile: ./guide.md\n</source>\nFollow the guide.\n</rule>\n';
     const folder = repoWith({ "rules/.loreconfig": "lore: 1\nrepo: github.com/acme/shop\n", "rules/.lore/a.lore": guided, "rules/.lore/guide.md": "# Guide\n" });
     const { code, out, err } = await lore(["review", "guide-rule", "--repo", root, "--given", join(folder, "rules")]);
-    expect(err).toBe("");
+    expect(err).toBe(untracked("external:rules/lore-reviews.lock"));
     expect(out).toBe("reviewed guide-rule (1 source)\n");
     expect(code).toBe(0);
     const guide: Source = { file: "external:rules/.lore/guide.md", heading: null, phrase: null };
