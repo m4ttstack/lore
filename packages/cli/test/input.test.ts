@@ -703,3 +703,67 @@ describe("without a git binary", () => {
     await expect(attempt).rejects.toThrow("git is not installed");
   });
 });
+
+describe("readSourceContent and readLock", () => {
+  const cited = (file: string) => `<rule id="cited" category="code_style">\n<source>\nfile: ${file}\n</source>\nProse.\n</rule>\n`;
+  const placed = async (built: BuiltInput) => {
+    const parsed = parseWithContext(built.input);
+    const entry = parsed.model.entries.find(({ id }) => id === "cited")!;
+    return { place: parsed.placeOf.get(entry)!, collected: parsed.collected, source: entry.sources[0]!.file };
+  };
+
+  test("reads a tracked file as text, a file that is not UTF-8 as bytes, and an untracked file as null", async () => {
+    const root = repoWith({ ".lore/a.lore": cited("docs/a.md"), "docs/a.md": "text\n", "docs/b.bin": "" });
+    writeFileSync(join(root, "docs/b.bin"), Uint8Array.from([0xff, 0xfe, 0x00]));
+    git(root, "add", ".");
+    git(root, "commit", "-q", "-m", "bytes");
+    write(root, { "docs/c.md": "untracked\n" });
+    const built = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    const { place, collected } = await placed(built);
+    expect(built.readSourceContent(place, "docs/a.md", collected)).toBe("text\n");
+    expect(built.readSourceContent(place, "docs/b.bin", collected)).toEqual(Uint8Array.from([0xff, 0xfe, 0x00]));
+    expect(built.readSourceContent(place, "docs/c.md", collected)).toBeNull();
+    expect(built.readSourceContent(place, "docs/none.md", collected)).toBeNull();
+  });
+
+  test("reads a cited file and the lock file at the rules ref", async () => {
+    const root = repoWith({ ".lore/a.lore": cited("docs/a.md"), "docs/a.md": "old\n", "lore-reviews.lock": "old lock\n" });
+    write(root, { "docs/a.md": "new\n", "lore-reviews.lock": "new lock\n" });
+    const sources = { repo: root, given: [], remotes: ["github.com/acme/shop"] };
+    const atRef = await buildInput({ ...sources, rulesRef: "HEAD" });
+    const ref = await placed(atRef);
+    expect(atRef.readSourceContent(ref.place, "docs/a.md", ref.collected)).toBe("old\n");
+    expect(atRef.readLock({ tree: "repo", path: "rules:lore-reviews.lock" }, ref.collected)).toBe("old lock\n");
+    const working = await buildInput({ ...sources, rulesRef: null });
+    const tree = await placed(working);
+    expect(working.readSourceContent(tree.place, "docs/a.md", tree.collected)).toBe("new\n");
+    expect(working.readLock({ tree: "repo", path: "lore-reviews.lock" }, tree.collected)).toBe("new lock\n");
+  });
+
+  test("a lock file git does not track is not read", async () => {
+    const root = repoWith({ ".lore/a.lore": cited("docs/a.md") });
+    write(root, { "lore-reviews.lock": "untracked\n" });
+    const built = await buildInput({ repo: root, rulesRef: null, given: [], remotes: ["github.com/acme/shop"] });
+    expect(built.readLock({ tree: "repo", path: "lore-reviews.lock" }, (await placed(built)).collected)).toBeNull();
+  });
+
+  test("with --no-repo a governed-repo file is undefined, and a file of the rule's own folder is read", async () => {
+    const other = repoWith({ "rules/.loreconfig": MARKED, "rules/.lore/a.lore": cited("./guide.md"), "rules/.lore/guide.md": "guide\n", "rules/lore-reviews.lock": "lock\n" });
+    const built = await buildInput({ repo: null, rulesRef: null, given: [join(other, "rules")], remotes: ["github.com/acme/shop"] });
+    const { place, collected, source } = await placed(built);
+    expect(source).toBe("external:rules/.lore/guide.md");
+    expect(built.readSourceContent(place, source, collected)).toBe("guide\n");
+    expect(built.readSourceContent(place, "docs/a.md", collected)).toBeUndefined();
+    expect(built.readLock({ tree: place.tree, path: "external:rules/lore-reviews.lock" }, collected)).toBe("lock\n");
+  });
+
+  test("reads a loose folder's files", async () => {
+    const loose = tempDir();
+    write(loose, { ".loreconfig": `${MARKED}loose: true\n`, ".lore/a.lore": cited("./guide.md"), ".lore/guide.md": "loose guide\n", "lore-reviews.lock": "loose lock\n" });
+    const built = await buildInput({ repo: null, rulesRef: null, given: [loose], remotes: ["github.com/acme/shop"] });
+    const { place, collected, source } = await placed(built);
+    expect(source).toBe("loose:.lore/guide.md");
+    expect(built.readSourceContent(place, source, collected)).toBe("loose guide\n");
+    expect(built.readLock({ tree: place.tree, path: "loose:lore-reviews.lock" }, collected)).toBe("loose lock\n");
+  });
+});

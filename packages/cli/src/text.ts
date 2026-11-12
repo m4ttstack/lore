@@ -77,7 +77,7 @@ export function renderText(selection: Selection, audience: "reviewer" | "author"
   return `${sections.join("\n\n")}\n`;
 }
 
-export function excludedLines(selection: Selection): string {
+export function excludedLines(selection: Pick<Selection, "excluded">): string {
   return selection.excluded
     .map(({ name, file, line, entry }) => `lore: excluded ${name} in ${file} line ${line}${entry === null ? "" : ` (entry ${entry})`}\n`)
     .join("");

@@ -30,7 +30,7 @@ async function select(format: "json" | "text", listing = true): Promise<string> 
   let err = "";
   const code = await run(
     ["select", "--no-repo", "--remote", "github.com/acme/shop", "--given", root, "--diff", "-", "--format", format, ...(listing ? ["--also-in-scope"] : [])],
-    { stdin: async () => DIFF, stdout: (text) => { out += text; }, stderr: (text) => { err += text; }, isTTY: false },
+    { stdin: async () => DIFF, stdout: (text) => { out += text; }, stderr: (text) => { err += text; }, isTTY: false, today: () => "2026-11-12" },
   );
   expect(err).toBe("");
   expect(code).toBe(0);

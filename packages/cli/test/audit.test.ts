@@ -1,0 +1,261 @@
+import { afterAll, describe, expect, test } from "bun:test";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import Ajv from "ajv/dist/2020";
+import { resolveSource, writeReviews, type AuditResult, type ReviewRecord, type Source } from "@lore/parser";
+import { parseCommand } from "../src/args";
+import { renderAudit } from "../src/audit";
+import { run } from "../src/main";
+
+const TODAY = "2026-11-12";
+
+const made: string[] = [];
+afterAll(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true });
+});
+
+function tempDir(): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "lore-audit-")));
+  made.push(dir);
+  return dir;
+}
+
+function git(root: string, ...args: string[]): void {
+  execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", "-c", "commit.gpgsign=false", ...args], { cwd: root, stdio: "ignore" });
+}
+
+function write(root: string, files: Record<string, string>): void {
+  for (const [path, content] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), content);
+  }
+}
+
+function commit(root: string, files: Record<string, string>, message = "change"): void {
+  write(root, files);
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", message);
+}
+
+function repoWith(files: Record<string, string>): string {
+  const root = tempDir();
+  git(root, "init", "-q", "-b", "main");
+  commit(root, files, "first");
+  return root;
+}
+
+interface Ran { code: number; out: string; err: string }
+
+async function lore(argv: string[]): Promise<Ran> {
+  let out = "";
+  let err = "";
+  const code = await run(argv, {
+    stdin: async () => "",
+    stdout: (text) => { out += text; },
+    stderr: (text) => { err += text; },
+    isTTY: false,
+    today: () => TODAY,
+  });
+  return { code, out, err };
+}
+
+const DOC = "# Checkout review\n\n## Money is integer minor units\n\nAmounts are integers in minor units (cents).\n\n## Dates\n\nUse ISO dates.\n";
+const HEADING = "Money is integer minor units";
+const SOURCE: Source = { file: "docs/checkout-review.md", heading: HEADING, phrase: null };
+
+const ruleCiting = (id: string, file: string, heading: string | null = HEADING) =>
+  `<rule id="${id}" category="functional_correctness" severity="blocking">\n<source>\nfile: ${file}\n${heading === null ? "" : `heading: ${heading}\n`}</source>\nAmounts are integers in minor units (cents).\n</rule>\n`;
+const RULE = ruleCiting("money-in-minor-units", SOURCE.file);
+const PLAIN = '<rule id="price-from-quote" category="functional_correctness">\nTake the price from the quote.\n</rule>\n';
+const BROKEN = '<rule id="broken" src="README.md">\nProse.\n</rule>\n';
+
+function lockFor(rule: string, source: Source, text: string, reviewed = "2026-11-01"): string {
+  const resolved = resolveSource(source, text);
+  if (!resolved.ok) throw new Error("the source does not resolve");
+  const record: ReviewRecord = { rule, ...source, reviewed, hash: resolved.hash };
+  return writeReviews([record]);
+}
+
+const LOCK = lockFor("money-in-minor-units", SOURCE, DOC);
+
+function shop(extra: Record<string, string> = {}): string {
+  return repoWith({ ".lore/a.lore": `${RULE}\n${PLAIN}`, "docs/checkout-review.md": DOC, "lore-reviews.lock": LOCK, ...extra });
+}
+
+describe("parsing lore audit", () => {
+  test("reads --max-age and repeated --level", () => {
+    expect(parseCommand(["audit", "--max-age", "90", "--level", "source-changed=error", "--level", "never-reviewed=off"])).toEqual({
+      name: "audit", repo: null, noRepo: false, rulesRef: null, given: [], remotes: [], format: null, strict: false,
+      maxAge: 90, levels: { "source-changed": "error", "never-reviewed": "off" },
+    });
+  });
+
+  test("takes the rules options, --format and --strict", () => {
+    expect(parseCommand(["audit", "--repo", "x", "--rules-ref", "main", "--given", "g", "--remote", "r", "--format=json", "--strict"])).toEqual({
+      name: "audit", repo: "x", noRepo: false, rulesRef: "main", given: ["g"], remotes: ["r"], format: "json", strict: true,
+      maxAge: null, levels: {},
+    });
+  });
+});
+
+describe("lore audit", () => {
+  test("a clean repo prints only the summary and exits 0", async () => {
+    const root = shop();
+    expect(await lore(["audit", "--repo", root])).toEqual({ code: 0, out: "rules with a source: 1, without: 1\n", err: "" });
+  });
+
+  test("a renamed heading is source-missing and exits 1", async () => {
+    const root = shop();
+    commit(root, { "docs/checkout-review.md": DOC.replace(HEADING, "Money is stored in cents") });
+    const { code, out, err } = await lore(["audit", "--repo", root]);
+    expect(err).toBe("");
+    expect(code).toBe(1);
+    expect(out).toBe(
+      ".lore/a.lore\n" +
+      `  error  source-missing  money-in-minor-units  docs/checkout-review.md#${HEADING}  heading not found: "${HEADING}"\n` +
+      "\n" +
+      "source-missing: 1\n" +
+      "rules with a source: 1, without: 1\n",
+    );
+  });
+
+  test("a changed section is source-changed: a warning, or an error with --level", async () => {
+    const root = shop();
+    commit(root, { "docs/checkout-review.md": DOC.replace("(cents).", "(cents), never floats.") });
+    const warned = await lore(["audit", "--repo", root]);
+    expect(warned.code).toBe(0);
+    expect(warned.out).toContain(`  warn  source-changed  money-in-minor-units  docs/checkout-review.md#${HEADING}\n`);
+    expect(warned.out).toContain("\nsource-changed: 1\n");
+    const failed = await lore(["audit", "--repo", root, "--level", "source-changed=error"]);
+    expect(failed.code).toBe(1);
+    expect(failed.out).toContain(`  error  source-changed  money-in-minor-units  docs/checkout-review.md#${HEADING}\n`);
+  });
+
+  test("a cited file that git does not track is source-missing", async () => {
+    const root = shop({ ".lore/b.lore": ruleCiting("notes-rule", "docs/notes.md", null) });
+    write(root, { "docs/notes.md": "Notes.\n" });
+    const { code, out } = await lore(["audit", "--repo", root]);
+    expect(code).toBe(1);
+    expect(out).toContain(".lore/b.lore\n  error  source-missing  notes-rule  docs/notes.md  file not found: docs/notes.md\n");
+  });
+
+  test("a phrase is printed in quotes after the file", async () => {
+    const rule = '<rule id="cents" category="functional_correctness">\n<source>\nfile: docs/checkout-review.md\nphrase: "minor units (cents)"\n</source>\nCents.\n</rule>\n';
+    const root = shop({ ".lore/b.lore": rule });
+    const { out } = await lore(["audit", "--repo", root]);
+    expect(out).toContain('.lore/b.lore\n  warn  never-reviewed  cents  docs/checkout-review.md "minor units (cents)"\n');
+  });
+
+  test("--max-age reports a record older than the limit", async () => {
+    const root = shop({ "lore-reviews.lock": lockFor("money-in-minor-units", SOURCE, DOC, "2026-01-01") });
+    const { code, out } = await lore(["audit", "--repo", root, "--max-age", "90"]);
+    expect(code).toBe(0);
+    expect(out).toContain(`  warn  review-overdue  money-in-minor-units  docs/checkout-review.md#${HEADING}\n`);
+    expect((await lore(["audit", "--repo", root])).out).not.toContain("review-overdue");
+  });
+
+  describe("with --no-repo and a given folder", () => {
+    const guided = '<rule id="guide-rule" category="functional_correctness">\n<source>\n- file: docs/checkout-review.md\n  heading: Money is integer minor units\n- file: ./guide.md\n</source>\nFollow the guide.\n</rule>\n';
+    const rules = () =>
+      repoWith({ "rules/.loreconfig": "lore: 1\nrepo: github.com/acme/shop\n", "rules/.lore/a.lore": guided, "rules/.lore/guide.md": "# Guide\n" });
+    const args = (folder: string) => ["audit", "--no-repo", "--remote", "github.com/acme/shop", "--given", join(folder, "rules")];
+
+    test("a governed-repo source is source-unchecked and exits 1, while a ./ source in the folder is checked", async () => {
+      const { code, out, err } = await lore(args(rules()));
+      expect(err).toBe("");
+      expect(code).toBe(1);
+      expect(out).toBe(
+        "external:rules/.lore/a.lore\n" +
+        `  error  source-unchecked  guide-rule  docs/checkout-review.md#${HEADING}\n` +
+        "  warn  never-reviewed  guide-rule  external:rules/.lore/guide.md\n" +
+        "\n" +
+        "source-unchecked: 1\n" +
+        "never-reviewed: 1\n" +
+        "rules with a source: 1, without: 0\n",
+      );
+    });
+
+    test("--level source-unchecked=off exits 0", async () => {
+      const { code, out } = await lore([...args(rules()), "--level", "source-unchecked=off"]);
+      expect(code).toBe(0);
+      expect(out).not.toContain("source-unchecked");
+      expect(out).toContain("never-reviewed  guide-rule  external:rules/.lore/guide.md");
+    });
+  });
+
+  test("a malformed lock file exits 2 naming the file and line", async () => {
+    const root = shop({ "lore-reviews.lock": '{"lore-reviews":1}\nnot json\n' });
+    const { code, out, err } = await lore(["audit", "--repo", root]);
+    expect(code).toBe(2);
+    expect(out).toBe("");
+    expect(err).toBe("lore: malformed lock file lore-reviews.lock line 2: the line is not valid JSON\n");
+  });
+
+  test("an excluded entry is listed on stderr, and --strict makes it exit 1", async () => {
+    const root = shop({ ".lore/bad.lore": BROKEN });
+    const plain = await lore(["audit", "--repo", root]);
+    expect(plain.code).toBe(0);
+    expect(plain.err).toBe("lore: excluded unknown-attribute in .lore/bad.lore line 1 (entry broken)\n");
+    expect((await lore(["audit", "--repo", root, "--strict"])).code).toBe(1);
+  });
+
+  test("--format json is an audit result plus the excluded entries", async () => {
+    const root = shop({ ".lore/bad.lore": BROKEN, ".lore/b.lore": ruleCiting("notes-rule", "docs/notes.md", null) });
+    const { code, out, err } = await lore(["audit", "--repo", root, "--format", "json"]);
+    expect(code).toBe(1);
+    expect(err).toBe("");
+    const result = JSON.parse(out);
+    expect(Object.keys(result)).toEqual(["findings", "summary", "excluded"]);
+    const ajv = new Ajv({ allErrors: true, strict: true });
+    const schemas = join(import.meta.dir, "../../../spec/schemas");
+    for (const name of readdirSync(schemas)) ajv.addSchema(JSON.parse(readFileSync(join(schemas, name), "utf8")));
+    const validate = ajv.getSchema("https://lore.dev/schemas/v1/audit.schema.json")!;
+    expect(validate({ findings: result.findings, summary: result.summary })).toBe(true);
+    expect(result.findings).toEqual([
+      { name: "source-missing", level: "error", rule: "notes-rule", file: ".lore/b.lore", source: { file: "docs/notes.md", heading: null, phrase: null }, reason: "file not found: docs/notes.md" },
+    ]);
+    expect(result.excluded).toEqual([{ name: "unknown-attribute", file: ".lore/bad.lore", entry: "broken", line: 1, range: expect.any(Object) }]);
+  });
+
+  test("--rules-ref reads the rules, the lock file and the cited files at that revision", async () => {
+    const root = shop();
+    write(root, { ".lore/a.lore": `${ruleCiting("money-in-cents", SOURCE.file)}\n${PLAIN}`, "docs/checkout-review.md": DOC.replace("(cents).", "(cents), never floats.") });
+    rmSync(join(root, "lore-reviews.lock"));
+    commit(root, {});
+    expect(await lore(["audit", "--repo", root, "--rules-ref", "HEAD~1"])).toEqual({ code: 0, out: "rules with a source: 1, without: 1\n", err: "" });
+    const head = await lore(["audit", "--repo", root]);
+    expect(head.out).toContain(".lore/a.lore\n  warn  never-reviewed  money-in-cents  docs/checkout-review.md#");
+  });
+});
+
+describe("renderAudit", () => {
+  test("groups findings under each file, then counts each finding and the rules", () => {
+    const result: AuditResult = {
+      findings: [
+        { name: "meta-source", level: "warn", rule: "old-style", file: ".lore/a.lore", source: null, reason: null },
+        { name: "ambiguous-heading", level: "warn", rule: "two", file: ".lore/a.lore", source: { file: "docs/x.md", heading: "Dates", phrase: "ISO" }, reason: null },
+        { name: "never-reviewed", level: "warn", rule: "two", file: ".lore/a.lore", source: { file: "docs/x.md", heading: "Dates", phrase: "ISO" }, reason: null },
+        { name: "orphan-review", level: "warn", rule: "gone", file: "lore-reviews.lock", source: { file: "docs/x.md", heading: null, phrase: null }, reason: null },
+      ],
+      summary: { counts: { "ambiguous-heading": 1, "never-reviewed": 1, "orphan-review": 1, "meta-source": 1 }, rulesWithSource: 1, rulesWithoutSource: 1 },
+      excluded: [],
+    };
+    expect(renderAudit(result)).toBe(
+      ".lore/a.lore\n" +
+      "  warn  meta-source  old-style\n" +
+      '  warn  ambiguous-heading  two  docs/x.md#Dates "ISO"\n' +
+      '  warn  never-reviewed  two  docs/x.md#Dates "ISO"\n' +
+      "\n" +
+      "lore-reviews.lock\n" +
+      "  warn  orphan-review  gone  docs/x.md\n" +
+      "\n" +
+      "ambiguous-heading: 1\n" +
+      "never-reviewed: 1\n" +
+      "orphan-review: 1\n" +
+      "meta-source: 1\n" +
+      "rules with a source: 1, without: 1\n",
+    );
+  });
+});

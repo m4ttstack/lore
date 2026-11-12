@@ -51,6 +51,7 @@ async function lore(argv: string[], options: { stdin?: string; isTTY?: boolean }
     stdout: (text) => { out += text; },
     stderr: (text) => { err += text; },
     isTTY: options.isTTY ?? false,
+    today: () => "2026-11-12",
   });
   return { code, out, err };
 }
@@ -256,6 +257,7 @@ describe("lore select", () => {
         stdout: () => {},
         stderr: (text: string) => { err += text; },
         isTTY: false,
+        today: () => "2026-11-12",
       };
       let err = "";
       try {
@@ -509,6 +511,15 @@ describe("usage errors", () => {
     ["selection and verdicts both from stdin", ["verdicts", "--selection", "-"], "stdin can supply only one of the selection and the verdicts"],
     ["selection and an explicit - both from stdin", ["verdicts", "--selection=-", "-"], "stdin can supply only one of the selection and the verdicts"],
     ["no command", [], "command"],
+    ["audit --max-age 0", ["audit", "--max-age", "0"], "--max-age"],
+    ["audit --max-age that is not a number", ["audit", "--max-age", "ninety"], "--max-age"],
+    ["audit --level with an unknown finding", ["audit", "--level", "nope=warn"], "nope"],
+    ["audit --level with an unknown level", ["audit", "--level", "source-changed=loud"], "loud"],
+    ["audit --level without =", ["audit", "--level", "source-changed"], "--level"],
+    ["audit --level for one finding twice", ["audit", "--level", "source-changed=warn", "--level", "source-changed=off"], "source-changed"],
+    ["audit --diff", ["audit", "--diff", "x"], "--diff"],
+    ["audit with a positional argument", ["audit", "foo"], "unexpected argument: foo"],
+    ["audit --rules-ref with --no-repo", ["audit", "--no-repo", "--rules-ref", "main", "--remote", "github.com/acme/shop"], "--rules-ref"],
   ])("%s exits 2 with a one-line message", async (_name, argv, mention) => {
     const { code, out, err } = await lore(argv);
     expect(code).toBe(2);
@@ -526,13 +537,14 @@ describe("an internal error", () => {
       stdout: () => {},
       stderr: (text) => { err += text; },
       isTTY: false,
+      today: () => "2026-11-12",
     });
     expect(code).toBe(70);
     expect(err).toStartWith("Error: boom\n    at ");
   });
 
   test("a usage error is still exit 2 through main", async () => {
-    expect(await main(["frobnicate"], { stdin: async () => "", stdout: () => {}, stderr: () => {}, isTTY: false })).toBe(2);
+    expect(await main(["frobnicate"], { stdin: async () => "", stdout: () => {}, stderr: () => {}, isTTY: false, today: () => "2026-11-12" })).toBe(2);
   });
 });
 
@@ -562,6 +574,7 @@ describe("help and version", () => {
     expect(out).toContain("lore select    0 the selection ran, 1 --strict was given and entries were excluded");
     expect(out).toContain("lore verdicts  0 the verdicts have no problems, 1 the verdicts have problems");
     expect(out).toContain("lore check     0 the check ran, 1 --strict was given and entries were excluded");
+    expect(out).toContain("lore audit     0 no finding at level error, 1 a finding at level error, or --strict and entries were excluded");
     expect(out).toContain("all            2 usage or input error, 70 internal error");
   });
 
@@ -573,6 +586,10 @@ describe("help and version", () => {
     expect(out).toContain("--diff");
     expect(await lore(["select", "--help"])).toEqual({ code: 0, out, err: "" });
     expect(await lore(["verdicts", "--help"])).toEqual({ code: 0, out, err: "" });
+    expect(await lore(["audit", "--help"])).toEqual({ code: 0, out, err: "" });
+    expect(out).toContain("lore audit [rules] [options]");
+    expect(out).toContain("--max-age <days>");
+    expect(out).toContain("--level <name=level>");
   });
 });
 

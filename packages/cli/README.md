@@ -2,7 +2,7 @@
 
 The `lore` command reads Lore rule files and tells a reviewer or an author which rules apply to a change. It never calls a forge, a model or the network. Git is the only program it runs, and only when an input needs it.
 
-It has three commands.
+It has four commands.
 
 Install it as a dev dependency, or run it without installing:
 
@@ -118,6 +118,102 @@ lore verdicts --selection <file> [<verdicts-file> | -]
 - `--selection <file>`: the JSON from `lore select`.
 - `<verdicts-file>`: a verdict set, or `-` for stdin. Default: stdin.
 
+## lore audit
+
+Checks that each rule's `<source>` still points at text that exists, and that the text has not changed since someone last reviewed the rule against it.
+
+```
+lore audit [rules] [options]
+```
+
+It reads every rule collected for the governed repo and the given folders, disabled rules included, with no change involved. For each source it reads the cited file, finds the heading or phrase, and compares the fingerprint of that text with the rule's record in `lore-reviews.lock`. Only `lore review` writes that file; `lore audit` never changes a file.
+
+- Cited files, Lore files and lock files are read as `lore select` reads its rules: tracked files only, from the working tree. An untracked or ignored cited file is `source-missing`. A tracked file the command cannot read safely (a symlink out of its place, a file outside a sparse-checkout cone) is `source-unchecked`.
+- A lock file is read only once git tracks it, so `git add` the file `lore review` writes before auditing.
+- With `--rules-ref <ref>`, the rules, the lock files and the cited files are all read at that revision.
+- A file that is not valid UTF-8 is fingerprinted as its bytes; a `heading` or `phrase` in it is never found.
+
+### Findings
+
+| Finding | Meaning | Default level |
+|---|---|---|
+| `source-missing` | The file is not a tracked file, or the heading or phrase is not found. | error |
+| `source-unchecked` | The files this source needs were not available to look at. | error |
+| `ambiguous-heading` | More than one heading matched; the first is used. | warn |
+| `source-changed` | The fingerprint differs from the record. | warn |
+| `never-reviewed` | A source has no record. | warn |
+| `review-overdue` | The record is older than the age limit. Not reported when no limit is set. | warn |
+| `orphan-review` | The lock file has a record for a rule or source that no longer exists. | warn |
+| `meta-source` | A rule has a `source` key in `<meta>` and no `<source>` block. | off |
+
+A level is `error`, `warn` or `off`. A finding at `off` is not reported.
+
+A source with only `file` is flagged by any edit to that file, and every rule citing that file comes due together. Give a `heading` or a `phrase` wherever the file has one.
+
+### Settings
+
+Levels and the age limit can be set in a `.loreconfig`:
+
+```yaml
+audit:
+  maxAgeDays: 180
+  levels:
+    source-changed: error
+    never-reviewed: off
+```
+
+Each setting is looked up on its own, from the nearest `.loreconfig` that sets it on the way up from the rule's Lore file to its Lore root. An `orphan-review` takes the settings of the `.loreconfig` in the Lore root's directory.
+
+### Options
+
+- `[rules]`: `--repo`, `--no-repo`, `--remote`, `--rules-ref` and `--given`, as in `lore select`.
+- `--max-age <days>`: report `review-overdue` for a record older than this many days. A whole number above 0. Overrides `maxAgeDays` in every `.loreconfig` for this run.
+- `--level <finding>=<level>`: set one finding's level for this run, overriding the `.loreconfig` files. Repeatable, once per finding.
+- `--strict`: exit 1 when errors in the rules excluded entries.
+- `--format text|json`: default text.
+
+`--diff`, `--capabilities`, `--also-in-scope`, `--expand` and positional arguments are usage errors.
+
+### Sources it cannot check
+
+With `--no-repo` the governed repo is not there to read, so a source that resolves into it is `source-unchecked`, an error by default. That covers a plain path in any given folder and a leading `/` in an external folder, which name files of the governed repo. A file-relative source (`./` or `../`) in a given folder resolves inside that folder, and a leading `/` in a loose folder resolves from the loose folder, so those are always checked. To audit a rules folder without the repo it governs:
+
+```
+lore audit --no-repo --remote github.com/acme/shop --given ../checkout-rules --level source-unchecked=off
+```
+
+### Output
+
+Text output groups the findings under each Lore file (or under the lock file, for `orphan-review`), one line each: level, finding, rule id, the source and a reason when there is one. The source is the file, then `#` and the heading, then the phrase in double quotes. A count per finding follows, then the number of rules with and without a source:
+
+```
+.lore/checkout.lore
+  error  source-missing  money-in-minor-units  docs/checkout-review.md#Money is integer minor units  heading not found: "Money is integer minor units"
+  warn  never-reviewed  dates-from-locale  docs/checkout-review.md#Dates
+
+source-missing: 1
+never-reviewed: 1
+rules with a source: 2, without: 1
+```
+
+JSON output is `{ "findings": [...], "summary": {...}, "excluded": [...] }`. `findings` and `summary` follow `spec/schemas/audit.schema.json`; `excluded` lists the excluded entries as `lore select` does. In text, excluded entries go to stderr, one line each, as in `lore select`. An excluded entry is not audited.
+
+A lock file that is not in the format (a bad header, a line that is not a record, two records for one source) is an input error, exit 2, naming the file and the line. It is never repaired.
+
+### Moving `source:` out of `<meta>`
+
+A `source` key in `<meta>` stays free-form and is never an error. To list the rules that still carry one and have no `<source>` block, turn its finding on:
+
+```
+lore audit --level meta-source=warn
+```
+
+Move each one to a `<source>` block by hand or with your own script; there is no migration command.
+
+### Upgrade the tool first
+
+A tool older than this change reads a `<source>` block as `unknown-child` and excludes that rule, and reads the `audit` key as `invalid-loreconfig` and ignores the whole `.loreconfig`, including any `repo:` or `disable:` in it. Upgrade every tool that reads the rules (the `lore` command in CI and on each machine, and the editor extensions) before any rule file uses `<source>` or any `.loreconfig` uses `audit`.
+
 ## Other flags
 
 - `--help`: print the usage.
@@ -128,6 +224,7 @@ lore verdicts --selection <file> [<verdicts-file> | -]
 - `lore select`: `0` when the selection ran, `1` when `--strict` was given and entries were excluded.
 - `lore check`: `0` when the check ran, `1` when `--strict` was given and entries were excluded.
 - `lore verdicts`: `0` when the verdicts have no problems, `1` when they have problems.
+- `lore audit`: `0` when no finding is at level `error`, `1` when a finding is at level `error`, or when `--strict` was given and entries were excluded.
 - All: `2` for a usage or input error, `70` for an internal error (a bug).
 
 ## Build

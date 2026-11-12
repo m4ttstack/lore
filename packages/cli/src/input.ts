@@ -1,8 +1,10 @@
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
-import { EXTERNAL, LOOSE, type Collected, type Diagnostic, type InputFile, type LoreInput } from "@lore/parser";
+import {
+  EXTERNAL, LOOSE, RULES, type Collected, type Diagnostic, type InputFile, type LockRef, type LoreInput, type SourceContent, type Tree,
+} from "@lore/parser";
 import { InputError } from "./errors";
-import { GitMissingError, gitRoot, readFileAt, readTracked, remoteUrls, trackedPaths, untrackedPaths } from "./git";
+import { GitMissingError, gitRoot, readBytesAt, readFileAt, readTracked, readTrackedBytes, remoteUrls, trackedPaths, untrackedPaths } from "./git";
 
 export interface RuleSources {
   repo: string | null;
@@ -17,6 +19,11 @@ export interface BuiltInput {
   readSrc(file: string, given?: number): string | null;
   // Tracked Lore and .loreconfig files the command could not read; unreadWarnings keeps those the parser would have collected.
   unread: UnreadFile[];
+  // A cited file of the place's tree, read as lore audit needs it: text, or bytes when it is not UTF-8; null when the
+  // place does not track it; undefined when it could not be looked at. collected maps a tree to its given folder.
+  readSourceContent(place: { tree: Tree }, file: string, collected: Collected): SourceContent | undefined;
+  // A lock file's text, or null when its place does not track it; an input error when it is tracked but cannot be read.
+  readLock(ref: LockRef, collected: Collected): string | null;
 }
 export interface UnreadFile {
   // With its source's prefix: "loose:" or "external:" for a given folder, none for the governed repo.
@@ -83,6 +90,29 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     const place = givenPlaces[given];
     return place !== undefined && places.get(place.root) === place ? readTracked(place.root, path, place.listed) : null;
   };
+  const givenPlace = (places: Map<string, Place>, tree: Tree, collected: Collected): Place | undefined => {
+    if (tree === "repo") return undefined;
+    const place = givenPlaces[collected.repositoryGiven[collected.trees[tree]!.repository]!];
+    return place !== undefined && places.get(place.root) === place ? place : undefined;
+  };
+  const readBytes = (tree: Tree, file: string, collected: Collected): Buffer | null | undefined => {
+    for (const [prefix, places] of [[EXTERNAL, repositories], [LOOSE, looseFolders]] as const) {
+      if (!file.startsWith(prefix)) continue;
+      const place = givenPlace(places, tree, collected);
+      return place === undefined ? undefined : readListed(place.root, null, file.slice(prefix.length), place.listed);
+    }
+    if (repo === null) return undefined;
+    return readListed(repo, rulesRef, file.startsWith(RULES) ? file.slice(RULES.length) : file, governedTracked);
+  };
+  const readSourceContent = (place: { tree: Tree }, file: string, collected: Collected): SourceContent | undefined => {
+    const bytes = readBytes(place.tree, file, collected);
+    return bytes === undefined || bytes === null ? bytes : decode(bytes);
+  };
+  const readLock = (ref: LockRef, collected: Collected): string | null => {
+    const bytes = readBytes(ref.tree, ref.path, collected);
+    if (bytes === undefined) throw new InputError(`cannot read lock file ${ref.path}`);
+    return bytes === null ? null : bytes.toString("utf8");
+  };
   const readSrc = (file: string, given?: number): string | null => {
     if (file.startsWith(EXTERNAL)) return readGiven(repositories, file.slice(EXTERNAL.length), given);
     if (file.startsWith(LOOSE)) return readGiven(looseFolders, file.slice(LOOSE.length), given);
@@ -99,7 +129,28 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     ...[...repositories.values(), ...looseFolders.values()].flatMap((place) =>
       place.unread.filter((path) => reached(path, place.folders)).map((path) => ({ file: place.prefix + path, given: givenPlaces.indexOf(place) }))),
   ];
-  return { input, readSrc, unread };
+  return { input, readSrc, unread, readSourceContent, readLock };
+}
+
+// A listed path whose file cannot be read safely (a symlink out of the place, a skipped sparse-checkout file) could not be looked at.
+function readListed(root: string, ref: string | null, path: string, listed: ReadonlySet<string>): Buffer | null | undefined {
+  if (!listed.has(path)) return null;
+  if (ref === null) return readTrackedBytes(root, path, listed) ?? undefined;
+  try {
+    return readBytesAt(root, ref, path);
+  } catch {
+    return undefined;
+  }
+}
+
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+
+function decode(bytes: Buffer): string | Uint8Array {
+  try {
+    return UTF8.decode(bytes);
+  } catch {
+    return new Uint8Array(bytes);
+  }
 }
 
 // One lore-file-not-read per unread file the parser would have collected: a Lore file counts only in a marked tree
