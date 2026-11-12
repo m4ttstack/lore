@@ -5659,11 +5659,15 @@ Dates are shown in the shop's locale.
 
 A file is **Markdown** when its path ends in `.md`, `.mdx` or
 `.markdown`, compared case-sensitively, so `docs/NOTES.MD` is not
-Markdown. A file's lines end at CR LF, LF or CR, and only there.
+Markdown.
 
-**Whitespace** is a space (U+0020) or a tab (U+0009), and nothing else.
-U+00A0, U+FEFF, U+2028, U+2029 and every other character are ordinary
-characters wherever this section speaks of whitespace.
+These two definitions hold throughout
+[Auditing sources](#auditing-sources), this section and the ones after
+it included. A **line ending** (or line break) is CR LF, LF or CR, and a
+cited file's lines end there and only there. **Whitespace** is a space
+(U+0020) or a tab (U+0009), and nothing else. U+00A0, U+FEFF, U+2028,
+U+2029 and every other character are ordinary characters, and a
+**blank** line is one that holds nothing, or only whitespace.
 
 **Fenced code blocks.** A Markdown file's fenced code blocks are those
 of CommonMark. An opening fence is a line of zero to three spaces, then
@@ -6001,9 +6005,9 @@ ending ends.
 
 The reviewed text is normalized before it is hashed:
 
-1. It is split into lines at its line breaks.
-2. Trailing whitespace is removed from each line. A line left empty is
-   blank.
+1. It is split into lines at its line endings: CR LF, LF or CR.
+2. Trailing spaces and tabs are removed from each line, and nothing
+   else. A line left empty is blank.
 3. Blank lines at the start, blank lines that follow another blank
    line, and blank lines at the end are removed.
 4. The lines are joined with LF, with no LF after the last.
@@ -6033,8 +6037,7 @@ heading, so its reviewed text is the whole file, and the second is under
 `Money is integer minor units`, so its reviewed text is that section.
 The third starts with a space, which matches the line endings at the
 end of the `Money is integer minor units` section, but its match begins
-on the
-`## Dates` line, so its reviewed text is the `Dates` section.
+on the `## Dates` line, so its reviewed text is the `Dates` section.
 `docs/NOTES.MD` is not Markdown, so its phrase's reviewed text is the
 whole file and not the `Rounding` section. A tool that hashed any of
 them differently would report `source-changed`:
