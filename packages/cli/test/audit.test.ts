@@ -141,6 +141,16 @@ describe("lore audit", () => {
     expect(out).toContain(".lore/b.lore\n  error  source-missing  notes-rule  docs/notes.md  file not found: docs/notes.md\n");
   });
 
+  test("a cited file that starts with a byte order mark keeps the fingerprint it has without one", async () => {
+    const whole: Source = { ...SOURCE, heading: null };
+    const root = shop({
+      ".lore/a.lore": `${ruleCiting("money-in-minor-units", SOURCE.file, null)}\n${PLAIN}`,
+      "docs/checkout-review.md": `\uFEFF${DOC}`,
+      "lore-reviews.lock": lockFor("money-in-minor-units", whole, DOC),
+    });
+    expect(await lore(["audit", "--repo", root])).toEqual({ code: 0, out: "rules with a source: 1, without: 1\n", err: "" });
+  });
+
   test("a phrase is printed in quotes after the file", async () => {
     const rule = '<rule id="cents" category="functional_correctness">\n<source>\nfile: docs/checkout-review.md\nphrase: "minor units (cents)"\n</source>\nCents.\n</rule>\n';
     const root = shop({ ".lore/b.lore": rule });

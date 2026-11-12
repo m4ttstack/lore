@@ -2,23 +2,7 @@
 <source>
 - file: docs/checkout-review.md
 - file: docs/checkout-review.md
-  heading: Dates
-- file: docs/checkout-review.md
-  phrase: Owned by the checkout team.
-- file: docs/checkout-review.md
-  phrase: integers in minor units
-- file: docs/checkout-review.md
-  phrase: ' ## Dates'
-- file: apps/web/src/checkout/money.ts
-  phrase: 'export function fromCents('
+  heading: Checkout review
 </source>
 Amounts are integers in minor units (cents).
-</rule>
-
-<rule id="round-half-to-even" category="functional_correctness">
-<source>
-file: docs/NOTES.MD
-phrase: Round half to even.
-</source>
-Amounts are rounded half to even.
 </rule>

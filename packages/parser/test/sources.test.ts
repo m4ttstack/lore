@@ -150,6 +150,24 @@ describe("resolveSource on other files and missing content", () => {
     expect(resolveSource(src(), null)).toEqual({ ok: false, reason: "file" });
   });
 
+  test("one byte order mark at the start of text is ignored by matching and fingerprints", () => {
+    const BOM = "\uFEFF";
+    for (const source of [src(), src({ heading: "Review" }), src({ heading: "Money is integer minor units" }), src({ phrase: "Intro." })]) {
+      expect(resolveSource(source, BOM + DOC)).toEqual(resolveSource(source, DOC));
+    }
+    expect(resolveSource(src(), BOM + DOC)).toEqual({ ok: true, hash: WHOLE, ambiguous: false });
+    expect(resolveSource(src({ heading: "Review" }), BOM + DOC)).toMatchObject({ ok: true });
+    expect(resolveSource({ file: "docs/notes.txt", heading: null, phrase: null }, `${BOM}Notes.\n`)).toEqual(resolveSource({ file: "docs/notes.txt", heading: null, phrase: null }, "Notes.\n"));
+  });
+
+  test("a second byte order mark, or one after the start, is an ordinary character", () => {
+    const BOM = "\uFEFF";
+    expect(resolveSource(src({ heading: "Review" }), BOM + BOM + DOC)).toEqual({ ok: false, reason: "heading" });
+    expect(resolveSource(src(), BOM + BOM + DOC)).not.toEqual(resolveSource(src(), DOC));
+    expect(resolveSource(src({ phrase: "Use UTC." }), DOC.replace("Use UTC.", `Use${BOM}UTC.`))).toEqual({ ok: false, reason: "phrase" });
+    expect(resolveSource(src({ phrase: `Use${BOM}UTC.` }), DOC.replace("Use UTC.", `Use${BOM}UTC.`))).toMatchObject({ ok: true });
+  });
+
   test("bytes that are not UTF-8 hash as given with a file alone and never resolve a phrase or heading", () => {
     const bytes = new Uint8Array([0xff, 0xfe, 0x41]);
     const hash = createHash("sha256").update(bytes).digest("hex").slice(0, 12);

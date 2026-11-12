@@ -1,7 +1,13 @@
-<rule id="refunds-to-original-method" category="functional_correctness">
+<rule id="money-in-minor-units" category="functional_correctness" disabled>
 <source>
-file: docs/checkout-review.md
-heading: Refunds
+- file: docs/money-review.md
+- file: docs/checkout-review.md
+  heading: Money
+- file: docs/checkout-review.md
+  phrase: 'fromCents('
+- file: docs/checkout-review.md
+  heading: Dates
+  phrase: integers in minor units
 </source>
-A refund goes back to the payment method that paid.
+Amounts are integers in minor units (cents).
 </rule>

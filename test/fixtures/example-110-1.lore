@@ -1,15 +1,24 @@
-<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<rule id="money-in-minor-units" category="functional_correctness">
 <source>
-file: docs/checkout-review.md
-heading: Money is integer minor units
+- file: docs/checkout-review.md
+- file: docs/checkout-review.md
+  heading: Dates
+- file: docs/checkout-review.md
+  phrase: Owned by the checkout team.
+- file: docs/checkout-review.md
+  phrase: integers in minor units
+- file: docs/checkout-review.md
+  phrase: ' ## Dates'
+- file: apps/web/src/checkout/money.ts
+  phrase: 'export function fromCents('
 </source>
 Amounts are integers in minor units (cents).
 </rule>
 
-<rule id="dates-from-locale" category="functional_correctness">
+<rule id="round-half-to-even" category="functional_correctness">
 <source>
-file: docs/checkout-review.md
-heading: Dates
+file: docs/NOTES.MD
+phrase: Round half to even.
 </source>
-Displayed dates are formatted with the shop's locale.
+Amounts are rounded half to even.
 </rule>

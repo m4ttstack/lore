@@ -16,6 +16,7 @@ const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/s;
 const FENCE_CLOSE = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
 const LINE_BREAK = /\r\n|\r|\n/;
 const BLANK_RUN = /[ \t\r\n]+/g;
+const BOM = "\uFEFF";
 
 export function slug(text: string): string {
   return text.toLowerCase().replace(/[^\p{L}\p{M}\p{N}_\- ]/gu, "").replace(/ /g, "-");
@@ -129,8 +130,9 @@ export function resolveSource(source: Source, content: SourceContent): Resolved 
     if (source.phrase !== null) return { ok: false, reason: "phrase" };
     return { ok: true, hash: fingerprint(content), ambiguous: false };
   }
-  const lines = content.split(LINE_BREAK);
-  const whole: Resolved = { ok: true, hash: fingerprint(content), ambiguous: false };
+  const text = content.startsWith(BOM) ? content.slice(BOM.length) : content;
+  const lines = text.split(LINE_BREAK);
+  const whole: Resolved = { ok: true, hash: fingerprint(text), ambiguous: false };
   const markdown = MARKDOWN.test(source.file);
   if (source.heading === null && source.phrase === null) return whole;
 

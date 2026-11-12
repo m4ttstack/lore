@@ -5669,6 +5669,14 @@ cited file's lines end there and only there. **Whitespace** is a space
 U+2029 and every other character are ordinary characters, and a
 **blank** line is one that holds nothing, or only whitespace.
 
+**Byte order mark.** When a cited file is valid UTF-8, a tool ignores
+one U+FEFF at its start, as it does in a Lore file (see
+[Files and folders](#files-and-folders)): heading matching, phrase
+matching and fingerprints read the file without it. A U+FEFF anywhere
+else, a second one at the start included, stays an ordinary character.
+A file that is not valid UTF-8 keeps every byte (see
+[Fingerprints](#fingerprints)).
+
 **Fenced code blocks.** A Markdown file's fenced code blocks are those
 of CommonMark. An opening fence is a line of zero to three spaces, then
 three or more backticks or three or more tildes; after a run of
@@ -5981,6 +5989,44 @@ units (cents). Totals are rounded half to even.
     }
   ],
   "summary": { "counts": { "source-missing": 2, "never-reviewed": 2 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+`docs/checkout-review.md` starts with a byte order mark, which a tool
+ignores, so its first line is the heading `Checkout review`. Both
+sources have the fingerprint the file has without the mark, the one the
+records hold:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: docs/checkout-review.md
+  heading: Checkout review
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+﻿# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Checkout review","phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 1, "rulesWithoutSource": 0 }
 }
 ``````
 
