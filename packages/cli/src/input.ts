@@ -24,6 +24,9 @@ export interface BuiltInput {
   readSourceContent(place: { tree: Tree }, file: string, collected: Collected): SourceContent | undefined;
   // A lock file's text, or null when its place does not track it; an input error when it is tracked but cannot be read.
   readLock(ref: LockRef, collected: Collected): string | null;
+  // Where a file of a tree lies in the working tree: its place's root and its path there. Undefined under --rules-ref
+  // or --no-repo for a governed-repo path.
+  onDisk(ref: LockRef, collected: Collected): { root: string; path: string } | undefined;
 }
 export interface UnreadFile {
   // With its source's prefix: "loose:" or "external:" for a given folder, none for the governed repo.
@@ -95,14 +98,22 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     const place = givenPlaces[collected.repositoryGiven[collected.trees[tree]!.repository]!];
     return place !== undefined && places.get(place.root) === place ? place : undefined;
   };
-  const readBytes = (tree: Tree, file: string, collected: Collected): Buffer | null | undefined => {
+  const located = (tree: Tree, file: string, collected: Collected) => {
     for (const [prefix, places] of [[EXTERNAL, repositories], [LOOSE, looseFolders]] as const) {
       if (!file.startsWith(prefix)) continue;
       const place = givenPlace(places, tree, collected);
-      return place === undefined ? undefined : readListed(place.root, null, file.slice(prefix.length), place.listed);
+      return place === undefined ? undefined : { root: place.root, ref: null, path: file.slice(prefix.length), listed: place.listed };
     }
     if (repo === null) return undefined;
-    return readListed(repo, rulesRef, file.startsWith(RULES) ? file.slice(RULES.length) : file, governedTracked);
+    return { root: repo, ref: rulesRef, path: file.startsWith(RULES) ? file.slice(RULES.length) : file, listed: governedTracked };
+  };
+  const readBytes = (tree: Tree, file: string, collected: Collected): Buffer | null | undefined => {
+    const at = located(tree, file, collected);
+    return at === undefined ? undefined : readListed(at.root, at.ref, at.path, at.listed);
+  };
+  const onDisk = (ref: LockRef, collected: Collected): { root: string; path: string } | undefined => {
+    const at = located(ref.tree, ref.path, collected);
+    return at === undefined || at.ref !== null ? undefined : { root: at.root, path: at.path };
   };
   const readSourceContent = (place: { tree: Tree }, file: string, collected: Collected): SourceContent | undefined => {
     const bytes = readBytes(place.tree, file, collected);
@@ -129,7 +140,7 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     ...[...repositories.values(), ...looseFolders.values()].flatMap((place) =>
       place.unread.filter((path) => reached(path, place.folders)).map((path) => ({ file: place.prefix + path, given: givenPlaces.indexOf(place) }))),
   ];
-  return { input, readSrc, unread, readSourceContent, readLock };
+  return { input, readSrc, unread, readSourceContent, readLock, onDisk };
 }
 
 // A listed path whose file cannot be read safely (a symlink out of the place, a skipped sparse-checkout file) could not be looked at.

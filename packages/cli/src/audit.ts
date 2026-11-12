@@ -44,7 +44,7 @@ export function renderAudit(result: AuditResult): string {
   return `${[...groups, summary.join("\n")].join("\n\n")}\n`;
 }
 
-function findingLine({ level, name, rule, source, reason }: Finding): string {
+export function findingLine({ level, name, rule, source, reason }: Finding): string {
   const parts: string[] = [level, name, rule ?? "-"];
   if (source !== null) {
     const heading = source.heading === null ? "" : `#${source.heading}`;

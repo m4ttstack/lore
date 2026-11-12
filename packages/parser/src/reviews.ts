@@ -47,7 +47,7 @@ export function writeReviews(records: readonly ReviewRecord[]): string {
   return [HEADER, ...lines].join("\n") + "\n";
 }
 
-function isRealDate(text: string): boolean {
+export function isRealDate(text: string): boolean {
   const match = DATE.exec(text);
   if (!match) return false;
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];

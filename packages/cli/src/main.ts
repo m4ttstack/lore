@@ -1,14 +1,17 @@
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { RegexLimitError, audit, compareDiagnostics, missingSrcTargets, parseWithContext, selectDetailed } from "@lore/parser";
+import {
+  RegexLimitError, audit, compareDiagnostics, missingSrcTargets, parseWithContext, selectDetailed, type Diagnostic, type ParsedInput,
+} from "@lore/parser";
 import pkg from "../package.json";
-import { parseCommand, type AuditCommand, type CheckCommand, type SelectCommand, type VerdictsCommand } from "./args";
+import { parseCommand, type AuditCommand, type CheckCommand, type ReviewCommand, type SelectCommand, type VerdictsCommand } from "./args";
 import { loadLocks, renderAudit, withheldLocks } from "./audit";
 import { changeDiff, type ChangeSource } from "./change";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
 import { GitMissingError } from "./git";
-import { buildInput, findRepoRoot, unreadWarnings } from "./input";
+import { buildInput, findRepoRoot, unreadWarnings, type BuiltInput } from "./input";
+import { review } from "./review";
 import { entrySources, toSelection } from "./selection";
 import { excludedLines, renderText, warningLines } from "./text";
 import { checkVerdicts, readSelection } from "./verdicts";
@@ -27,6 +30,7 @@ const HELP = `Usage:
   lore check [<commit> | --base <ref>] [rules] [options]
   lore verdicts --selection <file> [<verdicts-file> | -]
   lore audit [rules] [options]
+  lore review (<id>... | --file <lore-file>... | --prune) [--date <YYYY-MM-DD>] [--repo <dir>] [--given <dir>]...
   lore --help
   lore --version
 
@@ -57,11 +61,18 @@ Audit:
   --max-age <days>       Report a review older than this many days (overrides .loreconfig)
   --level <name=level>   Set a finding's level: error, warn or off (repeatable; overrides .loreconfig)
 
+Review:
+  <id>                   A rule you compared with its sources; its records are written (repeatable)
+  --file <lore-file>     Every rule with a source in this Lore file, named as lore audit prints it (repeatable)
+  --prune                Only remove records whose rule or source no longer exists
+  --date <YYYY-MM-DD>    The date to record (default: today)
+
 Exit codes:
   lore select    0 the selection ran, 1 --strict was given and entries were excluded
   lore check     0 the check ran, 1 --strict was given and entries were excluded
   lore verdicts  0 the verdicts have no problems, 1 the verdicts have problems
   lore audit     0 no finding at level error, 1 a finding at level error, or --strict and entries were excluded
+  lore review    0 every named rule was written, 1 a rule was refused because a source does not resolve
   all            2 usage or input error, 70 internal error
 `;
 
@@ -83,6 +94,8 @@ export async function run(argv: string[], io: IO): Promise<number> {
         return await runCheck(command, io);
       case "audit":
         return await runAudit(command, io);
+      case "review":
+        return await runReview(command, io);
     }
   } catch (error) {
     if (error instanceof UsageError || error instanceof InputError || error instanceof RegexLimitError) {
@@ -157,9 +170,7 @@ async function runAudit(command: AuditCommand, io: IO): Promise<number> {
     levels: command.levels,
     withheld: withheldLocks(parsed, built.unread),
   });
-  const warnings = [
-    ...parsed.model.warnings, ...missingSrcTargets(built.input, parsed.model), ...unreadWarnings(built.unread, parsed.collected),
-  ].sort(compareDiagnostics);
+  const warnings = rulesWarnings(built, parsed);
   if (command.format === "json") io.stdout(`${JSON.stringify({ ...result, warnings }, null, 2)}\n`);
   else {
     io.stderr(excludedLines(result) + warningLines(warnings));
@@ -167,6 +178,23 @@ async function runAudit(command: AuditCommand, io: IO): Promise<number> {
   }
   const failed = result.findings.some((finding) => finding.level === "error") || (command.strict && result.excluded.length > 0);
   return failed ? 1 : 0;
+}
+
+async function runReview(command: ReviewCommand, io: IO): Promise<number> {
+  const repo = governedRepo({ repo: command.repo, noRepo: false });
+  const built = await buildInput({ repo, rulesRef: null, given: command.given, remotes: [], untrackedLore: true });
+  const parsed = parseWithContext(built.input);
+  const result = review(parsed, built, command, command.date ?? io.today());
+  io.stderr(excludedLines({ excluded: parsed.model.errors }) + warningLines(rulesWarnings(built, parsed)) + result.err);
+  io.stdout(result.out);
+  return result.refused ? 1 : 0;
+}
+
+// The warnings lore select gives for the same rules that do not depend on a change.
+function rulesWarnings(built: BuiltInput, parsed: ParsedInput): Diagnostic[] {
+  return [
+    ...parsed.model.warnings, ...missingSrcTargets(built.input, parsed.model), ...unreadWarnings(built.unread, parsed.collected),
+  ].sort(compareDiagnostics);
 }
 
 async function runVerdicts(command: VerdictsCommand, io: IO): Promise<number> {

@@ -2,7 +2,7 @@
 
 The `lore` command reads Lore rule files and tells a reviewer or an author which rules apply to a change. It never calls a forge, a model or the network. Git is the only program it runs, and only when an input needs it.
 
-It has four commands.
+It has five commands.
 
 Install it as a dev dependency, or run it without installing:
 
@@ -215,6 +215,41 @@ Move each one to a `<source>` block by hand or with your own script; there is no
 
 A tool older than this change reads a `<source>` block as `unknown-child` and excludes that rule, and reads the `audit` key as `invalid-loreconfig` and ignores the whole `.loreconfig`, including any `repo:` or `disable:` in it. Upgrade every tool that reads the rules (the `lore` command in CI and on each machine, and the editor extensions) before any rule file uses `<source>` or any `.loreconfig` uses `audit`.
 
+## lore review
+
+Records that a person reviewed named rules against their sources today. It does not perform the review: you read the rule and the text it cites, and the command writes down that you did, with a fingerprint of that text, in `lore-reviews.lock` beside the rules. `lore audit` then reports when the text changes. It is the only command that writes the lock file, and it never writes a Lore file.
+
+```
+lore review (<id>... | --file <lore-file>... | --prune) [--date <YYYY-MM-DD>] [--repo <dir>] [--given <dir>]...
+```
+
+```
+$ lore review money-in-minor-units
+reviewed money-in-minor-units (1 source)
+```
+
+- For each named rule it resolves every source, fingerprints the text and replaces the rule's records with one per source, dated today (or `--date`). Records for sources the rule no longer has go with them.
+- `--file <lore-file>` names every rule in that Lore file that has a source, and skips those without. Name the file as `lore audit` prints it (`.lore/checkout.lore`, or `external:` or `loose:` and the path for a given folder).
+- A rule with a source that does not resolve is refused: its records stay as they were, the problem is printed on stderr as `lore audit` prints it, and the exit code is 1. The other rules in the run are still written. A rule with an `ambiguous-heading` is written, with the warning.
+- Every run also removes records whose rule or source no longer exists, and prints how many. `--prune` does only that. A record is never removed while its rule may only be excluded (an entry with errors) or unread (a Lore file warned `lore-file-not-read`); a refused rule's records are not removed either.
+- A lock file that is not in the format is an input error, exit 2, and is left as it is. When the records do not change, the file is not rewritten. A changed file is written whole to a temporary file and renamed into place.
+- It writes the working tree, so it reads Lore files from disk, untracked ones included, and reads the lock file whether git tracks it yet or not. Cited files are read as `lore audit` reads them: tracked files only, so `git add` a new cited file before reviewing against it. `git add` the lock file before auditing.
+- An id that names no rule, a rule with no `<source>`, a `--file` that is not a collected Lore file, a `--date` that is not a real date, more than one of ids, `--file` and `--prune`, and `--rules-ref`, `--remote` or `--no-repo` are usage errors. Nothing is written.
+- Excluded entries and warnings go to stderr as in `lore audit`. Stdout has one line per rule written or refused, and one per lock file pruned.
+
+### Why there is no flag for every rule
+
+A record is a person's statement that they compared the rule with its source. A flag that records every rule, or every changed rule, at once would write that statement for rules nobody read, and the lock file would stop meaning anything. So rules are named one by one or one Lore file at a time. Adding such a flag later breaks nobody; removing one would.
+
+### Adopting it file by file
+
+A rule set that gains `<source>` blocks starts with every source `never-reviewed`, a warning by default, so the build does not fail. Review one Lore file at a time, as you read it:
+
+```
+lore review --file .lore/checkout.lore
+git add lore-reviews.lock
+```
+
 ## Other flags
 
 - `--help`: print the usage.
@@ -226,6 +261,7 @@ A tool older than this change reads a `<source>` block as `unknown-child` and ex
 - `lore check`: `0` when the check ran, `1` when `--strict` was given and entries were excluded.
 - `lore verdicts`: `0` when the verdicts have no problems, `1` when they have problems.
 - `lore audit`: `0` when no finding is at level `error`, `1` when a finding is at level `error`, or when `--strict` was given and entries were excluded.
+- `lore review`: `0` when every named rule was written, `1` when a rule was refused because a source does not resolve.
 - All: `2` for a usage or input error, `70` for an internal error (a bug).
 
 ## Build

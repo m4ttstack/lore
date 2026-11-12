@@ -65,7 +65,6 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
   const findings: Finding[] = [];
   const recordsOf = new Map<string, ReviewRecord[]>();
   for (const lock of options.locks) if (!recordsOf.has(lockKey(lock))) recordsOf.set(lockKey(lock), lock.records);
-  const live = new Map<string, Set<string>>();
   let rulesWithSource = 0;
   let rulesWithoutSource = 0;
 
@@ -85,9 +84,7 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
     }
     rulesWithSource++;
     const records = recordsOf.get(lock) ?? [];
-    const known = setIn(live, lock);
     for (const source of entry.sources) {
-      known.add(identity(entry.id, source));
       const content = options.readSource(place, source.file);
       if (content === undefined) {
         add("source-unchecked", source);
@@ -111,7 +108,7 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
     }
   }
 
-  findings.push(...orphans(parsed, options, live));
+  findings.push(...orphans(parsed, options));
   findings.sort(compareFindings);
   const counts: Partial<Record<FindingName, number>> = {};
   for (const name of FINDINGS) {
@@ -121,29 +118,48 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
   return { findings, summary: { counts, rulesWithSource, rulesWithoutSource }, excluded: model.errors };
 }
 
-// A record is no orphan while the rule it names might only be excluded: an excluded entry with no readable id hides every rule of its Lore root.
-function orphans(parsed: ParsedInput, options: AuditOptions, live: ReadonlyMap<string, Set<string>>): Finding[] {
-  const { model, collected } = parsed;
+function orphans(parsed: ParsedInput, options: AuditOptions): Finding[] {
+  const roots = lockRoots(parsed.collected);
+  const found: Finding[] = [];
+  for (const { lock, records } of orphanRecords(parsed, options.locks, options.withheld)) {
+    const { repository, loreRoot } = roots.get(lockKey(lock))!;
+    const settings = settingsFor(parsed.collected, options, loreRoot, repository, loreRoot);
+    for (const record of records) {
+      const source = { file: record.file, heading: record.heading, phrase: record.phrase };
+      report(found, settings, { name: "orphan-review", rule: record.rule, file: lock.path, source, reason: null });
+    }
+  }
+  return found;
+}
+
+// The records of each lock file that name no rule source of the model. A record is no orphan while the rule it names
+// might only be excluded: an excluded entry with no readable id hides every rule of its Lore root. A withheld lock file,
+// or one no collected Lore file maps to, has none.
+export function orphanRecords(
+  parsed: ParsedInput, locks: readonly LockFile[], withheld: readonly LockRef[] = [],
+): { lock: LockFile; records: ReviewRecord[] }[] {
+  const { model, collected, placeOf } = parsed;
   const roots = lockRoots(collected);
-  const withheld = new Set((options.withheld ?? []).map(lockKey));
+  const held = new Set(withheld.map(lockKey));
+  const live = new Map<string, Set<string>>();
+  for (const entry of model.entries) {
+    if (entry.kind !== "rule") continue;
+    const known = setIn(live, lockKey(lockPathFor(placeOf.get(entry)!)));
+    for (const source of entry.sources) known.add(identity(entry.id, source));
+  }
   const excluded = new Map<string, Set<string | null>>();
   for (const error of model.errors) {
     const file = collected.files.find((candidate) => candidate.file === error.file);
     if (file !== undefined) setIn(excluded, lockKey(fileLock(file))).add(error.entry);
   }
 
-  const found: Finding[] = [];
-  for (const lock of options.locks) {
+  const found: { lock: LockFile; records: ReviewRecord[] }[] = [];
+  for (const lock of locks) {
     const key = lockKey(lock);
-    const root = roots.get(key);
     const hidden = excluded.get(key);
-    if (root === undefined || hidden?.has(null) || withheld.has(key)) continue;
-    const settings = settingsFor(collected, options, root.loreRoot, root.repository, root.loreRoot);
-    for (const record of lock.records) {
-      if (live.get(key)?.has(identity(record.rule, record)) || hidden?.has(record.rule)) continue;
-      const source = { file: record.file, heading: record.heading, phrase: record.phrase };
-      report(found, settings, { name: "orphan-review", rule: record.rule, file: lock.path, source, reason: null });
-    }
+    if (!roots.has(key) || hidden?.has(null) || held.has(key)) continue;
+    const records = lock.records.filter((record) => !live.get(key)?.has(identity(record.rule, record)) && !hidden?.has(record.rule));
+    if (records.length > 0) found.push({ lock, records });
   }
   return found;
 }
@@ -178,7 +194,7 @@ function report(findings: Finding[], settings: AuditSettings, found: Found): voi
   findings.push({ name: found.name, level, rule: found.rule, file: found.file, source: found.source, reason: found.reason });
 }
 
-function missingReason(source: Source, reason: (Resolved & { ok: false })["reason"]): string {
+export function missingReason(source: Source, reason: (Resolved & { ok: false })["reason"]): string {
   if (reason === "file") return `file not found: ${source.file}`;
   return reason === "heading" ? `heading not found: "${source.heading}"` : `phrase not found: "${source.phrase}"`;
 }

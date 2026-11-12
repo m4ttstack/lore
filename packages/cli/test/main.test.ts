@@ -575,6 +575,7 @@ describe("help and version", () => {
     expect(out).toContain("lore verdicts  0 the verdicts have no problems, 1 the verdicts have problems");
     expect(out).toContain("lore check     0 the check ran, 1 --strict was given and entries were excluded");
     expect(out).toContain("lore audit     0 no finding at level error, 1 a finding at level error, or --strict and entries were excluded");
+    expect(out).toContain("lore review    0 every named rule was written, 1 a rule was refused because a source does not resolve");
     expect(out).toContain("all            2 usage or input error, 70 internal error");
   });
 
@@ -587,6 +588,9 @@ describe("help and version", () => {
     expect(await lore(["select", "--help"])).toEqual({ code: 0, out, err: "" });
     expect(await lore(["verdicts", "--help"])).toEqual({ code: 0, out, err: "" });
     expect(await lore(["audit", "--help"])).toEqual({ code: 0, out, err: "" });
+    expect(await lore(["review", "--help"])).toEqual({ code: 0, out, err: "" });
+    expect(out).toContain("lore review (<id>... | --file <lore-file>... | --prune) [--date <YYYY-MM-DD>] [--repo <dir>] [--given <dir>]...");
+    expect(out).toContain("--prune");
     expect(out).toContain("lore audit [rules] [options]");
     expect(out).toContain("--max-age <days>");
     expect(out).toContain("--level <name=level>");

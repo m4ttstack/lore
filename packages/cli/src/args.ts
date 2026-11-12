@@ -1,4 +1,4 @@
-import { FINDINGS, type Capability, type FindingName, type Level } from "@lore/parser";
+import { FINDINGS, isRealDate, type Capability, type FindingName, type Level } from "@lore/parser";
 import { UsageError } from "./errors";
 
 export interface SelectCommand {
@@ -33,11 +33,13 @@ export interface AuditCommand {
   maxAge: number | null;
   levels: Partial<Record<FindingName, Level>>;
 }
+export interface ReviewCommand { name: "review"; ids: string[]; files: string[]; prune: boolean; date: string | null; repo: string | null; given: string[] }
 export type Command =
   | SelectCommand
   | CheckCommand
   | VerdictsCommand
   | AuditCommand
+  | ReviewCommand
   | { name: "help" }
   | { name: "version" };
 
@@ -48,15 +50,19 @@ const REPEATABLE = ["--remote", "--given", "--expand"];
 const AUDIT_VALUE_FLAGS = ["--repo", "--remote", "--rules-ref", "--given", "--format", "--max-age", "--level"];
 const AUDIT_REPEATABLE = ["--remote", "--given", "--level"];
 const LEVELS: Level[] = ["error", "warn", "off"];
+const REVIEW_VALUE_FLAGS = ["--file", "--date", "--repo", "--given"];
+const REVIEW_REPEATABLE = ["--file", "--given"];
+const NOT_FOR_REVIEW = ["--rules-ref", "--remote", "--no-repo"];
 
 export function parseCommand(argv: string[]): Command {
   const [first, ...rest] = argv;
-  if (first === undefined) throw new UsageError("missing command: expected select, check, verdicts or audit (see lore --help)");
+  if (first === undefined) throw new UsageError("missing command: expected select, check, verdicts, audit or review (see lore --help)");
   if (first === "--help") return { name: "help" };
   if (first === "--version") return { name: "version" };
   if (first === "select" || first === "check") return parseChangeCommand(first, rest);
   if (first === "verdicts") return parseVerdicts(rest);
   if (first === "audit") return parseAudit(rest);
+  if (first === "review") return parseReview(rest);
   throw new UsageError(`unknown command: ${first} (see lore --help)`);
 }
 
@@ -190,6 +196,44 @@ function parseAudit(args: string[]): Command {
     maxAge: maxAge === null ? null : Number(maxAge),
     levels: parseLevels(values.get("--level") ?? []),
   };
+}
+
+function parseReview(args: string[]): Command {
+  const values = new Map<string, string[]>();
+  const ids: string[] = [];
+  let prune = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]!;
+    const eq = arg.startsWith("--") ? arg.indexOf("=") : -1;
+    const flag = eq === -1 ? arg : arg.slice(0, eq);
+    if (flag === "--help") return { name: "help" };
+    if (NOT_FOR_REVIEW.includes(flag)) throw new UsageError(`lore review writes the working tree; ${flag} cannot be used with it`);
+    if (flag === "--prune") {
+      if (eq !== -1) throw new UsageError("--prune takes no value");
+      prune = true;
+      continue;
+    }
+    if (!arg.startsWith("--")) {
+      ids.push(arg);
+      continue;
+    }
+    if (!REVIEW_VALUE_FLAGS.includes(flag)) throw new UsageError(`unknown option: ${arg}`);
+    let value: string;
+    if (eq !== -1) value = arg.slice(eq + 1);
+    else if (i + 1 < args.length && !args[i + 1]!.startsWith("--")) value = args[++i]!;
+    else throw new UsageError(`${flag} needs a value`);
+    const seen = values.get(flag) ?? [];
+    if (seen.length > 0 && !REVIEW_REPEATABLE.includes(flag)) throw new UsageError(`${flag} given more than once`);
+    values.set(flag, [...seen, value]);
+  }
+
+  const files = values.get("--file") ?? [];
+  const modes = [ids.length > 0, files.length > 0, prune].filter(Boolean).length;
+  if (modes === 0) throw new UsageError("give rule ids, --file or --prune");
+  if (modes > 1) throw new UsageError("give only one of rule ids, --file and --prune");
+  const date = values.get("--date")?.[0] ?? null;
+  if (date !== null && !isRealDate(date)) throw new UsageError(`--date must be a real date written YYYY-MM-DD, not ${date}`);
+  return { name: "review", ids, files, prune, date, repo: values.get("--repo")?.[0] ?? null, given: values.get("--given") ?? [] };
 }
 
 function parseLevels(settings: string[]): Partial<Record<FindingName, Level>> {
