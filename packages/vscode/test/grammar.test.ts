@@ -156,6 +156,13 @@ describe("scopes", () => {
     "  </meta>",
     "  Read this before changing invoices.",
     "</context>",
+    "<rule id=\"money-in-minor-units\" category=\"functional_correctness\">",
+    "  <source>",
+    "    - file: docs/checkout-review.md",
+    "      heading: Money is integer minor units",
+    "  </source>",
+    "  Amounts are integers in minor units (cents).",
+    "</rule>",
   ].join("\n");
   let lines: Token[][];
   beforeAll(() => {
@@ -176,6 +183,14 @@ describe("scopes", () => {
     expect(lineHas(lines, 9, "entity.name.tag.lore")).toBe(true);
     expect(tokenScopes(lines, 21, "owner")).toContain("source.yaml");
     expect(lineHas(lines, 22, "entity.name.tag.lore")).toBe(true);
+  });
+
+  test("YAML inside <source> gets source.yaml", () => {
+    expect(lineHas(lines, 26, "entity.name.tag.lore")).toBe(true);
+    expect(tokenScopes(lines, 27, "file")).toContain("source.yaml");
+    expect(tokenScopes(lines, 28, "heading")).toContain("source.yaml");
+    expect(lineHas(lines, 29, "entity.name.tag.lore")).toBe(true);
+    expect(lineHas(lines, 30, "source.yaml")).toBe(false);
   });
 
   test("attribute names and values get their scopes", () => {

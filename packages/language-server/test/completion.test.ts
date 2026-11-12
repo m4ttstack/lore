@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { CompletionItem, TextEdit } from "vscode-languageserver/node";
 import { complete, factsFor, type CompletionFacts } from "../src/completion";
 import { diagnose } from "../src/diagnostics";
-import { WHEN_DOCS } from "../src/docs";
+import { SOURCE_DOCS, WHEN_DOCS } from "../src/docs";
 
 const NO_FACTS: CompletionFacts = { categories: ["functional_correctness", "security"], ids: [] };
 
@@ -55,7 +55,7 @@ describe("completion", () => {
 
   test("tags at column 0 and inside entries", () => {
     expect(labels(at("<|", "lore"))).toEqual(["rule", "context", "defaults", "scope"]);
-    expect(labels(at("<rule id=\"a\">\n  <|\n</rule>\n", "lore"))).toEqual(["meta", "scope", "when", "check"]);
+    expect(labels(at("<rule id=\"a\">\n  <|\n</rule>\n", "lore"))).toEqual(["meta", "scope", "when", "source", "check"]);
     expect(labels(at("<context id=\"a\">\n<w|\n</context>\n", "lore"))).toEqual(["meta", "scope", "when"]);
     expect(at("<rule id=\"a\">\nText.\n</rule>\n  <|", "lore")).toEqual([]);
   });
@@ -63,7 +63,7 @@ describe("completion", () => {
   test("no child tags once the prose has started", () => {
     expect(at("<rule id=\"a\">\nSome prose.\n<|", "lore")).toEqual([]);
     expect(at("<rule id=\"a\">\nSome prose.\n  <|\n</rule>\n", "lore")).toEqual([]);
-    expect(labels(at("<rule id=\"a\">\n\n<|\nSome prose.\n</rule>\n", "lore"))).toEqual(["meta", "scope", "when", "check"]);
+    expect(labels(at("<rule id=\"a\">\n\n<|\nSome prose.\n</rule>\n", "lore"))).toEqual(["meta", "scope", "when", "source", "check"]);
   });
 
   test("a tag-shaped block after the prose starts is prose, so its keys get no completion", () => {
@@ -81,12 +81,31 @@ describe("completion", () => {
   test("comments and closed elements above are read in order", () => {
     expect(labels(at("<!-- note\n<rule id=\"x\">\n-->\n<|", "lore"))).toEqual(["rule", "context", "defaults", "scope"]);
     expect(at("<!-- note\n<|", "lore")).toEqual([]);
-    expect(labels(at("<defaults>\nseverity: blocking\n</defaults>\n\n<rule id=\"a\">\n<|", "lore"))).toEqual(["meta", "scope", "when", "check"]);
+    expect(labels(at("<defaults>\nseverity: blocking\n</defaults>\n\n<rule id=\"a\">\n<|", "lore"))).toEqual(["meta", "scope", "when", "source", "check"]);
   });
 
   test("a child the entry already has is not offered again", () => {
     const text = "<rule id=\"a\">\n<meta>\nowner: pricing\n</meta>\n<|\n<when>\nchanged: [\"x\"]\n</when>\n<check>\nx\n</check>\nText.\n</rule>\n";
-    expect(labels(at(text, "lore"))).toEqual(["scope", "check"]);
+    expect(labels(at(text, "lore"))).toEqual(["scope", "source", "check"]);
+    const sourced = "<rule id=\"a\">\n<source>\nfile: docs/checkout-review.md\n</source>\n<|\nText.\n</rule>\n";
+    expect(labels(at(sourced, "lore"))).toEqual(["meta", "scope", "when", "check"]);
+  });
+
+  test("source is a child of a rule, not of a context", () => {
+    expect(labels(at("<rule id=\"a\">\n<s|\n</rule>\n", "lore"))).toContain("source");
+    expect(labels(at("<context id=\"a\">\n<s|\n</context>\n", "lore"))).not.toContain("source");
+  });
+
+  test("source keys, in a mapping and in a list", () => {
+    const keys = ["file", "heading", "phrase"];
+    expect(labels(at("<rule id=\"a\">\n  <source>\n    |\n  </source>\n</rule>\n", "lore"))).toEqual(keys);
+    expect(labels(at("<rule id=\"a\">\n  <source>\n    file: docs/checkout-review.md\n    he|\n  </source>\n</rule>\n", "lore")))
+      .toEqual(keys);
+    const list = at("<rule id=\"a\">\n<source>\n- fi|\n</source>\n</rule>\n", "lore");
+    expect(labels(list)).toEqual(keys);
+    expect(list[0]!.textEdit).toEqual({ range: { start: { line: 2, character: 2 }, end: { line: 2, character: 4 } }, newText: "file" });
+    expect(SOURCE_DOCS.file).toBeDefined();
+    expect(at("<rule id=\"a\">\n<source>\nfile: |\n</source>\n</rule>\n", "lore")).toEqual([]);
   });
 
   test("attribute names per element, leaving out those already written", () => {

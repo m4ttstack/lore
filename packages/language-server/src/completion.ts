@@ -4,8 +4,8 @@ import {
 } from "vscode-languageserver/node";
 import type { Analysis } from "./diagnostics";
 import {
-  ATTRIBUTE_DOCS, BARE_ATTRIBUTES, CHECK_LANGUAGES, CHILD_TAGS, SEVERITIES, SINGLE_CHILDREN, TAG_ATTRIBUTES, TAG_DOCS,
-  TOP_LEVEL_TAGS, WHEN_DOCS, WHEN_KEYS,
+  ATTRIBUTE_DOCS, BARE_ATTRIBUTES, CHECK_LANGUAGES, CHILD_TAGS, SEVERITIES, SINGLE_CHILDREN, SOURCE_DOCS, SOURCE_KEYS,
+  TAG_ATTRIBUTES, TAG_DOCS, TOP_LEVEL_TAGS, WHEN_DOCS, WHEN_KEYS,
 } from "./docs";
 import { linesOf, placeAt, type Place } from "./structure";
 
@@ -92,6 +92,17 @@ function loreItems(place: Place, position: Position, before: string, facts: Comp
       label: name,
       kind: CompletionItemKind.Property,
       documentation: markdown(WHEN_DOCS[name]),
+      textEdit: { range: replace(key[1]!.length), newText: name },
+    }));
+  }
+
+  if (place.at === "children" && place.child === "source") {
+    const key = /^[ \t]*(?:-[ \t]+)?([A-Za-z]*)$/.exec(before);
+    if (key === null) return [];
+    return SOURCE_KEYS.map((name) => ({
+      label: name,
+      kind: CompletionItemKind.Property,
+      documentation: markdown(SOURCE_DOCS[name]),
       textEdit: { range: replace(key[1]!.length), newText: name },
     }));
   }

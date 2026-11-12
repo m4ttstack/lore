@@ -1,7 +1,7 @@
 import { readAttributes, type Entry, type Scope } from "@lore/parser";
 import { MarkupKind, type Diagnostic as LspDiagnostic, type Hover, type Position, type Range } from "vscode-languageserver/node";
 import { registryDescription } from "./diagnostics";
-import { ATTRIBUTE_DOCS, TAG_DOCS, WHEN_DOCS } from "./docs";
+import { ATTRIBUTE_DOCS, SOURCE_DOCS, TAG_DOCS, WHEN_DOCS } from "./docs";
 import { isStructure, linesOf, placeAt, tagLine } from "./structure";
 
 // entries: the model's entries read from this file.
@@ -33,10 +33,14 @@ function meaning(lines: readonly string[], { line, character }: Position, entrie
     }
     return character >= nameStart && character <= nameEnd ? described(`<${name}>`, TAG_DOCS, name) : [];
   }
-  const key = /^([ \t]*)([A-Za-z]+)[ \t]*:/.exec(text);
-  if (key === null || place.at !== "children" || place.child !== "when") return [];
+  if (place.at !== "children" || (place.child !== "when" && place.child !== "source")) return [];
+  const [docs, pattern] = place.child === "when"
+    ? [WHEN_DOCS, /^([ \t]*)([A-Za-z]+)[ \t]*:/]
+    : [SOURCE_DOCS, /^([ \t]*(?:-[ \t]+)?)([A-Za-z]+)[ \t]*:/];
+  const key = pattern.exec(text);
+  if (key === null) return [];
   const [, indent, name] = key as unknown as [string, string, string];
-  return character >= indent.length && character <= indent.length + name.length ? described(name, WHEN_DOCS) : [];
+  return character >= indent.length && character <= indent.length + name.length ? described(name, docs) : [];
 }
 
 function described(label: string, docs: Readonly<Record<string, string>>, key = label): string[] {

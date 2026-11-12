@@ -3,8 +3,8 @@
 One extension serves both editors. It highlights `.lore` files, with YAML and Markdown highlighting inside their blocks, gives `.loreconfig` files YAML highlighting, and starts the Lore language server for:
 
 - Diagnostics: every error and warning the parser reports for an open `.lore` or `.loreconfig` file, named by registry name with the registry description.
-- Completion: tags, attributes, categories, severities, check languages, `<when>` keys and known ids in `disable` lists.
-- Hover: what an error, warning, tag, attribute or `<when>` key means, and an entry's resolved scope.
+- Completion: tags, attributes, categories, severities, check languages, `<when>` and `<source>` keys and known ids in `disable` lists.
+- Hover: what an error, warning, tag, attribute, `<when>` key or `<source>` key means, and an entry's resolved scope.
 - A "could apply" lens at the top of any other file in a governed repository, listing the rules and context whose scope covers it.
 
 ## Build and install
