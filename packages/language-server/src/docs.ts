@@ -50,7 +50,7 @@ export const WHEN_DOCS: Readonly<Record<string, string>> = {
 };
 
 export const SOURCE_DOCS: Readonly<Record<string, string>> = {
-  file: "One file the rule was written from, resolved from the base, from the rule file's folder when it starts `./` or `../`, or from the repo root when it starts `/`.",
-  heading: "A heading in a Markdown file, given as its text or its slug; the source is that heading's section.",
+  file: "One file the rule was written from, resolved from the base, from the rule file's folder when it starts `./` or `../`, or when it starts `/` from the governed repo's root (in a loose folder, from the folder's root).",
+  heading: "A heading in the file, given as its text or its slug; the source is that heading's section. Only when `file` ends in `.md`, `.mdx` or `.markdown`.",
   phrase: "Text that appears in the file, or in the heading's section when `heading` is given.",
 };
