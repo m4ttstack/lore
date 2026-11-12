@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Example } from "../../../tools/check/extract";
+import type { AuditOptions } from "../src/audit";
+import { LOCK_NAME, readReviews, type ReviewRecord } from "../src/reviews";
 import type { Change, ChangedFile, InputFile, LoreInput } from "../src/types";
 
 const DEFAULT_REMOTE = "https://github.com/acme/shop";
@@ -28,6 +30,20 @@ export function toInput(example: Example): LoreInput {
     remotes: [example.remote ?? DEFAULT_REMOTE],
     ...(rules.length > 0 ? { rules } : {}),
   };
+}
+
+// Every file the example does not hold reads as absent, so an example never leaves a source unchecked.
+export function auditOptions(example: Example): Pick<AuditOptions, "today" | "readSource" | "locks"> {
+  const contents = new Map(example.files.map((file) => [file.path, file.content]));
+  const locks = new Map<string, ReviewRecord[]>();
+  for (const file of example.files) {
+    const path = file.place === "repo" ? file.path : file.path.slice(file.path.indexOf(":") + 1);
+    if (path.split("/").at(-1) !== LOCK_NAME) continue;
+    const read = readReviews(file.content);
+    if ("problem" in read) throw new Error(`${file.path}:${read.line}: ${read.problem}`);
+    locks.set(file.path, read.records);
+  }
+  return { today: example.today ?? "", readSource: (_place, path) => contents.get(path) ?? null, locks };
 }
 
 export function toChange(diff: string): Change {

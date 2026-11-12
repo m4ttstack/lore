@@ -11,6 +11,9 @@ import { readBlock, type BlockProblem } from "./yaml";
 export interface EntryPlace {
   base: string;
   tree: Tree;
+  // loreRoot is a directory of the entry's own repository, without the prefix.
+  loreRoot: string;
+  prefix: string;
   // True when the entry got empty-scope: it stays in the model and is never eligible.
   emptyScope: boolean;
   checkLines: readonly number[];
@@ -24,7 +27,7 @@ export interface ParsedInput {
 }
 
 interface ReadEntry { result: EntryResult; fileFiles: readonly string[]; place: FilePlace }
-type FilePlace = Pick<EntryPlace, "base" | "tree">;
+type FilePlace = Pick<EntryPlace, "base" | "tree" | "loreRoot" | "prefix">;
 
 const parsedModels = new WeakMap<DocumentModel, ParsedInput>();
 
@@ -55,7 +58,7 @@ export function parseWithContext(input: LoreInput): ParsedInput {
       defaults: blocks.defaults, scope: resolveScope(file.base, blocks.scope),
     };
     const fileFiles = blocks.scope.files ?? DEFAULT_FILES;
-    const place = { base: file.base, tree: file.tree };
+    const place = { base: file.base, tree: file.tree, loreRoot: file.loreRoot, prefix: file.prefix };
     for (const node of lore.nodes) if (node.kind === "entry") read.push({ result: readEntry(lore, node, context), fileFiles, place });
   }
 
