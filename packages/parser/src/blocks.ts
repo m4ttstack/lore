@@ -70,7 +70,7 @@ export function checkMeta(value: unknown, line: number): BlockProblem | null {
 }
 
 const SOURCE_KEYS = ["file", "heading", "phrase"];
-const MARKDOWN = /\.(md|mdx|markdown)$/;
+export const MARKDOWN = /\.(md|mdx|markdown)$/;
 
 export function checkSource(value: unknown, line: number): BlockProblem | null {
   const items = Array.isArray(value) ? value : [value];

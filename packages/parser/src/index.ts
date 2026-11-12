@@ -17,3 +17,4 @@ export { disjoint, matchFromBase, matchGlob, resolveGlob, validateGlob, type Glo
 export { coveringEntries, missingSrcTargets, select, selectDetailed, selectParsed } from "./select";
 export { RegexLimitError } from "./regex";
 export { compareCodePoints } from "./text";
+export { fingerprint, normalizeText, resolveSource, slug, type Resolved, type SourceContent } from "./sources";
