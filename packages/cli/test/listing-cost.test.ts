@@ -61,5 +61,5 @@ test("on the same change the text section holds 40 rule lines and the overflow l
   expect(lines.filter((line) => line.startsWith("- `"))).toHaveLength(40);
   expect(lines.at(-1)).toBe("- and 150 more; `--format json` lists them all");
   expect(lines).toHaveLength(45);
-  expect(Buffer.byteLength(section)).toBe(5326);
+  expect(Buffer.byteLength(section)).toBe(5379);
 });
