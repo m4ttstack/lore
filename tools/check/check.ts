@@ -3,7 +3,7 @@ import { extractExamples, type Example } from "./extract";
 
 export interface Problem { rule: string; line: number; message: string }
 export interface RegistryEntry { name: string; kind: "error" | "warning"; description: string }
-export type SchemaName = "defaults" | "scope" | "when" | "meta" | "loreconfig" | "document-model" | "eligibility";
+export type SchemaName = "defaults" | "scope" | "when" | "meta" | "loreconfig" | "document-model" | "eligibility" | "audit";
 export type SchemaSet = Record<SchemaName, object>;
 
 export interface SpecSection { name: string; level: number; line: number; exempt: boolean; normative: boolean; examples: number }
@@ -19,6 +19,7 @@ const EXEMPT = new Set([
 ]);
 const REGISTRY_HEADING = "Errors and warnings";
 const AGENT_HEADING = "For agents (non-normative)";
+const AUDIT_HEADING = "Auditing sources";
 const HEADING = /^(#{2,3})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const FENCE_OPEN = /^(`{3,}|~{3,})/;
 const EXAMPLE_CLOSE = /^`{6}$/;
@@ -32,11 +33,16 @@ const MINUS_LINE = /^-([1-9]\d*) (.*)$/;
 const CAPABILITIES = new Set(["regex", "ast-grep", "loose-given-folder"]);
 const LOOSE_FOLDER_FILE = "loose:.";
 const CHECK_TAG = /^[ \t]*<check[ \t>]/m;
+// An example cannot say that a file could not be looked at, so this finding has no example.
+const UNEXAMPLED_FINDINGS = new Set(["source-unchecked"]);
+const TODAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 interface Diagnostic { name: string; file: string; entry: string | null; line: number }
 interface Hit { rule: string; file: string; line: number; text: string; side?: "new" | "old" }
 interface Entry { id: string; file: string }
 interface Expected { entries?: Entry[]; errors?: Diagnostic[]; warnings?: Diagnostic[]; excluded?: Diagnostic[]; eligible?: string[]; hits?: Hit[] }
+interface Finding { name: string; rule: string | null; file: string }
+interface AuditExpected { findings: Finding[]; summary: { counts: Record<string, number> } }
 
 export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; schemas: SchemaSet; agent?: string }): Problem[] {
   const { markdown, registry, schemas, agent } = input;
@@ -56,15 +62,17 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
   for (const schema of Object.values(schemas)) ajv.addSchema(schema);
   const known = new Set(registry.map((r) => r.name));
   const tested = new Set<string>();
+  const findingNames = (schemas.audit as { $defs: { findingName: { enum: string[] } } }).$defs.findingName.enum;
+  const testedFindings = new Set<string>();
 
   for (const ex of examples) {
     const report = (rule: string, message: string) => problems.push({ rule, line: ex.line, message: `example ${ex.number}: ${message}` });
-    if (ex.kind !== "parse" && ex.kind !== "eligibility") {
+    if (ex.kind !== "parse" && ex.kind !== "eligibility" && ex.kind !== "audit") {
       report("kind", `unknown kind "${ex.kind}"`);
       continue;
     }
     if (ex.files.length === 0) report("inputs", "no input file");
-    if (ex.kind === "parse" && ex.files.some((f) => f.place === "rules")) report("sections", "a parse example takes no rules: section");
+    if (ex.kind !== "eligibility" && ex.files.some((f) => f.place === "rules")) report("sections", `a ${ex.kind} example takes no rules: section`);
     for (const r of ex.requires) if (!CAPABILITIES.has(r)) report("requires", `unknown capability "${r}"`);
     if (ex.kind === "eligibility" && ex.requires.length === 0 && ex.files.some((f) => CHECK_TAG.test(f.content))) {
       report("requires", "an eligibility example whose inputs hold a <check> needs a requires line");
@@ -74,7 +82,9 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
     }
     if (ex.remote !== null && (ex.remote === "" || ex.remote.includes("\n"))) report("remote", "the remote section is not one line");
     if (ex.kind === "eligibility" && ex.diff === null) report("diff", "an eligibility example needs a diff");
-    if (ex.kind === "parse" && (ex.diff !== null || ex.remote !== null)) report("diff", "a parse example takes no diff or remote");
+    if (ex.kind !== "eligibility" && (ex.diff !== null || ex.remote !== null)) report("diff", `a ${ex.kind} example takes no diff or remote`);
+    if (ex.kind === "audit" && (ex.today === null || !TODAY.test(ex.today))) report("today", "an audit example needs a today section of one YYYY-MM-DD line");
+    if (ex.kind !== "audit" && ex.today !== null) report("today", `a ${ex.kind} example takes no today section`);
     if (ex.diff !== null) checkDiff(ex, report);
 
     if (ex.expect === null) {
@@ -88,10 +98,16 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
       report("expect", "expect is not JSON");
       continue;
     }
-    const schema = schemas[ex.kind === "parse" ? "document-model" : "eligibility"] as { $id: string };
+    const schema = schemas[ex.kind === "parse" ? "document-model" : ex.kind === "eligibility" ? "eligibility" : "audit"] as { $id: string };
     const validate = ajv.getSchema(schema.$id)!;
     if (!validate(value)) {
       report("expect", `expect fails the ${ex.kind} schema: ${ajv.errorsText(validate.errors)}`);
+      continue;
+    }
+    if (ex.kind === "audit") {
+      const audit = value as unknown as AuditExpected;
+      for (const { name } of audit.findings) testedFindings.add(name);
+      checkAudit(ex, audit, findingNames, report);
       continue;
     }
 
@@ -133,6 +149,13 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
     }
     for (const message of checkRegistryTable(markdown.split("\n").slice(registryHeading.line), registry)) {
       problems.push({ rule: "registry-table", line: 1, message });
+    }
+  }
+
+  if (sections.some((s) => s.level === 2 && s.name === AUDIT_HEADING)) {
+    for (const name of findingNames) {
+      if (testedFindings.has(name) || UNEXAMPLED_FINDINGS.has(name)) continue;
+      problems.push({ rule: "untested-finding", line: 1, message: `"${name}" appears in no audit example's expect` });
     }
   }
 
@@ -185,6 +208,26 @@ function checkReferences(ex: Example, diagnostics: Diagnostic[], entries: Entry[
     const own = ex.files.find((f) => f.path === file);
     const where = file.endsWith(".lore") && own ? [own] : ex.files;
     if (!where.some((f) => f.content.includes(`id="${entry}"`))) report("unknown-entry", `"${entry}" does not appear as an id in ${file.endsWith(".lore") ? file : "the inputs"}`);
+  }
+}
+
+function checkAudit(ex: Example, value: AuditExpected, names: string[], report: (rule: string, message: string) => void): void {
+  for (const { name, rule, file } of value.findings) {
+    const own = ex.files.find((f) => f.path === file);
+    if (own === undefined) report("unknown-file", `"${file}" is not an input`);
+    else if (rule !== null && !own.content.includes(name === "orphan-review" ? `"rule":"${rule}"` : `id="${rule}"`)) {
+      report("unknown-entry", `"${rule}" does not appear in ${file}`);
+    }
+  }
+  const rule = (a: Finding, b: Finding) => (a.rule === b.rule ? 0 : a.rule === null ? -1 : b.rule === null ? 1 : compare(a.rule, b.rule));
+  if (!inOrder(value.findings, (a, b) => compare(a.file, b.file) || rule(a, b) || names.indexOf(a.name) - names.indexOf(b.name))) {
+    report("order", "findings are out of order");
+  }
+  const tally: Record<string, number> = {};
+  for (const { name } of value.findings) tally[name] = (tally[name] ?? 0) + 1;
+  const counts = value.summary.counts;
+  if (Object.keys(counts).length !== Object.keys(tally).length || Object.entries(tally).some(([name, n]) => counts[name] !== n)) {
+    report("counts", "summary counts are not the number of findings of each name");
   }
 }
 

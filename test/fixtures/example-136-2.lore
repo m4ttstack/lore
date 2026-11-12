@@ -1,0 +1,8 @@
+<rule id="shared-currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code; it uses the shop's
+`currency` setting.
+</rule>
+
+<rule id="shared-dates-from-locale" category="functional_correctness">
+Displayed dates are formatted with the shop's locale.
+</rule>

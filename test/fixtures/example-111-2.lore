@@ -1,0 +1,7 @@
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: ../../../handbook.md
+heading: Prices
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>

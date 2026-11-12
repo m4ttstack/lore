@@ -4,7 +4,7 @@ import { extractExamples } from "./extract";
 
 const spec = new URL("../../spec/", import.meta.url);
 const specPath = new URL("SPEC.md", spec);
-const schemaNames: SchemaName[] = ["defaults", "scope", "when", "meta", "loreconfig", "document-model", "eligibility"];
+const schemaNames: SchemaName[] = ["defaults", "scope", "when", "meta", "loreconfig", "document-model", "eligibility", "audit"];
 
 if (!existsSync(specPath)) {
   console.error("spec/SPEC.md not found");

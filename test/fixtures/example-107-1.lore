@@ -1,3 +1,13 @@
-<rule id="order-schema-versioned" category="api_contracts">
-Every change to the order schema bumps its version.
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: Money
+- file: docs/checkout-review.md
+  heading: Dates
+- file: docs/checkout-review.md
+  heading: Rounding
+- file: docs/checkout-review.md
+  heading: Totals
+</source>
+Amounts are integers in minor units (cents).
 </rule>

@@ -94,17 +94,20 @@ Terms used throughout:
 ## Conformance examples
 
 Each conformance example gives inputs and the output a conforming tool
-produces from them. There are two kinds:
+produces from them. There are three kinds:
 
 - a **parse** example gives Lore files, and any `.loreconfig` files that
   apply to them, and expects the document model a tool builds from them;
 - an **eligibility** example also gives a change, and expects the
   eligible entries, the hits, the excluded files and entries, and
-  the warnings.
+  the warnings;
+- an **audit** example also gives the files the rules cite, any lock
+  files and the date, and expects the findings of an audit (see
+  [Auditing sources](#auditing-sources)).
 
 An example is a fenced block. Its opening line starts at column 0 and is
 exactly six backticks, directly followed by `example`, one or more spaces
-or tabs, and the kind: `parse` or `eligibility`. Its closing line is
+or tabs, and the kind: `parse`, `eligibility` or `audit`. Its closing line is
 exactly six backticks. An opening line inside another fenced block does
 not start an example. Six backticks let an example's inputs hold
 ordinary fenced code blocks. Examples are numbered in document order,
@@ -129,8 +132,9 @@ of the example:
 | `=== external:<path>` | An input file at `<path>` in the external repository described below. |
 | `=== loose:<path>` | A file of one given folder that is in no working copy, `<path>` relative to that folder. |
 | `=== rules:<path>` | Eligibility only. A file of the governed repo as it is at the rules revision (see [Collecting files](#collecting-files)). With at least one such section, the tool is given a rules revision. |
-| `=== remote` | Eligibility only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, and in every parse example, the remote is `https://github.com/acme/shop`. |
+| `=== remote` | Eligibility only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, and in every parse and audit example, the remote is `https://github.com/acme/shop`. |
 | `=== diff` | Eligibility only, required. The change, in the format below. |
+| `=== today` | Audit only, required. One line: the date of the audit, `YYYY-MM-DD`. |
 | `=== expect` | The expected output, as JSON. |
 
 The diff has one line per changed file, each optionally followed by that
@@ -176,15 +180,27 @@ tracked files of one other repository, and the tool was given that
 repository's root as a given folder. Each `<path>` is relative to
 that repository's root.
 
+**Audit inputs.** An audit example's input files are also the files its
+sources cite. A source's file exists when the example has an input file
+at exactly its resolved path, prefix included, and is absent otherwise,
+so every source in an audit example could be looked at. An input named
+`lore-reviews.lock` is the lock file of the Lore root whose directory
+holds it (see [The lock file](#the-lock-file)), and no example holds a
+malformed one. The audit runs on the date in `=== today`, and its
+levels and age limits come from the example's `.loreconfig` files only.
+
 **Expected output.** A parse example's expect is a document model,
 valid against
 [`document-model.schema.json`](schemas/document-model.schema.json). An
 eligibility example's expect is an eligibility result, valid against
 [`eligibility.schema.json`](schemas/eligibility.schema.json).
-[Document model](#document-model) defines every field. A tool's output
+[Document model](#document-model) defines every field of both. An audit
+example's expect is an audit result, valid against
+[`audit.schema.json`](schemas/audit.schema.json), whose fields
+[Findings](#findings) defines. A tool's output
 matches the expect when the two are equal as JSON values: arrays compare
 item by item in order (see Order below), and objects compare regardless
-of the order of their members. In both kinds:
+of the order of their members. In every kind:
 
 - **Paths.** Every `file` field is a path exactly as written in the
   example: after `=== ` for an input file, keeping the `external:`,
@@ -224,7 +240,8 @@ of the order of their members. In both kinds:
   file. Diagnostics are ordered by `file`, then `line`, then `name`,
   then `entry`, null first. `eligible` is in ascending order, and hits
   are ordered by `rule`, then `file`, then side with new before old,
-  then `line`. Strings compare code point by code point.
+  then `line`. Findings are ordered as [Findings](#findings) says.
+  Strings compare code point by code point.
 
 For illustration, here is an eligibility example as it is written in this
 document. It is shown inside a longer fence, so it is not numbered or
@@ -4718,7 +4735,8 @@ mapping names one source:
   `invalid-source`.
 - Parsing MUST NOT read a cited file. A `<source>` whose file does not
   exist, or does not hold its `heading` or `phrase`, is still valid, and
-  its rule is read as usual.
+  its rule is read as usual. An audit finds whether a source resolves
+  (see [Auditing sources](#auditing-sources)).
 - In the document model, `sources` holds each item in the order written,
   as an object with `file`, `heading` and `phrase`. `file` is resolved
   as [File paths](#file-paths) says, and `heading` and `phrase` are as
@@ -5557,6 +5575,1018 @@ R apps/web/src/legacy/Price.tsx -> apps/web/src/checkout/Price.tsx
   ],
   "excluded": [],
   "warnings": []
+}
+``````
+
+## Auditing sources
+
+A tool MAY audit the sources of the rules it collects (see
+[Sources](#sources)). An **audit** reads every rule in the document
+model, disabled rules included, with no change involved. For each
+source of each rule it finds whether the source resolves in the cited
+file, and compares the source with its review record in the lock file
+(see [The lock file](#the-lock-file)). It reports what it finds as
+**findings** (see [Findings](#findings)). An entry that an error
+excludes is not audited, and an audit changes no Lore file and no lock
+file.
+
+A source's `file` names, after its prefix, a file of the governed repo,
+of an external folder's repository or of a loose folder (see
+[File paths](#file-paths)). The file exists when it is a tracked file
+there, or for a loose folder a file of that folder. A tool that cannot
+look at the files a source needs MUST report `source-unchecked` for
+that source, and MUST NOT report it as resolved or as missing.
+
+The level of each finding comes from the audit settings (see
+[Audit settings](#audit-settings)). What a tool does with a level, such
+as its exit status, any options that override the settings for one run,
+and how it prints findings are tool behavior, outside this
+specification.
+
+`money-in-minor-units` was reviewed against its section, which has not
+changed since. `dates-from-locale` cites a section that resolves but
+was never reviewed, and `price-from-quote` has no source:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "dates-from-locale", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "never-reviewed": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 1 }
+}
+``````
+
+### Matching inside the file
+
+A file is **Markdown** when its path ends in `.md`, `.mdx` or
+`.markdown`, compared case-sensitively, so `docs/NOTES.MD` is not
+Markdown. A file's lines are split at each line break: CR LF, a lone CR
+or a lone LF.
+
+**Whitespace** is exactly these characters: U+0009 to U+000D, U+0020,
+U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F,
+U+3000 and U+FEFF. U+0085 is not whitespace.
+
+**Fenced code blocks.** A Markdown file's fenced code blocks are found
+as those in a rule's prose are (see Fences in [Entries](#entries)). A
+fence opens at a line whose first characters after any spaces and tabs
+are three or more backticks, with no further backtick on the line, or
+three or more tildes. It closes at the next line that, ignoring leading
+and trailing spaces and tabs, is a run of the same character at least as
+long. A fence that never closes runs to the end of the file. As in
+prose, CommonMark's indentation limit does not apply, so a fence opens
+at any indentation.
+
+**Headings.** A **heading** is a line, outside every fenced code block
+and other than a fence's opening and closing lines, that starts with
+zero to three spaces, then one to six `#`, then either the end of the
+line or a space or tab. Its **level** is its number of `#`. Its
+**text** is the rest of the line after the `#` and the spaces and tabs
+that follow them, with trailing whitespace removed, then a closing run
+of `#` removed when it is the whole text or follows a space or tab, then
+leading and trailing whitespace removed. Inline markup stays as written,
+so `## Money is *integer* minor units` has the text
+`Money is *integer* minor units`.
+
+**Slugs.** The **slug** of a string is found in three steps:
+
+1. Lower-case it with the Unicode default case conversion
+   (`toLowercase`, with its full mappings and not specific to any
+   language).
+2. Remove every character that is not a letter (general category L), a
+   number (general category N), `_`, `-` or U+0020 SPACE.
+3. Turn each remaining space into `-`.
+
+Runs are not collapsed, so two spaces become `--`, and combining marks
+(general category M) are removed with the other characters.
+
+A heading **matches** a `heading` value when its text equals the value,
+or when the value's slug is not empty and equals the slug of the
+heading's text. When more than one heading matches, the first in the
+file is used, and the audit reports `ambiguous-heading`.
+
+**Sections.** A heading's **section** is the lines from the heading's
+line up to, and not including, the next heading with as many `#` or
+fewer, or to the end of the file. Its text is those lines joined with
+LF.
+
+**Phrases.** A phrase matches a text when, after each run of whitespace
+in both is replaced by one U+0020 SPACE, the phrase is a part of the
+text. A line break is whitespace, so a phrase can match across lines.
+A phrase with a `heading` is looked for in that heading's section, and
+one without a `heading` in the whole file, where its first match is
+the one used.
+
+A source **resolves** when its file exists and, for each of `heading`
+and `phrase` it has, the heading matches and the phrase matches. A
+`heading` or `phrase` never resolves in a file that is not valid UTF-8.
+Strings compare code point by code point throughout this section, so
+matching is case-sensitive apart from the slug.
+
+A heading can be given as its text or as its slug. The slug of
+`Money is *integer* minor units` is `money-is-integer-minor-units`, so
+both `money-is-integer-minor-units` and `Money is integer minor units`
+match it. Letters and numbers of every script are kept, an upper-case
+`É` included as `é`, and `_` is kept. `Display casing` matches no
+heading: it equals no heading's text, and its slug equals no heading's
+slug. Nothing was reviewed, so every source that resolves is
+`never-reviewed`:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: money-is-integer-minor-units
+- file: docs/checkout-review.md
+  heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="names-keep-case" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: Display casing (names, addresses)
+- file: docs/checkout-review.md
+  heading: Display casing
+</source>
+Names and addresses keep the case they were entered in.
+</rule>
+
+<rule id="subtotal-before-tax" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: étape-2-sous_total-ht
+</source>
+The subtotal is shown before tax.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is *integer* minor units
+
+Amounts are integers in minor units (cents).
+
+## Display casing (names, addresses)
+
+Names keep the case they were entered in.
+
+## Étape 2: sous_total (HT)
+
+Le sous-total est hors taxes.
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "money-is-integer-minor-units", "phrase": null }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Money is integer minor units", "phrase": null }, "reason": null
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "names-keep-case", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Display casing", "phrase": null }, "reason": "heading not found: \"Display casing\""
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "names-keep-case", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Display casing (names, addresses)", "phrase": null }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "subtotal-before-tax", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "étape-2-sous_total-ht", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "source-missing": 1, "never-reviewed": 4 }, "rulesWithSource": 3, "rulesWithoutSource": 0 }
+}
+``````
+
+A heading inside a fenced code block is not a heading. The tilde fence
+opens indented by six spaces and is not closed by the shorter `~~~`, so
+`Money` and `Dates` are inside it. The line of four backticks is not a
+fence, because a backtick follows the run, so `Rounding` is a heading.
+The last fence never closes, so `Totals` is inside it:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: Money
+- file: docs/checkout-review.md
+  heading: Dates
+- file: docs/checkout-review.md
+  heading: Rounding
+- file: docs/checkout-review.md
+  heading: Totals
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+      ~~~~
+## Money
+~~~
+## Dates
+~~~~~
+
+```` md`fences`
+## Rounding
+
+```
+## Totals
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Money", "phrase": null }, "reason": "heading not found: \"Money\""
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": "heading not found: \"Dates\""
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Totals", "phrase": null }, "reason": "heading not found: \"Totals\""
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Rounding", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "source-missing": 3, "never-reviewed": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+A phrase matches across whitespace of any kind and amount. In
+`money.ts`, `function` and `fromCents(` are separated by a tab, and in
+the review `minor` and `units` by a line break and a U+00A0 NO-BREAK
+SPACE. Matching is case-sensitive, so `Integers in minor units` is not
+found:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: apps/web/src/checkout/money.ts
+  phrase: 'export function fromCents('
+- file: docs/checkout-review.md
+  phrase: integers in minor units
+- file: docs/checkout-review.md
+  phrase: Integers in minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== apps/web/src/checkout/money.ts
+export  function	fromCents(cents: number): Money {
+  return { cents };
+}
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor
+ units (cents).
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "Integers in minor units" }, "reason": "phrase not found: \"Integers in minor units\""
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "apps/web/src/checkout/money.ts", "heading": null, "phrase": "export function fromCents(" }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "integers in minor units" }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "source-missing": 1, "never-reviewed": 2 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+### Fingerprints
+
+The **fingerprint** of a source that resolves is a short hash of its
+**reviewed text**:
+
+| Source has | Reviewed text |
+|---|---|
+| `file` only | The whole file. |
+| `heading`, with or without `phrase` | That heading's section. |
+| `phrase` only, Markdown file | The section of the last heading at or above the line where the first match begins, or the whole file when no heading is. |
+| `phrase` only, other file | The whole file. |
+
+A match that begins with whitespace begins on the line that holds the
+first character of that run of whitespace, and a line break belongs to
+the line it ends.
+
+The reviewed text is normalized before it is hashed:
+
+1. It is split into lines at its line breaks.
+2. Trailing whitespace is removed from each line. A line left empty is
+   blank.
+3. Blank lines at the start, blank lines that follow another blank
+   line, and blank lines at the end are removed.
+4. The lines are joined with LF, with no LF after the last.
+
+The fingerprint is the first 12 characters of the lower-case
+hexadecimal SHA-256 digest of the normalized text, encoded as UTF-8.
+Two tools MUST compute the same fingerprint for the same reviewed text.
+For a file that is not valid UTF-8, it is the digest of the file's raw
+bytes, not normalized. This document is UTF-8 text, so the rules for
+such files have no conformance examples.
+
+For example, the `Money is integer minor units` section of the first
+example in [Auditing sources](#auditing-sources) normalizes to these
+three lines, with no line feed after the last:
+
+```
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+```
+
+and its fingerprint is `9f413384c605`.
+
+Each record here holds the fingerprint of the reviewed text the table
+gives, so nothing is reported. The first phrase sits above the first
+heading, so its reviewed text is the whole file, and the second is under
+`Money is integer minor units`, so its reviewed text is that section.
+`docs/NOTES.MD` is not Markdown, so its phrase's reviewed text is the
+whole file and not the `Rounding` section. A tool that hashed any of
+them differently would report `source-changed`:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: docs/checkout-review.md
+  heading: Dates
+- file: docs/checkout-review.md
+  phrase: Owned by the checkout team.
+- file: docs/checkout-review.md
+  phrase: integers in minor units
+- file: apps/web/src/checkout/money.ts
+  phrase: 'export function fromCents('
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="round-half-to-even" category="functional_correctness">
+<source>
+file: docs/NOTES.MD
+phrase: Round half to even.
+</source>
+Amounts are rounded half to even.
+</rule>
+=== docs/checkout-review.md
+Owned by the checkout team.
+
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== apps/web/src/checkout/money.ts
+export function fromCents(cents: number): Money {
+  return { cents };
+}
+=== docs/NOTES.MD
+# Notes
+
+## Rounding
+
+Round half to even.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"apps/web/src/checkout/money.ts","heading":null,"phrase":"export function fromCents(","reviewed":"2026-11-02","hash":"d1252d5ef378"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"9ac9b504bba3"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":"Owned by the checkout team.","reviewed":"2026-11-02","hash":"9ac9b504bba3"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":"integers in minor units","reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"round-half-to-even","file":"docs/NOTES.MD","heading":null,"phrase":"Round half to even.","reviewed":"2026-11-02","hash":"a9f76203dd8b"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+Normalization keeps a fingerprint through edits to whitespace alone.
+Both sections were reviewed as the first example in
+[Auditing sources](#auditing-sources) shows them. Since then the
+`Money is integer minor units` heading has gained three trailing
+spaces, and blank lines were added around its paragraph, which leaves
+its fingerprint as it was. The `Dates` section was reviewed when it read
+`Dates are shown in UTC.`, so its text has changed:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units   
+
+
+Amounts are integers in minor units (cents).
+
+
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"41954b11d131"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "source-changed", "level": "warn", "rule": "dates-from-locale", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "source-changed": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+### The lock file
+
+Review records are kept in **lock files**. Each Lore root (see
+[Lore root](#lore-root)) has at most one, named `lore-reviews.lock`, in
+the Lore root's directory: the governed repo's root, a directory with
+`root: true`, or the root of an external or loose folder. In the
+examples its path has the prefix its Lore root's files have, so the
+lock file of an external folder marked at `lore/shop/` is
+`external:lore/shop/lore-reviews.lock`. A lock file holds the records
+of every rule collected under its Lore root, so a rule moved between
+Lore folders under one Lore root keeps its records. It is not a Lore
+file. Only a tool that records reviews writes it; an audit only reads
+it.
+
+A lock file is UTF-8 JSON Lines. Its first line is the JSON object
+`{"lore-reviews":1}`. Each further line is one **record**, a JSON
+object with exactly these members:
+
+| Member | Value |
+|---|---|
+| `rule` | The id of the rule that was reviewed. |
+| `file` | The source's `file`, resolved as the document model holds it. |
+| `heading` | The source's `heading` as written, or null. |
+| `phrase` | The source's `phrase` as written, or null. |
+| `reviewed` | The date of the review, `YYYY-MM-DD`, a real calendar date. |
+| `hash` | The source's fingerprint when it was reviewed. |
+
+A tool that writes a lock file MUST write each line as compact JSON
+with the members in the order of the table, end each line, the last
+included, with LF, and sort the records by `rule`, then `file`, then
+`heading`, then `phrase`, null before any string, comparing code points.
+A record is one line, so two branches that review different rules merge
+without a conflict.
+
+A lock file is **malformed** when its first line is not that object,
+when it has a blank line, when a further line is not a JSON object with
+exactly the members of the table, each a string (`heading` and
+`phrase` a string or null), when a `reviewed` is not a real date or a
+`hash` is not 12 lower-case hexadecimal characters, or when two records
+have the same `rule`, `file`, `heading` and `phrase`. A tool MUST NOT repair a malformed lock file
+silently. How it reports one is tool behavior, and no example holds one.
+
+A record **belongs** to a source when its `rule` is the rule's id, its
+`file` is the source's resolved `file`, and its `heading` and `phrase`
+equal the source's as written, null when absent. A rule's records are
+looked up only in the lock file of the rule's Lore root. Changing a
+source's `file`, `heading` or `phrase` makes it a different source,
+which has no record until it is reviewed again.
+
+Moving a rule between Lore folders under one Lore root keeps its
+record. `money-in-minor-units` moved from `.lore/` to `apps/web/.lore/`
+and names its file from the repository root, so its source is unchanged.
+The external folder keeps its records in its own Lore root's lock file:
+
+``````example audit
+=== apps/web/.lore/money.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: /docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/handbook.md
+# Review handbook
+
+## Prices
+
+A displayed price comes from the quote that produced it.
+=== external:lore/shop/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: ../../../handbook.md
+heading: Prices
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== external:lore/shop/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"web-prices-from-quote","file":"external:lore/shop/handbook.md","heading":"Prices","phrase":null,"reviewed":"2026-11-02","hash":"ff3bab3472a6"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+A record belongs to a source by its `heading` as written, not by the
+heading it matches. Rewriting the pointer as the heading's slug makes
+it a new source, never reviewed, and leaves the old record behind:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: docs/checkout-review.md
+heading: money-is-integer-minor-units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "money-is-integer-minor-units", "phrase": null }, "reason": null
+    },
+    {
+      "name": "orphan-review", "level": "warn", "rule": "money-in-minor-units", "file": "lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": "Money is integer minor units", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "never-reviewed": 1, "orphan-review": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+### Findings
+
+An audit reports these findings:
+
+| Finding | Meaning | Default level |
+|---|---|---|
+| `source-missing` | The file is not a tracked file, or the heading or phrase is not found. | `error` |
+| `source-unchecked` | The files this source needs were not available to look at. | `error` |
+| `ambiguous-heading` | More than one heading matched. | `warn` |
+| `source-changed` | The fingerprint differs from the record. | `warn` |
+| `never-reviewed` | A source has no record. | `warn` |
+| `review-overdue` | The record is older than the age limit. Not reported when no limit is set. | `warn` |
+| `orphan-review` | The lock file has a record for a rule or source that no longer exists. | `warn` |
+| `meta-source` | A rule has a `source` key in `<meta>` and no `<source>` block. | `off` |
+
+For each source of each audited rule, in the order written:
+
+1. When the tool could not look at the files the source needs, it
+   reports `source-unchecked`, and nothing else for that source.
+2. Otherwise, when the source does not resolve, it reports
+   `source-missing`, and nothing else for that source.
+3. Otherwise it reports `ambiguous-heading` when more than one heading
+   matched. Then, when no record belongs to the source, it reports
+   `never-reviewed`. When one does, it reports `source-changed` when the
+   record's `hash` is not the source's fingerprint, and
+   `review-overdue` when an age limit is set and the number of days
+   from the record's `reviewed` date to the date of the audit is greater
+   than the limit.
+
+A rule with no `<source>` whose `<meta>` has a member named `source`
+gets `meta-source`. The member's value does not matter, and no tool
+gives it a meaning (see [Children](#children)).
+
+The records of a lock file are audited when its Lore root holds a
+collected Lore file. A record that belongs to no source of a rule under
+that Lore root gets `orphan-review`, with the lock file as its file,
+unless the rule it names may only be excluded: a record is not reported
+when an error excludes an entry with its `rule` as id under that Lore
+root, and no record of the lock file is reported when an error excludes
+a Lore file under that Lore root, or an entry with no readable id.
+
+A finding about a rule takes its level from the audit settings of the
+directory that holds the rule's Lore file, and `orphan-review` from
+those of the Lore root's directory (see
+[Audit settings](#audit-settings)). A finding whose level is `off` is
+not reported.
+
+An **audit result** is an object with two members, `findings` and
+`summary`, valid against
+[`audit.schema.json`](schemas/audit.schema.json). Each finding is an
+object with these members:
+
+| Member | Value |
+|---|---|
+| `name` | The finding's name, from the table above. |
+| `level` | `"error"` or `"warn"`. |
+| `rule` | The rule's id. For `orphan-review`, the record's `rule`. |
+| `file` | The rule's Lore file. For `orphan-review`, the lock file. |
+| `source` | The source as the document model holds it. For `orphan-review`, the record's `file`, `heading` and `phrase`. Null for `meta-source`. |
+| `reason` | For `source-missing`, which part was not found: `file not found: <file>`, `heading not found: "<heading>"` or `phrase not found: "<phrase>"`, with the value as written. A heading is looked for before its phrase. Null for every other finding. |
+
+Findings are ordered by `file`, then `rule`, then the order of the
+findings table above, comparing code points. Findings that tie keep
+the order of the rule's sources as written, or of the records in the
+lock file. `summary` holds `counts`, the number of findings reported of
+each name, leaving out the names with none; `rulesWithSource`, the
+number of audited rules with a `<source>`; and `rulesWithoutSource`,
+the number without one. Contexts are not counted.
+
+`source-unchecked` depends on which files a tool could look at, which
+an example cannot express: every file an example does not hold is
+absent. It has no conformance example.
+
+A source is `source-missing` when its file is absent, its heading is
+not found, or its phrase is not found, in its heading's section when it
+has one. A missing source gets no other finding, so these have none
+although nothing was reviewed. The rule is disabled and still audited:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" disabled>
+<source>
+- file: docs/money-review.md
+- file: docs/checkout-review.md
+  heading: Money
+- file: docs/checkout-review.md
+  phrase: 'fromCents('
+- file: docs/checkout-review.md
+  heading: Dates
+  phrase: integers in minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/money-review.md", "heading": null, "phrase": null }, "reason": "file not found: docs/money-review.md"
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Money", "phrase": null }, "reason": "heading not found: \"Money\""
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "fromCents(" }, "reason": "phrase not found: \"fromCents(\""
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": "integers in minor units" }, "reason": "phrase not found: \"integers in minor units\""
+    }
+  ],
+  "summary": { "counts": { "source-missing": 4 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+Two headings match `Refunds`. The first is used, and the record holds
+its section's fingerprint, so `ambiguous-heading` is the only finding:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="refunds-to-original-method" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Refunds
+</source>
+A refund goes back to the payment method that paid.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Cards
+
+### Refunds
+
+A card refund goes back to the card.
+
+## Vouchers
+
+### Refunds
+
+A voucher refund becomes store credit.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"refunds-to-original-method","file":"docs/checkout-review.md","heading":"Refunds","phrase":null,"reviewed":"2026-11-02","hash":"0c8764b902fc"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "ambiguous-heading", "level": "warn", "rule": "refunds-to-original-method", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Refunds", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "ambiguous-heading": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+The root sets an age limit of 30 days, and `apps/web/` sets 400. On
+2026-11-12 a review from 2026-10-13 is 30 days old, which is not older
+than the limit, and one from 2026-10-12 is overdue. The rule under
+`apps/web/` takes the nearer limit:
+
+``````example audit
+=== .loreconfig
+audit:
+  maxAgeDays: 30
+=== apps/web/.loreconfig
+audit:
+  maxAgeDays: 400
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-10-12","hash":"d7fc8675e774"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-10-13","hash":"9f413384c605"}
+{"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-01-01","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "review-overdue", "level": "warn", "rule": "dates-from-locale", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "review-overdue": 1 }, "rulesWithSource": 3, "rulesWithoutSource": 0 }
+}
+``````
+
+The root lock file holds records for a source `money-in-minor-units`
+no longer has, for a rule that no longer exists, and for
+`totals-from-quote`, whose Lore root is `apps/api/` and whose records
+are in that root's lock file. Each is `orphan-review` at the level the
+root's directory sets, though `apps/web/` turns it off. The record of
+`dates-from-locale` is kept, because an error excludes that rule:
+
+``````example audit
+=== .loreconfig
+audit:
+  levels:
+    orphan-review: error
+=== apps/web/.loreconfig
+audit:
+  levels:
+    orphan-review: off
+=== apps/web/.lore/web.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== .lore/checkout.lore
+<rule id="dates-from-locale" category="functional_correctness" severity="fatal">
+<source>
+file: docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== apps/api/.loreconfig
+root: true
+=== apps/api/.lore/api.lore
+<rule id="totals-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+Order totals come from the quote.
+</rule>
+=== apps/api/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"totals-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":"integers in minor units","reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"totals-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "orphan-review", "level": "error", "rule": "money-in-minor-units", "file": "lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": null
+    },
+    {
+      "name": "orphan-review", "level": "error", "rule": "price-from-quote", "file": "lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "integers in minor units" }, "reason": null
+    },
+    {
+      "name": "orphan-review", "level": "error", "rule": "totals-from-quote", "file": "lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "orphan-review": 3 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+`meta-source` is off unless a `.loreconfig` turns it on. Here the root
+turns it on and turns `never-reviewed` off. `price-from-quote` has a
+`<source>`, so its `source` key in `<meta>` is not reported:
+
+``````example audit
+=== .loreconfig
+audit:
+  levels:
+    meta-source: warn
+    never-reviewed: off
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<meta>
+source: https://wiki.example.com/checkout/money
+</meta>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="price-from-quote" category="functional_correctness">
+<meta>
+source: docs/decisions/0042-quote-prices.md
+</meta>
+<source>
+file: docs/decisions/0042-quote-prices.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+=== docs/decisions/0042-quote-prices.md
+# 42. Prices come from quotes
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "meta-source", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": null, "reason": null
+    }
+  ],
+  "summary": { "counts": { "meta-source": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 1 }
 }
 ``````
 

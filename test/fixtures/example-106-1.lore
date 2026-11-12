@@ -1,11 +1,27 @@
-<scope>
-files: ["**/*.{ts,tsx"]
-</scope>
-
-<rule id="currency-from-settings" category="functional_correctness">
-Display text never hard-codes a currency code.
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: money-is-integer-minor-units
+- file: docs/checkout-review.md
+  heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
 </rule>
 
-<rule id="dates-from-locale">
-Displayed dates are formatted with the shop's locale.
+<rule id="names-keep-case" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: Display casing (names, addresses)
+- file: docs/checkout-review.md
+  heading: Display casing
+</source>
+Names and addresses keep the case they were entered in.
+</rule>
+
+<rule id="subtotal-before-tax" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: étape-2-sous_total-ht
+</source>
+The subtotal is shown before tax.
 </rule>

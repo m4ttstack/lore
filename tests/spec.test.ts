@@ -22,3 +22,14 @@ test("the regex dialect example still holds a no-break space in its added line",
   const diffs = extractExamples(markdown).map((e) => e.diff ?? "");
   expect(diffs.filter((d) => d.includes("Total" + NBSP + "USD"))).toHaveLength(1);
 });
+
+test("the phrase whitespace example still holds a tab and a no-break space", () => {
+  const inputs = extractExamples(markdown).filter((e) => e.kind === "audit").flatMap((e) => e.files.map((f) => f.content));
+  expect(inputs.filter((c) => c.includes("export  function\tfromCents("))).toHaveLength(1);
+  expect(inputs.filter((c) => c.includes("minor\n" + NBSP + "units"))).toHaveLength(1);
+});
+
+test("the fingerprint normalization example keeps its trailing spaces", () => {
+  const inputs = extractExamples(markdown).filter((e) => e.kind === "audit").flatMap((e) => e.files.map((f) => f.content));
+  expect(inputs.filter((c) => c.includes("## Money is integer minor units   \n"))).toHaveLength(1);
+});

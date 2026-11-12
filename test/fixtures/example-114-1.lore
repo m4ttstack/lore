@@ -1,11 +1,7 @@
-<scope>
-files: ["apps/web/src/checkout/**"]
-</scope>
-
-<rule id="price-source-recorded" category="data_provenance">
-Every price the checkout stores records the quote it came from.
+<rule id="refunds-to-original-method" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Refunds
+</source>
+A refund goes back to the payment method that paid.
 </rule>
-
-<context id="review-handbook" src="./../../handbook.md">
-Read for the organization's review conventions.
-</context>

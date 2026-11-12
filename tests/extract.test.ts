@@ -173,3 +173,14 @@ test("returns diff and expect as null when absent", () => {
   expect(ex.diff).toBeNull();
   expect(ex.expect).toBeNull();
 });
+
+test("reads an audit example's today section", () => {
+  const ex = extractExamples(doc(F + "example audit", "=== a.lore", "x", "=== today", "2026-11-12", "=== expect", "{}", F))[0]!;
+  expect(ex.kind).toBe("audit");
+  expect(ex.today).toBe("2026-11-12");
+  expect(ex.files.map((f) => f.path)).toEqual(["a.lore"]);
+});
+
+test("throws on a second today section", () => {
+  expect(() => extractExamples(doc(F + "example audit", "=== today", "2026-11-12", "=== today", "2026-11-13", F))).toThrow('duplicate "today" section');
+});

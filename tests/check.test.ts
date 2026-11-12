@@ -4,7 +4,7 @@ import { extractExamples } from "../tools/check/extract";
 import { checkSpec, specSections, type RegistryEntry, type SchemaName, type SchemaSet } from "../tools/check/check";
 
 const F = "``````";
-const names: SchemaName[] = ["defaults", "scope", "when", "meta", "loreconfig", "document-model", "eligibility"];
+const names: SchemaName[] = ["defaults", "scope", "when", "meta", "loreconfig", "document-model", "eligibility", "audit"];
 const schemas = Object.fromEntries(
   names.map((n) => [n, JSON.parse(readFileSync(new URL(`../spec/schemas/${n}.schema.json`, import.meta.url), "utf8"))]),
 ) as SchemaSet;
@@ -345,4 +345,60 @@ test("a repeated eligible id fails the eligibility schema", () => {
 
 test("registry-table: descriptions must match the registry", () => {
   expect(rules(swap("| `bad-thing` | error | A bad thing. |", "| `bad-thing` | error | Reworded. |"))).toEqual(["registry-table"]);
+});
+
+const missing = (rule: string, file = "lore/c.lore") => ({
+  name: "source-missing", level: "error", rule, file,
+  source: { file: "docs/review.md", heading: null, phrase: null }, reason: "file not found: docs/review.md",
+});
+const auditExpect = (findings: object[], counts: object = { "source-missing": findings.length }) =>
+  JSON.stringify({ findings, summary: { counts, rulesWithSource: 1, rulesWithoutSource: 0 } });
+const auditExample = (expect: string, sections = "=== today\n2026-11-12\n") =>
+  ["## Auditing", "An audit MUST look.", F + "example audit", "=== lore/c.lore", '<rule id="c-rule">', '<rule id="d-rule">', sections + "=== expect", expect, F].join("\n");
+const withAudit = (expect: string, sections?: string) => swap("## Errors and warnings", auditExample(expect, sections) + "\n## Errors and warnings");
+
+test("audit: a well-formed audit example passes", () => {
+  expect(check(withAudit(auditExpect([missing("c-rule"), missing("d-rule")])))).toEqual([]);
+});
+
+test("today: an audit example needs one date, and other kinds take none", () => {
+  const ok = auditExpect([missing("c-rule")]);
+  expect(rules(withAudit(ok, ""))).toEqual(["today"]);
+  expect(rules(withAudit(ok, "=== today\n12 November 2026\n"))).toEqual(["today"]);
+  expect(rules(swap("=== expect\n" + parseExpect, "=== today\n2026-11-12\n=== expect\n" + parseExpect))).toEqual(["today"]);
+});
+
+test("diff and sections: an audit example takes no diff, remote or rules: section", () => {
+  const ok = auditExpect([missing("c-rule")]);
+  expect(rules(withAudit(ok, "=== today\n2026-11-12\n=== diff\nA lore/c.lore\n"))).toEqual(["diff"]);
+  expect(rules(withAudit(ok, "=== today\n2026-11-12\n=== rules:lore/c.lore\nx\n"))).toEqual(["sections"]);
+});
+
+test("expect: an audit expect must pass the audit schema", () => {
+  expect(rules(withAudit(JSON.stringify({ findings: [] })))).toEqual(["expect"]);
+  expect(rules(withAudit(auditExpect([{ ...missing("c-rule"), name: "source-gone" }])))).toEqual(["expect"]);
+});
+
+test("order and counts: findings sort by file, rule, then finding, and counts tally them", () => {
+  expect(rules(withAudit(auditExpect([missing("d-rule"), missing("c-rule")])))).toEqual(["order"]);
+  const both = [{ ...missing("c-rule"), name: "never-reviewed", level: "warn", reason: null }, missing("c-rule")];
+  expect(rules(withAudit(auditExpect(both, { "source-missing": 1, "never-reviewed": 1 })))).toEqual(["order"]);
+  expect(rules(withAudit(auditExpect([missing("c-rule")], { "source-missing": 2 })))).toEqual(["counts"]);
+  expect(rules(withAudit(auditExpect([missing("c-rule")], { "source-missing": 1, "never-reviewed": 1 })))).toEqual(["counts"]);
+});
+
+test("unknown-file and unknown-entry: a finding names an input and an id in it", () => {
+  expect(rules(withAudit(auditExpect([missing("c-rule", "lore/z.lore")])))).toEqual(["unknown-file"]);
+  expect(rules(withAudit(auditExpect([missing("e-rule")])))).toEqual(["unknown-entry"]);
+  const lock = '=== today\n2026-11-12\n=== lore-reviews.lock\n{"lore-reviews":1}\n{"rule":"gone-rule"}\n';
+  const orphan = (rule: string) => ({ ...missing(rule, "lore-reviews.lock"), name: "orphan-review", level: "warn", reason: null });
+  expect(rules(withAudit(auditExpect([orphan("gone-rule")], { "orphan-review": 1 }), lock))).toEqual([]);
+  expect(rules(withAudit(auditExpect([orphan("c-rule")], { "orphan-review": 1 }), lock))).toEqual(["unknown-entry"]);
+});
+
+test("untested-finding: every finding but source-unchecked needs an audit example once the audit heading exists", () => {
+  const audited = withAudit(auditExpect([missing("c-rule")]));
+  expect(rules(audited)).toEqual([]);
+  const untested = rules(swap("## Auditing", "## Auditing sources", audited));
+  expect(untested.filter((r) => r === "untested-finding")).toHaveLength(6);
 });

@@ -1,3 +1,6 @@
-<rule id="stale-copy" category="documentation">
-A copy a tool left behind.
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+A price the web app displays comes from the quote that produced it.
 </rule>

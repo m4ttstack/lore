@@ -1,3 +1,7 @@
-<rule id="refunds-logged" category="observability">
-Every refund is logged with the order it refunds.
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
 </rule>

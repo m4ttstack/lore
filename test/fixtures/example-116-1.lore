@@ -1,3 +1,7 @@
-<rule id="price-from-quote" category="functional_correctness">
-A displayed price must come from the quote that produced it.
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
 </rule>

@@ -1,16 +1,11 @@
 <scope>
-files: ["src/**/*.tsx"]
+files: ["**/*.{ts,tsx"]
 </scope>
 
-<rule id="checkout-prices-from-quote" category="functional_correctness">
-<scope>
-files: ["src/checkout/**"]
-</scope>
-A price the checkout displays comes from the quote that produced it.
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
 </rule>
 
-<context id="web-architecture" src="docs/architecture.md">
-</context>
-
-<context id="review-handbook" src="../../../../handbook.md">
-</context>
+<rule id="dates-from-locale">
+Displayed dates are formatted with the shop's locale.
+</rule>

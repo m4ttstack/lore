@@ -117,3 +117,20 @@ test("eligibility hit takes side new or old", () => {
   expect(hit({ side: "new" })).toBe(true);
   expect(hit({ side: "removed" })).toBe(false);
 });
+
+const finding = {
+  name: "source-missing", level: "error", rule: "money-in-minor-units", file: ".lore/checkout.lore",
+  source: { file: "docs/review.md", heading: null, phrase: null }, reason: "file not found: docs/review.md",
+};
+const auditResult = (findings: object[], counts: object = {}) => ({ findings, summary: { counts, rulesWithSource: 1, rulesWithoutSource: 0 } });
+test("audit accepts findings and a summary", () =>
+  expect(checkJson("audit", auditResult([finding], { "source-missing": 1 }))).toBe(true));
+test("audit accepts a finding with no source", () =>
+  expect(checkJson("audit", auditResult([{ ...finding, name: "meta-source", level: "warn", source: null, reason: null }]))).toBe(true));
+test("audit rejects the off level, an unknown finding and a zero count", () => {
+  expect(checkJson("audit", auditResult([{ ...finding, level: "off" }]))).toBe(false);
+  expect(checkJson("audit", auditResult([{ ...finding, name: "source-gone" }]))).toBe(false);
+  expect(checkJson("audit", auditResult([], { "source-missing": 0 }))).toBe(false);
+});
+test("audit rejects members a tool adds to its own output", () =>
+  expect(checkJson("audit", { ...auditResult([]), excluded: [] })).toBe(false));
