@@ -1,5 +1,5 @@
 import { checkDefaults, checkScope } from "./blocks";
-import { collect, type Collected, type Tree } from "./collect";
+import { collect, LOOSE, type Collected, type Tree } from "./collect";
 import { DEFAULT_FILES, lineDiagnostic, readEntry, resolveScope, type EntryResult, type FileContext } from "./entries";
 import { disjoint } from "./glob";
 import { dedent } from "./indent";
@@ -50,7 +50,8 @@ export function parseWithContext(input: LoreInput): ParsedInput {
       continue;
     }
     const context: FileContext = {
-      base: file.base, filePrefix: file.prefix, prefix: file.tree === "repo" ? "" : file.prefix, loreRoot: file.loreRoot, categories,
+      base: file.base, filePrefix: file.prefix, prefix: file.tree === "repo" ? "" : file.prefix,
+      repoPrefix: file.prefix === LOOSE ? LOOSE : "", loreRoot: file.loreRoot, categories,
       defaults: blocks.defaults, scope: resolveScope(file.base, blocks.scope),
     };
     const fileFiles = blocks.scope.files ?? DEFAULT_FILES;

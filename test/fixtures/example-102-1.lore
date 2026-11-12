@@ -1,16 +1,6 @@
+<rule id="lore-rules-owned" category="documentation">
 <scope>
-files: ["src/**/*.tsx"]
+files: ["**/.lore/**/*.lore"]
 </scope>
-
-<rule id="checkout-prices-from-quote" category="functional_correctness">
-<scope>
-files: ["src/checkout/**"]
-</scope>
-A price the checkout displays comes from the quote that produced it.
+Every new rule records its owner in its `<meta>`.
 </rule>
-
-<context id="web-architecture" src="docs/architecture.md">
-</context>
-
-<context id="review-handbook" src="../../../../handbook.md">
-</context>

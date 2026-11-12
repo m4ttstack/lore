@@ -69,6 +69,19 @@ export function checkMeta(value: unknown, line: number): BlockProblem | null {
   return isMapping(value) ? null : { name: "invalid-meta", line };
 }
 
+const SOURCE_KEYS = ["file", "heading", "phrase"];
+const MARKDOWN = /\.(md|mdx|markdown)$/;
+
+export function checkSource(value: unknown, line: number): BlockProblem | null {
+  const items = Array.isArray(value) ? value : [value];
+  const valid = items.length > 0 && items.every((item) =>
+    isMapping(item)
+    && Object.entries(item).every(([key, field]) => SOURCE_KEYS.includes(key) && typeof field === "string" && field !== "")
+    && typeof item.file === "string"
+    && (item.heading === undefined || MARKDOWN.test(item.file)));
+  return valid ? null : { name: "invalid-source", line };
+}
+
 function isMapping(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -1,10 +1,10 @@
-import { CATEGORY, ID, SEVERITIES, checkMeta, checkScope, checkWhen } from "./blocks";
+import { CATEGORY, ID, SEVERITIES, checkMeta, checkScope, checkSource, checkWhen } from "./blocks";
 import { resolveGlob } from "./glob";
 import { dedentEntry } from "./indent";
 import { validateDialect } from "./regex";
 import { readAttributes, type AttributeList, type ChildNode, type EntryNode, type LoreFile } from "./scan";
 import { lineRange } from "./text";
-import type { Check, Diagnostic, Entry, Scope } from "./types";
+import type { Check, Diagnostic, Entry, Scope, Source } from "./types";
 import { readBlock, type BlockProblem } from "./yaml";
 
 export type Severity = "blocking" | "advisory";
@@ -15,6 +15,8 @@ export interface FileContext {
   filePrefix: string;
   // Put in front of a resolved src: only an external tree has one.
   prefix: string;
+  // Put in front of a source file named from the root by a leading /: only a loose folder has one.
+  repoPrefix: string;
   loreRoot: string;
   categories: ReadonlySet<string>;
   defaults: { category?: string; severity?: Severity };
@@ -33,7 +35,7 @@ export interface WrittenScope { files: readonly string[]; line: number }
 type ValueRule = (value: string | null) => string | null;
 
 const SINGLE_CHILDREN = new Set(["meta", "scope", "when"]);
-const RULE_CHILDREN = new Set([...SINGLE_CHILDREN, "check"]);
+const RULE_CHILDREN = new Set([...SINGLE_CHILDREN, "source", "check"]);
 const DEFAULT_LANG = "regex";
 export const DEFAULT_FILES: readonly string[] = ["**"];
 
@@ -57,9 +59,15 @@ export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): E
   const values = new Map<string, unknown>();
   const checks: Check[] = [];
   const checkLines: number[] = [];
+  let sources: Source[] = [];
   for (const [n, child] of node.children.entries()) {
     const read = readChild(child, contents.children[n]!, isRule ? RULE_CHILDREN : SINGLE_CHILDREN, values);
     if ("problem" in read) return fail(read.problem.name, read.problem.line);
+    if (child.name === "source") {
+      const resolved = resolveSources(values.get("source"), lore.path, file);
+      if (resolved === null) return fail("invalid-source", child.openLine);
+      sources = resolved;
+    }
     if (read.check !== null) {
       checks.push(read.check);
       checkLines.push(child.openLine);
@@ -80,7 +88,7 @@ export function readEntry(lore: LoreFile, node: EntryNode, file: FileContext): E
     meta: (values.get("meta") as Entry["meta"] | undefined) ?? null,
     summary: summaryOf(prose), prose: prose.join("\n"),
     src: resolved.src,
-    sources: [],
+    sources,
   };
   const scopeLine = node.children.find((child) => child.name === "scope")?.openLine;
   return {
@@ -184,7 +192,7 @@ function readChild(
 
   const read = readBlock(contents.lines, child.openLine + 1, child.closeLine);
   if (read.diagnostic !== null) return { problem: read.diagnostic };
-  const check = child.name === "meta" ? checkMeta : child.name === "scope" ? checkScope : checkWhen;
+  const check = child.name === "meta" ? checkMeta : child.name === "scope" ? checkScope : child.name === "source" ? checkSource : checkWhen;
   const problem = check(read.value, child.openLine);
   if (problem !== null) return { problem };
   values.set(child.name, read.value);
@@ -209,6 +217,33 @@ function resolveSrc(value: string | null, lorePath: string, file: FileContext): 
     directory.pop();
   }
   return { path: file.prefix + [...directory, ...named].join("/") };
+}
+
+// The value already passed checkSource.
+function resolveSources(value: unknown, lorePath: string, file: FileContext): Source[] | null {
+  const items = (Array.isArray(value) ? value : [value]) as { file: string; heading?: string; phrase?: string }[];
+  const sources: Source[] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const resolved = resolveSourceFile(item.file, lorePath, file);
+    if ("problem" in resolved) return null;
+    const source = { file: resolved.path, heading: item.heading ?? null, phrase: item.phrase ?? null };
+    const key = JSON.stringify([source.file, source.heading, source.phrase]);
+    if (seen.has(key)) return null;
+    seen.add(key);
+    sources.push(source);
+  }
+  return sources;
+}
+
+export function resolveSourceFile(value: string, lorePath: string, file: FileContext): { path: string } | { problem: "invalid-source" } {
+  const invalid = { problem: "invalid-source" } as const;
+  if (value.startsWith("/")) {
+    const fromRoot = value.slice(1);
+    return fromRoot.split("/").some((segment) => segment === "" || segment === "." || segment === "..") ? invalid : { path: file.repoPrefix + fromRoot };
+  }
+  const src = resolveSrc(value, lorePath, file);
+  return "problem" in src ? invalid : src;
 }
 
 function dropTrailingBlank(lines: string[]): string[] {

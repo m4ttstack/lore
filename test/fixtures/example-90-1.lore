@@ -1,14 +1,22 @@
 <rule id="price-from-quote" category="functional_correctness">
+<source>
+file: docs/pricing-review.md
+phrase: 42
+</source>
 A displayed price must come from the quote that produced it.
 </rule>
 
 <rule id="currency-from-settings" category="functional_correctness">
-<when>
-addedContain: ["'USD'"]
-</when>
+<source>
+file: docs/currency-review.md
+heading:
+</source>
 Display text never hard-codes a currency code.
 </rule>
 
-<rule id="quote-expiry-shown" category="functional_correctness">
-A checkout page that shows a quoted price also shows when the quote expires.
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: [docs/locale-review.md, docs/dates.md]
+</source>
+Displayed dates are formatted with the shop's locale.
 </rule>

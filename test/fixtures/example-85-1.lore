@@ -1,6 +1,10 @@
-<rule id="checkout-currency-from-settings" category="functional_correctness">
-<when>
-addedContains: ["'USD'"]
-</when>
-Checkout display text never hard-codes a currency code.
+<rule id="totals-in-minor-units" category="functional_correctness">
+<source>
+- file: src/checkout/money.ts
+  phrase: 'export function fromCents('
+- file: docs/checkout-review.md
+  heading: money-is-integer-minor-units
+  phrase: never a float
+</source>
+Cart totals are integers in minor units (cents).
 </rule>

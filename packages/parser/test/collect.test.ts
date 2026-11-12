@@ -114,7 +114,7 @@ describe("collect", () => {
   });
 
   test("an external file's base is the directory it stands for, its Lore root is in its own repository", () => {
-    const collected = collect(toInput(example(102)));
+    const collected = collect(toInput(example(117)));
     expect(collected.files).toEqual([
       expect.objectContaining({
         file: "external:lore/shop/apps/web/.lore/web.lore", base: "apps/web", loreRoot: "lore", tree: 0,
@@ -124,7 +124,7 @@ describe("collect", () => {
   });
 
   test("categories add down the tree and never come from beside or below", () => {
-    const collected = collect(toInput(example(94)));
+    const collected = collect(toInput(example(109)));
     const categories = Object.fromEntries(collected.files.map((f) => [f.file, f.categories.filter((c) => !FIXED_CATEGORIES.has(c))]));
     expect(categories).toEqual({
       ".lore/shop.lore": ["data_provenance"],
@@ -134,7 +134,7 @@ describe("collect", () => {
   });
 
   test("a root: true stops the lookup", () => {
-    const collected = collect(toInput(example(93)));
+    const collected = collect(toInput(example(108)));
     expect(collected.files.map((f) => [f.file, f.loreRoot])).toEqual([
       [".lore/shop.lore", ""],
       ["apps/web/.lore/web.lore", "apps/web"],
@@ -266,13 +266,13 @@ describe("the document model of every eligibility example", () => {
 
 describe("disabledFor", () => {
   test("a governed disable list switches an entry off below its directory only", () => {
-    const collected = collect(toInput(example(95)));
+    const collected = collect(toInput(example(110)));
     expect(disabledFor(collected, "currency-from-settings", "apps/web/src/legacy/Price.tsx", "repo")).toBe(true);
     expect(disabledFor(collected, "currency-from-settings", "apps/web/src/checkout/Total.tsx", "repo")).toBe(false);
   });
 
   test("a governed list switches off an external entry, an external list never a governed one", () => {
-    const collected = collect(toInput(example(106)));
+    const collected = collect(toInput(example(121)));
     expect(disabledFor(collected, "shared-currency-from-settings", "apps/web/src/checkout/Price.tsx", 0)).toBe(true);
     expect(disabledFor(collected, "shared-currency-from-settings", "apps/api/orders.ts", 0)).toBe(false);
     expect(disabledFor(collected, "currency-from-settings", "apps/web/src/checkout/Price.tsx", "repo")).toBe(false);
@@ -298,7 +298,7 @@ describe("disabledFor", () => {
 
 describe("parseWithContext", () => {
   test("keeps each entry's base, external ones included", () => {
-    const { model, placeOf } = parseWithContext(toInput(example(102)));
+    const { model, placeOf } = parseWithContext(toInput(example(117)));
     expect(model.entries.map((e) => ({ base: placeOf.get(e)!.base, tree: placeOf.get(e)!.tree }))).toEqual([
       { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 },
     ]);

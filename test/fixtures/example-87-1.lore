@@ -1,6 +1,7 @@
-<rule id="lore-rules-owned" category="documentation">
-<scope>
-files: ["**/.lore/**/*.lore"]
-</scope>
-Every new rule records its owner in its `<meta>`.
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: docs/pricing-review.md
+section: Prices
+</source>
+A displayed price must come from the quote that produced it.
 </rule>

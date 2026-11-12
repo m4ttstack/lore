@@ -1,11 +1,9 @@
-<scope>
-files: ["apps/web/src/checkout/**"]
-</scope>
-
-<rule id="price-source-recorded" category="data_provenance">
-Every price the checkout stores records the quote it came from.
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: /docs/decisions/0042-quote-prices.md
+- file: ../../../handbook.md
+  heading: Prices
+</source>
+A price the web app displays comes from the quote that produced it.
 </rule>
-
-<context id="review-handbook" src="./../../handbook.md">
-Read for the organization's review conventions.
-</context>

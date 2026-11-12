@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lore.dev/schemas/v1/source.schema.json",
+  "title": "Lore source block",
+  "oneOf": [
+    { "$ref": "#/$defs/source" },
+    { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/source" } }
+  ],
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file"],
+      "properties": {
+        "file": { "type": "string", "minLength": 1 },
+        "heading": { "type": "string", "minLength": 1 },
+        "phrase": { "type": "string", "minLength": 1 }
+      },
+      "if": { "properties": { "heading": true }, "required": ["heading"] },
+      "then": { "properties": { "file": { "type": "string", "pattern": "\\.(md|mdx|markdown)$" } } }
+    }
+  }
+}

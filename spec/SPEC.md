@@ -1347,7 +1347,7 @@ A displayed price must come from the quote that produced it.
 
 ### Structured blocks
 
-`<defaults>`, `<scope>`, `<when>` and `<meta>` are **structured
+`<defaults>`, `<scope>`, `<when>`, `<meta>` and `<source>` are **structured
 blocks**, and so is a `.loreconfig` file. Their contents are YAML 1.2
 read with the core schema: for a block in a Lore file, after
 [Indentation](#indentation); for a `.loreconfig`, as written.
@@ -2284,15 +2284,16 @@ A rule's children come before its prose, in any order:
 | `<meta>` | 0 or 1 | A free-form YAML mapping, described below. |
 | `<scope>` | 0 or 1 | The rule's own scope, which narrows the file's (see [Scope and globs](#scope-and-globs)). |
 | `<when>` | 0 or 1 | Conditions on the change (see [Conditions](#conditions)). |
+| `<source>` | 0 or 1 | The files the rule was written from (see [Sources](#sources)). |
 | `<check>` | any number | A search whose hits go to the reviewer (see [Checks](#checks)). |
 
 - The order of the children carries no meaning, except among `<check>`
   elements: the document model keeps checks in the order they appear.
 - A child whose name its entry does not allow is `unknown-child`.
-- A second `<meta>`, `<scope>` or `<when>` in one entry is
+- A second `<meta>`, `<scope>`, `<when>` or `<source>` in one entry is
   `duplicate-child`.
-- `<meta>`, `<scope>` and `<when>` take no attributes: an attribute on
-  one is `unknown-attribute`. `<check>` takes the attributes
+- `<meta>`, `<scope>`, `<when>` and `<source>` take no attributes: an
+  attribute on one is `unknown-attribute`. `<check>` takes the attributes
   [Checks](#checks) defines. A child's attributes are read from left to
   right, as an entry's are.
 - A tool reads each child in this order, and reports the first problem it
@@ -2600,7 +2601,7 @@ them.
   as [Attributes](#attributes) describes for a rule. Any other attribute,
   `category` and `severity` included, is `unknown-attribute`.
 - Its children are `<meta>`, `<scope>` and `<when>`, as for a rule (see
-  [Children](#children)). `<check>`, or any other child, is
+  [Children](#children)). `<check>`, `<source>`, or any other child, is
   `unknown-child`.
 - Its prose is its **body**, found as [Entries](#entries) defines. With
   `src`, the body is an optional note on when or why to read the
@@ -4684,6 +4685,634 @@ M apps/web/src/checkout/quote.graphql
 }
 ``````
 
+## Sources
+
+A rule's `<source>` names the files the rule was written from, such as
+a review guide, a decision record or the code that sets a convention.
+It is a structured block (see [Structured blocks](#structured-blocks))
+whose value is a mapping, or a list of one or more mappings. Each
+mapping names one source:
+
+| Key | Required | Value |
+|---|---|---|
+| `file` | yes | One file, as a non-empty string (see [File paths](#file-paths)). |
+| `heading` | no | A non-empty string: a heading in the file, given as its text or its slug. Only when `file` ends in `.md`, `.mdx` or `.markdown`. |
+| `phrase` | no | A non-empty string that appears in the file. With `heading`, it appears inside that heading's section. |
+
+- `<source>` takes no attributes (`unknown-attribute`) and may appear
+  once in a rule (`duplicate-child`), as `<scope>` and `<when>` do (see
+  [Children](#children)). On a context it is `unknown-child`.
+- A tool checks a `<source>` for the problems of
+  [Structured blocks](#structured-blocks) first. Any other problem is
+  `invalid-source`: a value that is not a mapping or a non-empty list of
+  mappings, a key the table above does not name, a missing or empty
+  `file`, a value that is not a string, an empty `heading` or `phrase`,
+  a `heading` on a file that is not Markdown, a `file` that breaks the
+  rules of [File paths](#file-paths), and two items that resolve to the
+  same file with the same `heading` and `phrase`.
+- `invalid-source` is entry-level. Its line is the `<source>` opening
+  tag line.
+- The shape is also given as
+  [`source.schema.json`](schemas/source.schema.json). The path rules and
+  the rule against repeated items are not in the schema, and still give
+  `invalid-source`.
+- Parsing MUST NOT read a cited file. A `<source>` whose file does not
+  exist, or does not hold its `heading` or `phrase`, is still valid, and
+  its rule is read as usual.
+- In the document model, `sources` holds each item in the order written,
+  as an object with `file`, `heading` and `phrase`. `file` is resolved
+  as [File paths](#file-paths) says, and `heading` and `phrase` are as
+  written, or null when absent. A rule without `<source>`, and every
+  context, has `sources: []`.
+- A valid `<source>` does not change whether a rule is eligible.
+
+A tool written before `<source>` was defined reads it as
+`unknown-child`, which excludes only that rule. Tools are upgraded
+before rule files use it.
+
+A source given as a mapping, with a heading:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+<when>
+addedContains: ["parseFloat(", "toFixed("]
+</when>
+Amounts are integers in minor units (cents).
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "blocking", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": { "addedContains": ["parseFloat(", "toFixed("] }, "checks": [], "meta": null,
+      "summary": "Amounts are integers in minor units (cents).",
+      "prose": "Amounts are integers in minor units (cents).",
+      "src": null,
+      "sources": [
+        { "file": "docs/checkout-review.md", "heading": "Money is integer minor units", "phrase": null }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+Sources given as a list keep their order, and a plain `file` resolves
+from the base:
+
+``````example parse
+=== apps/web/.lore/web.lore
+<rule id="totals-in-minor-units" category="functional_correctness">
+<source>
+- file: src/checkout/money.ts
+  phrase: 'export function fromCents('
+- file: docs/checkout-review.md
+  heading: money-is-integer-minor-units
+  phrase: never a float
+</source>
+Cart totals are integers in minor units (cents).
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "totals-in-minor-units", "file": "apps/web/.lore/web.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Cart totals are integers in minor units (cents).",
+      "prose": "Cart totals are integers in minor units (cents).",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/src/checkout/money.ts", "heading": null, "phrase": "export function fromCents(" },
+        { "file": "apps/web/docs/checkout-review.md", "heading": "money-is-integer-minor-units", "phrase": "never a float" }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A value that is not a mapping or a non-empty list of mappings is
+`invalid-source`: a scalar, an empty list, and a list with a scalar
+item:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+docs/pricing-review.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+[]
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+- file: docs/locale-review.md
+- docs/dates.md
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 9 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 16 }
+  ],
+  "warnings": []
+}
+``````
+
+A key the table does not name is `invalid-source`, whatever it means
+to the author:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: docs/pricing-review.md
+section: Prices
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+Every item needs a `file`:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+heading: Prices
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+An empty `file`, `heading` or `phrase` is `invalid-source`:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: ""
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/currency-review.md
+heading: ""
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs/locale-review.md
+phrase: ''
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 9 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 17 }
+  ],
+  "warnings": []
+}
+``````
+
+A value that is not a string is `invalid-source`, a `null` included:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: docs/pricing-review.md
+phrase: 42
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/currency-review.md
+heading:
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: [docs/locale-review.md, docs/dates.md]
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 10 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 18 }
+  ],
+  "warnings": []
+}
+``````
+
+A `heading` is only for a Markdown file. The source file is TypeScript,
+so the first rule is excluded, while the second names a phrase instead:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: apps/web/src/checkout/price.ts
+heading: Prices
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="quote-total-shown" category="functional_correctness">
+<source>
+file: apps/web/src/checkout/price.ts
+phrase: quote.total
+</source>
+The checkout page shows the quote's total.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "quote-total-shown", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "The checkout page shows the quote's total.",
+      "prose": "The checkout page shows the quote's total.",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/src/checkout/price.ts", "heading": null, "phrase": "quote.total" }
+      ]
+    }
+  ],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+Two items that resolve to the same file, with the same `heading` and
+`phrase`, are `invalid-source`, however each is written. Two items that
+name one file with different headings are not:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+- file: docs/pricing-review.md
+- file: /docs/pricing-review.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+- file: docs/currency-review.md
+  heading: Codes
+- file: docs/currency-review.md
+  heading: Symbols
+</source>
+Display text never hard-codes a currency code or symbol.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "currency-from-settings", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Display text never hard-codes a currency code or symbol.",
+      "prose": "Display text never hard-codes a currency code or symbol.",
+      "src": null,
+      "sources": [
+        { "file": "docs/currency-review.md", "heading": "Codes", "phrase": null },
+        { "file": "docs/currency-review.md", "heading": "Symbols", "phrase": null }
+      ]
+    }
+  ],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+An attribute on `<source>`, a second `<source>`, and a `<source>` on a
+context are the errors every child has:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source kind="guide">
+file: docs/pricing-review.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/currency-review.md
+</source>
+<source>
+file: docs/settings.md
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+<source>
+file: docs/checkout-review.md
+</source>
+Read before judging any change to how a price is computed.
+</context>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "unknown-attribute", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "duplicate-child", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 12 },
+    { "name": "unknown-child", "file": ".lore/checkout.lore", "entry": "checkout-architecture", "line": 19 }
+  ],
+  "warnings": []
+}
+``````
+
+### File paths
+
+`file` names one file, not a glob. A `file` that breaks these rules is
+`invalid-source`.
+
+- A path starting `./` or `../` is relative to the Lore file, exactly as
+  a context's `src` is (see [Context](#context)), and MUST stay inside
+  the Lore root.
+- A path starting `/` is from the governed repo's root. In an external
+  folder it is from the root its `repo` mapping stands for, which is
+  the governed repo's root, so it names the file it would name in the
+  governed repo. In a loose folder it is from the loose folder.
+- Any other path resolves from the base, or through the `repo` mapping
+  in an external folder, as a plain `src` does.
+- Apart from the one leading `/`, the segment rules are those of `src`:
+  no empty segments, and `.` and `..` only at the start. After a leading
+  `/`, no segment is `.` or `..`.
+- In the document model, `file` is the resolved path, with the
+  `external:` and `loose:` prefixes `src` uses: a file-relative path in
+  an external folder is `external:<path>`, from that folder's
+  repository's root, and a file-relative path or one with a leading `/`
+  in a loose folder is `loose:<path>`, from the loose folder.
+
+From a nested base, a leading `/` names a file from the governed repo's
+root instead of from the base:
+
+``````example parse
+=== apps/web/src/checkout/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+- file: /docs/decisions/0042-quote-prices.md
+- file: README.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": "apps/web/src/checkout/.lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null,
+      "sources": [
+        { "file": "docs/decisions/0042-quote-prices.md", "heading": null, "phrase": null },
+        { "file": "apps/web/src/checkout/README.md", "heading": null, "phrase": null }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A path starting `./` or `../` resolves from the directory that holds
+the Lore file, as a context's `src` does:
+
+``````example parse
+=== apps/web/src/checkout/.lore/money.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: ./money-review.md
+- file: ../money.ts
+  phrase: 'export function fromCents('
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "money-in-minor-units", "file": "apps/web/src/checkout/.lore/money.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Amounts are integers in minor units (cents).",
+      "prose": "Amounts are integers in minor units (cents).",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/src/checkout/.lore/money-review.md", "heading": null, "phrase": null },
+        { "file": "apps/web/src/checkout/money.ts", "heading": null, "phrase": "export function fromCents(" }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A path that leaves the Lore root, or breaks the segment rules, is
+`invalid-source`. With no `.loreconfig`, the Lore root is the
+repository root, so the first rule climbs above it. The others have a
+`..` after a named segment, an empty segment, and a `..` after a leading
+`/`:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: ./../../handbook/review.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/../currency-review.md
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs//locale-review.md
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+<source>
+file: /../quote-review.md
+</source>
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 9 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 16 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "quote-expiry-shown", "line": 23 }
+  ],
+  "warnings": []
+}
+``````
+
+In an external folder, a plain path and a leading `/` resolve through
+the `repo` mapping to the governed repo, and a file-relative path stays
+in the team repository. Here the Lore root is the marked directory,
+`lore/shop/`:
+
+``````example parse
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/handbook.md
+# Review handbook
+=== external:lore/shop/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: /docs/decisions/0042-quote-prices.md
+- file: ../../../handbook.md
+  heading: Prices
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "web-prices-from-quote", "file": "external:lore/shop/apps/web/.lore/web.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A price the web app displays comes from the quote that produced it.",
+      "prose": "A price the web app displays comes from the quote that produced it.",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/docs/checkout-review.md", "heading": null, "phrase": null },
+        { "file": "docs/decisions/0042-quote-prices.md", "heading": null, "phrase": null },
+        { "file": "external:lore/shop/handbook.md", "heading": "Prices", "phrase": null }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+In a loose folder, a plain path still resolves through the `repo`
+mapping, while a leading `/` and a file-relative path name files of the
+loose folder:
+
+``````example parse
+requires: loose-given-folder
+=== loose:.loreconfig
+repo: github.com/acme/shop
+loose: true
+=== loose:apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: /handbook.md
+- file: ./notes.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "web-prices-from-quote", "file": "loose:apps/web/.lore/web.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A price the web app displays comes from the quote that produced it.",
+      "prose": "A price the web app displays comes from the quote that produced it.",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/docs/checkout-review.md", "heading": null, "phrase": null },
+        { "file": "loose:handbook.md", "heading": null, "phrase": null },
+        { "file": "loose:apps/web/.lore/notes.md", "heading": null, "phrase": null }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
 ## Eligibility
 
 A tool finds the entries that apply to a change by computing their
@@ -4967,8 +5596,9 @@ These are always entry-level:
   file block takes no attributes, so its first one is
   `unknown-attribute`);
 - `unknown-child`, `duplicate-child`, `invalid-meta`, `invalid-when`,
-  `empty-when`, `unknown-condition`, `regex-not-one-line` and
-  `regex-outside-dialect`, in an entry's children;
+  `empty-when`, `unknown-condition`, `invalid-source`,
+  `regex-not-one-line` and `regex-outside-dialect`, in an entry's
+  children;
 - `duplicate-id`, across files.
 
 These are file-level in a file block (`<defaults>` or the file's
@@ -6110,7 +6740,7 @@ governed repo, apart from a file-relative `src` in an external folder
 | `summary` | The first paragraph of the prose (see [Entries](#entries)). |
 | `prose` | The entry's prose, which for a context is its body (see [Entries](#entries)). |
 | `src` | A context's resolved `src`, or null when it has none (see [Context](#context)). Always null for a rule. |
-| `sources` | The sources the entry cites, each as an object with `file`, `heading` and `phrase`. Always `[]` until a source is read. |
+| `sources` | Each item of a rule's `<source>`, in the order written, as an object with `file`, `heading` and `phrase`: `file` resolved, and `heading` and `phrase` as written or null when absent (see [Sources](#sources)). `[]` for a rule without `<source>`, and always `[]` for a context. |
 
 ### Diagnostics
 
@@ -6155,6 +6785,7 @@ given as [`errors.json`](errors.json).
 | `invalid-scope` | error | A scope block fails its schema. |
 | `invalid-when` | error | A when block fails its schema. |
 | `invalid-meta` | error | A meta block is not a mapping. |
+| `invalid-source` | error | A source block fails its schema. |
 | `missing-id` | error | An entry has no id attribute. |
 | `invalid-id` | error | An id does not match the id pattern. |
 | `unknown-attribute` | error | An element carries an attribute it does not define. |

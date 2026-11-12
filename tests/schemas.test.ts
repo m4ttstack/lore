@@ -33,6 +33,16 @@ test("when rejects an unknown key", () => invalid("when", 'diffContains: ["a"]')
 test("when rejects an empty mapping", () => invalid("when", "{}"));
 test("meta accepts any mapping", () => valid("meta", "source: x\nowner: y\nrefs: [1, 2]"));
 test("meta rejects a scalar", () => invalid("meta", "hello"));
+test("source accepts a mapping and a list of mappings", () => {
+  valid("source", "file: docs/review.md\nheading: Money\nphrase: minor units");
+  valid("source", "- file: /docs/review.md\n- file: ./money.ts\n  phrase: fromCents(");
+});
+test("source rejects an empty list, an unknown key and a missing file", () => {
+  invalid("source", "[]");
+  invalid("source", "file: docs/review.md\nsection: Money");
+  invalid("source", "heading: Money");
+});
+test("source rejects a heading on a file that is not Markdown", () => invalid("source", "file: src/money.ts\nheading: Money"));
 test("loreconfig accepts every key", () => valid("loreconfig", "lore: 1\nroot: true\nloose: true\nrepo: github.com/acme/shop\ncategories: [data_provenance]\ndisable: [currency-from-settings]"));
 test("loreconfig rejects loose: yes", () => invalid("loreconfig", "loose: yes"));
 test("loreconfig rejects lore: 2", () => invalid("loreconfig", "lore: 2"));
