@@ -1,13 +1,15 @@
 <rule id="money-in-minor-units" category="functional_correctness">
 <source>
-- file: apps/web/src/checkout/money.ts
-  phrase: 'export function fromCents('
 - file: docs/checkout-review.md
-  phrase: integers in minor units
+  heading: Money
 - file: docs/checkout-review.md
-  phrase: Integers in minor units
+  heading: Dates
 - file: docs/checkout-review.md
-  phrase: rounded half to even
+  heading: Rounding
+- file: docs/checkout-review.md
+  heading: Subtotal
+- file: docs/checkout-review.md
+  heading: Totals
 </source>
 Amounts are integers in minor units (cents).
 </rule>

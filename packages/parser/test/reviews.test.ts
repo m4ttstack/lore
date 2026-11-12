@@ -48,6 +48,16 @@ describe("writeReviews", () => {
     );
   });
 
+  test("escapes only what standard JSON serialization escapes, and writes every other character as itself", () => {
+    const phrase = 'say "\\x"\tthen\u2028déjà\u0001\u001f\u007f\ud800 \b\f\n\r';
+    const written = writeReviews([record({ heading: null, phrase })]).split("\n")[1];
+    const escaped = 'say \\"\\\\x\\"\\tthen\u2028déjà\\u0001\\u001f\u007f\\ud800 \\b\\f\\n\\r';
+    expect(written).toBe(
+      `{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":"${escaped}","reviewed":"2026-11-12","hash":"3fa9c1d2e7b4"}`,
+    );
+    expect(readReviews(writeReviews([record({ heading: null, phrase })]))).toEqual({ records: [record({ heading: null, phrase })] });
+  });
+
   test("sorts by rule, file, heading, then phrase, null first and by code point", () => {
     const sorted = [
       record({ rule: "a", file: "a.md", heading: null, phrase: null }),
@@ -104,6 +114,13 @@ describe("readReviews", () => {
     });
   });
 
+  test("compares the header by value and reads whitespace and escapes, and writing again gives the canonical form", () => {
+    const text = `{ "lore-reviews" : 1 }\r\n{ "rule" : "\\u006doney-in-minor-units", "file": "docs/checkout-review.md", "heading": "Money is integer minor units", "phrase": null, "reviewed": "2026-11-12", "hash": "3fa9c1d2e7b4" }`;
+    const read = readReviews(text);
+    expect(read).toEqual({ records: [record({ rule: "money-in-minor-units" })] });
+    expect(writeReviews((read as { records: ReviewRecord[] }).records)).toBe(lock(line()));
+  });
+
   describe("problems", () => {
     function problem(content: string): { problem: string; line: number } {
       const result = readReviews(content);
@@ -139,7 +156,7 @@ describe("readReviews", () => {
     });
 
     test("a record with an extra key", () => {
-      expect(problem(lock(line({ who: "matt" })))).toMatchObject({ line: 2 });
+      expect(problem(lock(line({ note: "x" })))).toMatchObject({ line: 2 });
     });
 
     test("a key of the wrong type", () => {

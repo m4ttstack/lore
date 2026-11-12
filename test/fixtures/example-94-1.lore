@@ -1,7 +1,23 @@
 <rule id="price-from-quote" category="functional_correctness">
-<source>
-- file: /docs/decisions/0042-quote-prices.md
-- file: README.md
+<source kind="guide">
+file: docs/pricing-review.md
 </source>
 A displayed price must come from the quote that produced it.
 </rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/currency-review.md
+</source>
+<source>
+file: docs/settings.md
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+<source>
+file: docs/checkout-review.md
+</source>
+Read before judging any change to how a price is computed.
+</context>

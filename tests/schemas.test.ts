@@ -127,6 +127,14 @@ test("audit accepts findings and a summary", () =>
   expect(checkJson("audit", auditResult([finding], { "source-missing": 1 }))).toBe(true));
 test("audit accepts a finding with no source", () =>
   expect(checkJson("audit", auditResult([{ ...finding, name: "meta-source", level: "warn", source: null, reason: null }]))).toBe(true));
+test("audit accepts an orphan-review for any rule a lock file can hold", () => {
+  for (const rule of ["Money In Cents", "", "räkna_öre"]) {
+    const orphan = { ...finding, name: "orphan-review", level: "warn", rule, file: "lore-reviews.lock", reason: null };
+    expect(checkJson("audit", auditResult([orphan], { "orphan-review": 1 }))).toBe(true);
+  }
+});
+test("source rejects a heading on a file whose extension is Markdown only when lower-cased", () =>
+  invalid("source", "file: docs/NOTES.MD\nheading: Rounding"));
 test("audit rejects the off level, an unknown finding and a zero count", () => {
   expect(checkJson("audit", auditResult([{ ...finding, level: "off" }]))).toBe(false);
   expect(checkJson("audit", auditResult([{ ...finding, name: "source-gone" }]))).toBe(false);

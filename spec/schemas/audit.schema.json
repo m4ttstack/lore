@@ -46,7 +46,7 @@
       "properties": {
         "name": { "$ref": "#/$defs/findingName" },
         "level": { "enum": ["error", "warn"] },
-        "rule": { "anyOf": [{ "$ref": "https://lore.dev/schemas/v1/document-model.schema.json#/$defs/id" }, { "type": "null" }] },
+        "rule": { "type": ["string", "null"] },
         "file": { "type": "string" },
         "source": {
           "anyOf": [

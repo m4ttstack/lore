@@ -1,13 +1,7 @@
-<rule id="money-in-minor-units" category="functional_correctness" disabled>
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
 <source>
-- file: docs/money-review.md
-- file: docs/checkout-review.md
-  heading: Money
-- file: docs/checkout-review.md
-  phrase: 'fromCents('
-- file: docs/checkout-review.md
-  heading: Dates
-  phrase: integers in minor units
+file: docs/checkout-review.md
+heading: money-is-integer-minor-units
 </source>
 Amounts are integers in minor units (cents).
 </rule>

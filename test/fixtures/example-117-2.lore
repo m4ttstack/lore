@@ -1,7 +1,6 @@
-<rule id="dates-from-locale" category="functional_correctness" severity="fatal">
+<rule id="web-prices-from-quote" category="functional_correctness">
 <source>
-file: docs/checkout-review.md
-heading: Dates
+file: /docs/checkout-review.md
 </source>
-Displayed dates are formatted with the shop's locale.
+A price the web app displays comes from the quote that produced it.
 </rule>

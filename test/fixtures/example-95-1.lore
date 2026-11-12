@@ -1,8 +1,7 @@
-<rule id="money-in-minor-units" category="functional_correctness">
+<rule id="price-from-quote" category="functional_correctness">
 <source>
-- file: ./money-review.md
-- file: ../money.ts
-  phrase: 'export function fromCents('
+- file: /docs/decisions/0042-quote-prices.md
+- file: README.md
 </source>
-Amounts are integers in minor units (cents).
+A displayed price must come from the quote that produced it.
 </rule>

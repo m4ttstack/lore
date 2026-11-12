@@ -1,11 +1,14 @@
-<scope>
-files: ["**/*.{ts,tsx"]
-</scope>
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
 
 <rule id="currency-from-settings" category="functional_correctness">
+<when>
+addedContain: ["'USD'"]
+</when>
 Display text never hard-codes a currency code.
 </rule>
 
-<rule id="dates-from-locale">
-Displayed dates are formatted with the shop's locale.
+<rule id="quote-expiry-shown" category="functional_correctness">
+A checkout page that shows a quoted price also shows when the quote expires.
 </rule>

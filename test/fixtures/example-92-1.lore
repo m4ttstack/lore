@@ -1,17 +1,7 @@
-<rule id="price-from-quote" category="functional_correctness">
+<rule id="round-half-to-even" category="functional_correctness">
 <source>
-- file: docs/pricing-review.md
-- file: /docs/pricing-review.md
+file: docs/NOTES.MD
+heading: Rounding
 </source>
-A displayed price must come from the quote that produced it.
-</rule>
-
-<rule id="currency-from-settings" category="functional_correctness">
-<source>
-- file: docs/currency-review.md
-  heading: Codes
-- file: docs/currency-review.md
-  heading: Symbols
-</source>
-Display text never hard-codes a currency code or symbol.
+Amounts are rounded half to even.
 </rule>

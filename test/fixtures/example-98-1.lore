@@ -1,8 +1,9 @@
 <rule id="web-prices-from-quote" category="functional_correctness">
 <source>
 - file: docs/checkout-review.md
-- file: /handbook.md
-- file: ./notes.md
+- file: /docs/decisions/0042-quote-prices.md
+- file: ../../../handbook.md
+  heading: Prices
 </source>
 A price the web app displays comes from the quote that produced it.
 </rule>

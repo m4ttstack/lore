@@ -1,8 +1,7 @@
-<rule id="shared-currency-from-settings" category="functional_correctness">
-Display text never hard-codes a currency code; it uses the shop's
-`currency` setting.
+<rule id="price-source-recorded" category="data_provenance">
+Every stored price records the quote it came from.
 </rule>
 
-<rule id="shared-dates-from-locale" category="functional_correctness">
-Displayed dates are formatted with the shop's locale.
+<rule id="render-budgets-kept" category="web_vitals">
+Every page shows its first content within its time budget.
 </rule>

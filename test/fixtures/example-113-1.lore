@@ -1,7 +1,7 @@
 <rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
 <source>
-file: docs/checkout-review.md
-heading: money-is-integer-minor-units
+file: /docs/checkout-review.md
+heading: Money is integer minor units
 </source>
 Amounts are integers in minor units (cents).
 </rule>

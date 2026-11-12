@@ -4713,7 +4713,7 @@ mapping names one source:
 | Key | Required | Value |
 |---|---|---|
 | `file` | yes | One file, as a non-empty string (see [File paths](#file-paths)). |
-| `heading` | no | A non-empty string: a heading in the file, given as its text or its slug. Only when `file` ends in `.md`, `.mdx` or `.markdown`. |
+| `heading` | no | A non-empty string: a heading in the file, given as its text or its slug. Only when `file` ends in `.md`, `.mdx` or `.markdown`, compared case-sensitively. |
 | `phrase` | no | A non-empty string that appears in the file. With `heading`, it appears inside that heading's section. |
 
 - `<source>` takes no attributes (`unknown-attribute`) and may appear
@@ -4724,7 +4724,9 @@ mapping names one source:
   `invalid-source`: a value that is not a mapping or a non-empty list of
   mappings, a key the table above does not name, a missing or empty
   `file`, a value that is not a string, an empty `heading` or `phrase`,
-  a `heading` on a file that is not Markdown, a `file` that breaks the
+  a `heading` on a file that is not Markdown (its extension compared
+  case-sensitively, so `docs/NOTES.MD` is not Markdown), a `file` that
+  breaks the
   rules of [File paths](#file-paths), and two items that resolve to the
   same file with the same `heading` and `phrase`.
 - `invalid-source` is entry-level. Its line is the `<source>` opening
@@ -5015,6 +5017,28 @@ The checkout page shows the quote's total.
   ],
   "errors": [
     { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+The extension is compared case-sensitively, so `docs/NOTES.MD` is not a
+Markdown file and takes no `heading`:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="round-half-to-even" category="functional_correctness">
+<source>
+file: docs/NOTES.MD
+heading: Rounding
+</source>
+Amounts are rounded half to even.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "round-half-to-even", "line": 2 }
   ],
   "warnings": []
 }
@@ -5677,8 +5701,10 @@ else, a second one at the start included, stays an ordinary character.
 A file that is not valid UTF-8 keeps every byte (see
 [Fingerprints](#fingerprints)).
 
-**Fenced code blocks.** A Markdown file's fenced code blocks are those
-of CommonMark. An opening fence is a line of zero to three spaces, then
+**Fenced code blocks.** A Markdown file's fenced code blocks are found
+by the line rule that follows, which is their whole definition: a tool
+needs no Markdown parser, and other constructs, such as list items,
+block quotes and HTML comments, are not considered. An opening fence is a line of zero to three spaces, then
 three or more backticks or three or more tildes; after a run of
 backticks, the rest of the line holds no backtick. The fence closes at
 the next line of zero to three spaces, then a run of the same character
@@ -6241,12 +6267,34 @@ object with exactly these members:
 | `reviewed` | The date of the review, `YYYY-MM-DD`, a real calendar date. |
 | `hash` | The source's fingerprint when it was reviewed. |
 
-A tool that writes a lock file MUST write each line as compact JSON
-with the members in the order of the table, end each line, the last
-included, with LF, and sort the records by `rule`, then `file`, then
-`heading`, then `phrase`, null before any string, comparing code points.
+A tool that writes a lock file MUST write its **canonical form**, so
+that two tools write the same bytes for the same records:
+
+- Each line is compact JSON, with no whitespace between tokens and the
+  members in the order of the table. The first line is exactly
+  `{"lore-reviews":1}`.
+- A string is written as standard JSON serialization writes it
+  (`JSON.stringify` in ECMAScript), with no other escapes. A quotation
+  mark and a backslash are escaped with a backslash. U+0008, U+000C,
+  U+000A, U+000D and U+0009 are written `\b`, `\f`, `\n`, `\r` and
+  `\t`. Every other character below U+0020 is written `\u00` and two
+  lower-case hexadecimal digits, and a lone surrogate as `\u` and four
+  lower-case hexadecimal digits. Every other character is written as
+  itself, U+007F, U+2028, U+2029 and every non-ASCII character included.
+- Each line ends with LF, the last included.
+- The records are sorted by `rule`, then `file`, then `heading`, then
+  `phrase`, null before any string, comparing code points.
+
 A record is one line, so two branches that review different rules merge
 without a conflict.
+
+A tool that reads a lock file accepts more than the canonical form. A
+line ends with LF or with CR LF, and the last line may have no line
+ending. Each line is read as any JSON text, so a record's members may
+come in any order, and whitespace between tokens and any escape are
+allowed. The first line is compared by its value: a JSON object with the
+one member `lore-reviews`, whose value is the number 1. Whenever a tool
+writes a lock file, it writes the canonical form.
 
 A lock file is **malformed** when its first line is not that object,
 when it has a blank line, when a further line is not a JSON object with
@@ -6425,7 +6473,7 @@ object with these members:
 |---|---|
 | `name` | The finding's name, from the table above. |
 | `level` | `"error"` or `"warn"`. |
-| `rule` | The rule's id. For `orphan-review`, the record's `rule`. |
+| `rule` | The rule's id. For `orphan-review`, the record's `rule`, which can be any string: a lock file's `rule` is not checked against the id pattern. |
 | `file` | The rule's Lore file. For `orphan-review`, the lock file. |
 | `source` | The source as the document model holds it. For `orphan-review`, the record's `file`, `heading` and `phrase`. Null for `meta-source`. |
 | `reason` | For `source-missing`, which part was not found: `file not found: <file>`, `heading not found: "<heading>"` or `phrase not found: "<phrase>"`, with the value as written. A heading is looked for before its phrase. Null for every other finding. |
@@ -8086,9 +8134,11 @@ folder has `loose:` before its path from that folder (see
 repository the file is in, so a tool given folders of two repositories
 can list two different files with the same `file`. This version of the
 format does not tell them apart. Every other path in either output
-(globs in `scopes`, plain `src` values and hits) names a path in the
-governed repo, apart from a file-relative `src` in an external folder
-(see [Context](#context)).
+(globs in `scopes`, plain `src` values, each `file` in `sources`, and
+hits) names a path in the governed repo, apart from a file-relative
+`src` in an external folder (see [Context](#context)) and a `sources`
+`file` that has the `external:` or `loose:` prefix (see
+[File paths](#file-paths)).
 
 ### Entry fields
 

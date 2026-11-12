@@ -1,7 +1,3 @@
-<rule id="price-source-recorded" category="data_provenance">
-Every stored price records the quote it came from.
+<rule id="order-schema-versioned" category="api_contracts">
+Every change to the order schema bumps its version.
 </rule>
-
-<context id="org-handbook" src="./../../handbook/review.md">
-Read for the organization's review conventions.
-</context>
