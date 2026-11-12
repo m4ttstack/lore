@@ -1,7 +1,7 @@
 import { lstatSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  lockPathFor, missingReason, orphanRecords, resolveSource, writeReviews,
+  lockKey, lockPathFor, missingReason, orphanRecords, resolveSource, writeReviews,
   type Entry, type Finding, type LockFile, type LockRef, type ParsedInput, type ReviewRecord,
 } from "@lore/parser";
 import type { ReviewCommand } from "./args";
@@ -17,7 +17,7 @@ export function review(parsed: ParsedInput, built: BuiltInput, command: ReviewCo
   const { collected, placeOf } = parsed;
   const rules = namedRules(parsed, command);
   const onDisk = (ref: LockRef) => built.onDisk(ref, collected);
-  const locks = new Map(loadLocks(parsed, (ref) => readOnDisk(onDisk(ref), ref.path)).map((lock) => [keyOf(lock), lock]));
+  const locks = new Map(loadLocks(parsed, (ref) => readOnDisk(onDisk(ref), ref.path)).map((lock) => [lockKey(lock), lock]));
 
   const out: string[] = [];
   const err: string[] = [];
@@ -49,17 +49,17 @@ export function review(parsed: ParsedInput, built: BuiltInput, command: ReviewCo
       out.push(`refused ${rule.id} (${count(problems.length, "source does not", "sources do not")} resolve)\n`);
       continue;
     }
-    const ref = lockPathFor(place);
-    const lock = fresh.get(keyOf(ref)) ?? { ref, records: [], rules: new Set<string>() };
+    const ref = lockPathFor(collected, place);
+    const lock = fresh.get(lockKey(ref)) ?? { ref, records: [], rules: new Set<string>() };
     lock.records.push(...records);
     lock.rules.add(rule.id);
-    fresh.set(keyOf(ref), lock);
+    fresh.set(lockKey(ref), lock);
     out.push(`reviewed ${rule.id} (${count(records.length, "source", "sources")})\n`);
   }
 
   const orphans = new Map(
     orphanRecords(parsed, [...locks.values()], withheldLocks(parsed, built.unread))
-      .map(({ lock, records }) => [keyOf(lock), new Set(records.filter((record) => !refused.has(record.rule)))]),
+      .map(({ lock, records }) => [lockKey(lock), new Set(records.filter((record) => !refused.has(record.rule)))]),
   );
   const writes: { ref: LockRef; text: string }[] = [];
   for (const key of new Set([...locks.keys(), ...fresh.keys()])) {
@@ -129,10 +129,6 @@ function writeAtomically(at: { root: string; path: string } | undefined, shown: 
     rmSync(temporary, { force: true });
     throw new InputError(`cannot write lock file ${shown}: ${(error as Error).message}`);
   }
-}
-
-function keyOf(ref: LockRef): string {
-  return JSON.stringify([ref.tree, ref.path]);
 }
 
 function count(n: number, one: string, many: string): string {

@@ -1,16 +1,7 @@
-<rule id="money-in-minor-units" category="functional_correctness">
-<meta>
-source: https://wiki.example.com/checkout/money
-</meta>
-Amounts are integers in minor units (cents).
-</rule>
-
-<rule id="price-from-quote" category="functional_correctness">
-<meta>
-source: docs/decisions/0042-quote-prices.md
-</meta>
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
 <source>
-file: docs/decisions/0042-quote-prices.md
+file: docs/checkout-review.md
+heading: Money is integer minor units
 </source>
-A displayed price must come from the quote that produced it.
+Amounts are integers in minor units (cents).
 </rule>

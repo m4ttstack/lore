@@ -128,8 +128,8 @@ describe("audit", () => {
     const gone = record(AT_HEADING, { rule: "price-from-quote" });
     const files = { [LORE]: rule(HEADING), "docs/review.md": DOC, [LOCK]: lock(record(AT_HEADING), gone) };
     expect(run(files).findings.map((f) => f.name)).toEqual(["orphan-review"]);
-    expect(run(files, { withheld: [{ tree: "repo", path: LOCK }] }).findings).toEqual([]);
-    expect(run(files, { withheld: [{ tree: 0, path: LOCK }] }).findings.map((f) => f.name)).toEqual(["orphan-review"]);
+    expect(run(files, { withheld: [{ repository: "repo", path: LOCK }] }).findings).toEqual([]);
+    expect(run(files, { withheld: [{ repository: 0, path: LOCK }] }).findings.map((f) => f.name)).toEqual(["orphan-review"]);
   });
 
   test("two matching headings are ambiguous-heading, not source-missing", () => {
@@ -262,35 +262,35 @@ describe("audit", () => {
 });
 
 describe("lockPathFor", () => {
-  test("is the lock file in the directory of the entry's Lore root, with its tree prefix", () => {
-    const { model, placeOf } = parseWithContext(toInput(example({
+  test("is the lock file in the directory of the entry's Lore root, with its prefix, in the entry's repository", () => {
+    const { model, placeOf, collected } = parseWithContext(toInput(example({
       ".lore/a.lore": rule("file: docs/review.md", "root-rule"),
       "apps/web/.loreconfig": "root: true\n",
       "apps/web/.lore/b.lore": rule("file: docs/review.md", "web-rule"),
       "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
       "external:lore/shop/.lore/c.lore": rule("file: docs/review.md", "shared-rule"),
     })));
-    const refs = Object.fromEntries(model.entries.map((entry) => [entry.id, lockPathFor(placeOf.get(entry)!)]));
+    const refs = Object.fromEntries(model.entries.map((entry) => [entry.id, lockPathFor(collected, placeOf.get(entry)!)]));
     expect(refs).toEqual({
-      "root-rule": { tree: "repo", path: "lore-reviews.lock" },
-      "web-rule": { tree: "repo", path: "apps/web/lore-reviews.lock" },
-      "shared-rule": { tree: 0, path: "external:lore/shop/lore-reviews.lock" },
+      "root-rule": { repository: "repo", path: "lore-reviews.lock" },
+      "web-rule": { repository: "repo", path: "apps/web/lore-reviews.lock" },
+      "shared-rule": { repository: 0, path: "external:lore/shop/lore-reviews.lock" },
     });
   });
 });
 
 describe("lockRefsHolding", () => {
-  test("is the lock file of the Lore root that would hold a file, in each tree of its repository", () => {
+  test("is the lock file of the Lore root that would hold a file, in its repository", () => {
     const { collected } = parseWithContext(toInput(example({
       ".lore/a.lore": rule("file: docs/review.md", "root-rule"),
       "apps/web/.loreconfig": "root: true\n",
       "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
       "external:lore/shop/.lore/c.lore": rule("file: docs/review.md", "shared-rule"),
     })));
-    expect(lockRefsHolding(collected, ".lore/gone.lore", "repo")).toEqual([{ tree: "repo", path: LOCK }]);
-    expect(lockRefsHolding(collected, "apps/web/.lore/gone.lore", "repo")).toEqual([{ tree: "repo", path: "apps/web/lore-reviews.lock" }]);
-    expect(lockRefsHolding(collected, "apps/web/.loreconfig", "repo")).toEqual([{ tree: "repo", path: "apps/web/lore-reviews.lock" }]);
-    expect(lockRefsHolding(collected, "external:lore/shop/.lore/gone.lore", 0)).toEqual([{ tree: 0, path: "external:lore/shop/lore-reviews.lock" }]);
+    expect(lockRefsHolding(collected, ".lore/gone.lore", "repo")).toEqual([{ repository: "repo", path: LOCK }]);
+    expect(lockRefsHolding(collected, "apps/web/.lore/gone.lore", "repo")).toEqual([{ repository: "repo", path: "apps/web/lore-reviews.lock" }]);
+    expect(lockRefsHolding(collected, "apps/web/.loreconfig", "repo")).toEqual([{ repository: "repo", path: "apps/web/lore-reviews.lock" }]);
+    expect(lockRefsHolding(collected, "external:lore/shop/.lore/gone.lore", 0)).toEqual([{ repository: 0, path: "external:lore/shop/lore-reviews.lock" }]);
     expect(lockRefsHolding(collected, "external:lore/other/.lore/gone.lore", 0)).toEqual([]);
   });
 
@@ -300,13 +300,30 @@ describe("lockRefsHolding", () => {
       "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
       "external:lore/shop/.lore/c.lore": rule("file: docs/review.md", "shared-rule"),
     })));
-    expect(lockRefsHolding(collected, "external:lore/web/.loreconfig", 0)).toEqual([{ tree: 0, path: "external:lore/lore-reviews.lock" }]);
+    expect(lockRefsHolding(collected, "external:lore/web/.loreconfig", 0)).toEqual([{ repository: 0, path: "external:lore/lore-reviews.lock" }]);
     expect(lockRefsHolding(collected, "external:lore/web/.lore/gone.lore", 0)).toEqual([]);
   });
 });
 
+describe("external folders of one repository under one Lore root", () => {
+  test("share one lock file, whose records belong to the rules of both", () => {
+    const files = {
+      "external:lore/.loreconfig": "root: true\n",
+      "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+      "external:lore/shop/.lore/a.lore": rule("file: /docs/review.md", "shop-rule"),
+      "external:lore/web/.loreconfig": "repo: github.com/acme/shop\n",
+      "external:lore/web/.lore/b.lore": rule("file: /docs/review.md", "web-rule"),
+      "docs/review.md": DOC,
+      "external:lore/lore-reviews.lock": lock(record(source(), { rule: "shop-rule" }), record(source(), { rule: "web-rule" })),
+    };
+    const parsed = parseWithContext(toInput(example(files)));
+    expect(lockRefs(parsed)).toEqual([{ repository: 0, path: "external:lore/lore-reviews.lock" }]);
+    expect(run(files)).toEqual({ findings: [], summary: { counts: {}, rulesWithSource: 2, rulesWithoutSource: 0 }, excluded: [] });
+  });
+});
+
 describe("lock files of different repositories", () => {
-  test("a lock file at the same path in two repositories is told apart by its tree", () => {
+  test("a lock file at the same path in two repositories is told apart by its repository", () => {
     const folder = (repository: string, id: string) => ({
       folder: "", repository,
       files: [
@@ -319,8 +336,8 @@ describe("lock files of different repositories", () => {
       given: [folder("/work/a", "a-rule"), folder("/work/b", "b-rule")],
       remotes: ["https://github.com/acme/shop"],
     });
-    const refs = parsed.model.entries.map((entry) => lockPathFor(parsed.placeOf.get(entry)!));
-    expect(refs).toEqual([{ tree: 0, path: "external:lore-reviews.lock" }, { tree: 1, path: "external:lore-reviews.lock" }]);
+    const refs = parsed.model.entries.map((entry) => lockPathFor(parsed.collected, parsed.placeOf.get(entry)!));
+    expect(refs).toEqual([{ repository: 0, path: "external:lore-reviews.lock" }, { repository: 1, path: "external:lore-reviews.lock" }]);
     expect(lockRefs(parsed)).toEqual(refs);
     const locks = parsed.model.entries.map((entry, n) => ({ ...refs[n]!, records: [record(source(), { rule: entry.id })] }));
     const result = audit(parsed, { today: "2026-11-12", readSource: (_place, file) => (file === "docs/review.md" ? DOC : null), locks });

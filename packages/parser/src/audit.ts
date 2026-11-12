@@ -22,8 +22,9 @@ export interface AuditResult {
   excluded: Diagnostic[];
 }
 
-// Trees of different repositories can give the same path, so a lock file is named by both.
-export interface LockRef { tree: Tree; path: string }
+// Given folders of different repositories can give the same path, so a lock file is named by both. External folders of
+// one repository that share a Lore root share its lock file.
+export interface LockRef { repository: Repository; path: string }
 export interface LockFile extends LockRef { records: ReviewRecord[] }
 
 export interface AuditOptions {
@@ -42,8 +43,13 @@ type Found = Omit<Finding, "level">;
 const DAY_MS = 86_400_000;
 const CONFIG_NAME = ".loreconfig";
 
-export function lockPathFor(place: EntryPlace): LockRef {
-  return { tree: place.tree, path: lockPath(place.prefix, place.loreRoot) };
+export function lockPathFor(collected: Collected, place: EntryPlace): LockRef {
+  return { repository: repositoryOf(collected, place.tree), path: lockPath(place.prefix, place.loreRoot) };
+}
+
+// Two refs name one lock file exactly when their keys are equal.
+export function lockKey(ref: LockRef): string {
+  return JSON.stringify([ref.repository, ref.path]);
 }
 
 // The lock files an audit reads: one for each Lore root that holds a collected Lore file.
@@ -51,21 +57,18 @@ export function lockRefs(parsed: ParsedInput): LockRef[] {
   return [...lockRoots(parsed.collected).values()].map(({ ref }) => ref);
 }
 
-// The lock files of the Lore roots that would hold a file at this prefixed path, in each tree of its repository that reaches it.
-// A .loreconfig that no tree reaches may be what would have marked its directory, so it also names the lock file that
-// directory's Lore root would have, in each tree of its repository.
+// The lock files of the Lore roots that would hold a file at this prefixed path, from each tree of its repository that
+// reaches it. A .loreconfig that no tree reaches may be what would have marked its directory, so it names instead the
+// lock file that directory's Lore root would have.
 export function lockRefsHolding(collected: Collected, file: string, repository: Repository): LockRef[] {
   const prefix = [EXTERNAL, LOOSE, RULES].find((candidate) => file.startsWith(candidate)) ?? "";
   const path = file.slice(prefix.length);
   const dir = dirOf(path);
-  if (repository === "repo") return [{ tree: "repo", path: lockPath(prefix, loreRootIn(collected, dir, repository, "")) }];
-  const trees = collected.trees.flatMap((info, tree) => (info.repository === repository ? [{ tree, marked: info.marked }] : []));
-  const reaching = trees.filter(({ marked }) => within(dir, marked));
-  if (reaching.length > 0 || path.split("/").at(-1) !== CONFIG_NAME) {
-    return reaching.map(({ tree, marked }) => ({ tree, path: lockPath(prefix, loreRootIn(collected, dir, repository, marked)) }));
-  }
-  const unmarked = lockPath(prefix, loreRootIn(collected, dir, repository, dir));
-  return trees.map(({ tree }) => ({ tree, path: unmarked }));
+  if (repository === "repo") return [{ repository, path: lockPath(prefix, loreRootIn(collected, dir, repository, "")) }];
+  const reaching = collected.trees.filter((info) => info.repository === repository && within(dir, info.marked));
+  if (reaching.length === 0 && path.split("/").at(-1) !== CONFIG_NAME) return [];
+  const roots = reaching.length === 0 ? [loreRootIn(collected, dir, repository, dir)] : reaching.map(({ marked }) => loreRootIn(collected, dir, repository, marked));
+  return [...new Set(roots)].map((root) => ({ repository, path: lockPath(prefix, root) }));
 }
 
 export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
@@ -79,7 +82,7 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
   for (const entry of model.entries) {
     if (entry.kind !== "rule") continue;
     const place = placeOf.get(entry)!;
-    const lock = lockKey(lockPathFor(place));
+    const lock = lockKey(lockPathFor(collected, place));
     const dir = dirOf(entry.file.slice(place.prefix.length));
     const settings = settingsFor(collected, options, dir, repositoryOf(collected, place.tree), place.loreRoot);
     const add = (name: FindingName, source: Source | null, reason: string | null = null) =>
@@ -153,13 +156,13 @@ export function orphanRecords(
   const live = new Map<string, Set<string>>();
   for (const entry of model.entries) {
     if (entry.kind !== "rule") continue;
-    const known = setIn(live, lockKey(lockPathFor(placeOf.get(entry)!)));
+    const known = setIn(live, lockKey(lockPathFor(collected, placeOf.get(entry)!)));
     for (const source of entry.sources) known.add(identity(entry.id, source));
   }
   const excluded = new Map<string, Set<string | null>>();
   for (const error of model.errors) {
     const file = collected.files.find((candidate) => candidate.file === error.file);
-    if (file !== undefined) setIn(excluded, lockKey(fileLock(file))).add(error.entry);
+    if (file !== undefined) setIn(excluded, lockKey(fileLock(collected, file))).add(error.entry);
   }
   for (const { file, repository } of collected.hiding) {
     for (const ref of lockRefsHolding(collected, file, repository)) setIn(excluded, lockKey(ref)).add(null);
@@ -179,18 +182,14 @@ export function orphanRecords(
 function lockRoots(collected: Collected): Map<string, { ref: LockRef; repository: Repository; loreRoot: string }> {
   const roots = new Map<string, { ref: LockRef; repository: Repository; loreRoot: string }>();
   for (const file of collected.files) {
-    const ref = fileLock(file);
-    roots.set(lockKey(ref), { ref, repository: repositoryOf(collected, file.tree), loreRoot: file.loreRoot });
+    const ref = fileLock(collected, file);
+    roots.set(lockKey(ref), { ref, repository: ref.repository, loreRoot: file.loreRoot });
   }
   return roots;
 }
 
-function fileLock(file: CollectedFile): LockRef {
-  return { tree: file.tree, path: lockPath(file.prefix, file.loreRoot) };
-}
-
-function lockKey(ref: LockRef): string {
-  return JSON.stringify([ref.tree, ref.path]);
+function fileLock(collected: Collected, file: CollectedFile): LockRef {
+  return { repository: repositoryOf(collected, file.tree), path: lockPath(file.prefix, file.loreRoot) };
 }
 
 function settingsFor(collected: Collected, options: AuditOptions, dir: string, repository: Repository, loreRoot: string): AuditSettings {

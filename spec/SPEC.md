@@ -6248,7 +6248,10 @@ That path does not say which repository the file is in (see
 [Document model](#document-model)), so two given folders of different
 repositories can have lock files with the same path. Each is still its
 own Lore root's lock file, and a tool MUST NOT read one in place of the
-other. A lock file holds the records
+other: a lock file is named by its repository and its path. Two external
+folders of one repository have one Lore root when a `root: true` above
+both makes it so, and then share its one lock file, which a tool reads
+once and writes once. A lock file holds the records
 of every rule collected under its Lore root, so a rule moved between
 Lore folders under one Lore root keeps its records. It is not a Lore
 file. Only a tool that records reviews writes it; an audit only reads
@@ -6353,6 +6356,56 @@ A price the web app displays comes from the quote that produced it.
 === external:lore/shop/lore-reviews.lock
 {"lore-reviews":1}
 {"rule":"web-prices-from-quote","file":"external:lore/shop/handbook.md","heading":"Prices","phrase":null,"reviewed":"2026-11-02","hash":"ff3bab3472a6"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+Two external folders of the team repository, `lore/shop/` and
+`lore/web/`, both name the shop. `lore/` has `root: true`, so it is the
+Lore root of both, and its one lock file holds the records of the rules
+of both. Neither folder's record is an orphan for the other:
+
+``````example audit
+=== external:lore/.loreconfig
+root: true
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/.lore/shared.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== external:lore/web/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/web/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== external:lore/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
 === today
 2026-11-12
 === expect

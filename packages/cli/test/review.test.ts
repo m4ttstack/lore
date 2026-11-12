@@ -386,6 +386,28 @@ describe("records that are not provably orphans are kept", () => {
     expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(writeReviews([GONE, record("shared-rule", MONEY, DOC, TODAY), web]));
   });
 
+  test("two external folders of one repository under one Lore root share its lock file, and neither prunes the other's records", async () => {
+    const root = repoWith({ "docs/checkout-review.md": DOC });
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    const web = record("web-rule", MONEY);
+    const lock = writeReviews([record("shop-rule", MONEY), web]);
+    const folder = repoWith({
+      "lore/.loreconfig": "root: true\n",
+      "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+      "lore/shop/.lore/a.lore": ruleCiting("shop-rule", `/${MONEY.file}`),
+      "lore/web/.loreconfig": "repo: github.com/acme/shop\n",
+      "lore/web/.lore/b.lore": ruleCiting("web-rule", `/${MONEY.file}`),
+      "lore/lore-reviews.lock": lock,
+    });
+    const args = ["--repo", root, "--given", join(folder, "lore")];
+    expect(await lore(["review", "--prune", ...args])).toEqual({ code: 0, out: "", err: "" });
+    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(lock);
+    expect(await lore(["review", "shop-rule", ...args])).toEqual({ code: 0, out: "reviewed shop-rule (1 source)\n", err: "" });
+    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(writeReviews([record("shop-rule", MONEY, DOC, TODAY), web]));
+    expect(lockOf(folder, "lore/lore-reviews.lock").split("\n")).toContain(JSON.stringify(web));
+    expect((await lore(["audit", ...args])).out).toBe("rules with a source: 2, without: 0\n");
+  });
+
   test("a refused rule's records for a source it no longer has are left as they were", async () => {
     const root = shop({ ".lore/dates.lore": ruleCiting("dates-are-iso", DATES.file, "Times"), "lore-reviews.lock": writeReviews([record("dates-are-iso", DATES)]) });
     const { code } = await lore(["review", "dates-are-iso", "--repo", root]);

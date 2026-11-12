@@ -177,7 +177,7 @@ describe("resolveSource on other files and missing content", () => {
   });
 });
 
-describe("resolveSource follows CommonMark fences and only spaces and tabs as whitespace", () => {
+describe("resolveSource finds fences by the line rule alone, and takes only spaces and tabs as whitespace", () => {
   const dates = (doc: string) => resolveSource(src({ heading: "Dates" }), doc);
 
   test("a tilde fence hides a heading", () => {

@@ -1,3 +1,3 @@
-<rule id="checkout-render-budget" category="web_vitals">
-The checkout page shows its first price within the page's time budget.
+<rule id="price-from-quote" category="functional_correctness" severity="blocking">
+The checkout page shows the price from the quote, never a recomputed one.
 </rule>

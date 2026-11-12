@@ -54,7 +54,7 @@ test("toChange reads - lines onto the current file, never an added one", () => {
   expect(() => toChange(["A a.ts", "-1 one"].join("\n"))).toThrow("removed line in an added file: -1 one");
 });
 
-test("auditOptions reads each lock file at a Lore root with its tree, reads absent files as null and rejects a malformed lock", () => {
+test("auditOptions reads each lock file at a Lore root with its repository, reads absent files as null and rejects a malformed lock", () => {
   const record = '{"rule":"a","file":"docs/a.md","heading":null,"phrase":null,"reviewed":"2026-11-01","hash":"3fa9c1d2e7b4"}';
   const ex = example({
     today: "2026-11-12",
@@ -70,7 +70,7 @@ test("auditOptions reads each lock file at a Lore root with its tree, reads abse
   });
   const options = auditOptions(ex, parseWithContext(toInput(ex)));
   expect(options.today).toBe("2026-11-12");
-  expect(options.locks.map(({ tree, path, records }) => [tree, path, records.map((r) => r.rule)])).toEqual([
+  expect(options.locks.map(({ repository, path, records }) => [repository, path, records.map((r) => r.rule)])).toEqual([
     ["repo", "lore-reviews.lock", ["a"]],
     [0, "external:lore/lore-reviews.lock", []],
   ]);

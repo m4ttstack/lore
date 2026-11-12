@@ -1,6 +1,0 @@
-<rule id="totals-from-quote" category="functional_correctness">
-<source>
-file: /docs/checkout-review.md
-</source>
-Order totals come from the quote.
-</rule>

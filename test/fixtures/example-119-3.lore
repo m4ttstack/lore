@@ -1,7 +1,6 @@
-<rule id="dates-from-locale" category="functional_correctness">
+<rule id="totals-from-quote" category="functional_correctness">
 <source>
 file: /docs/checkout-review.md
-heading: Dates
 </source>
-Displayed dates are formatted with the shop's locale.
+Order totals come from the quote.
 </rule>

@@ -1,7 +1,7 @@
 import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import {
-  EXTERNAL, LOOSE, RULES, type Collected, type Diagnostic, type InputFile, type LockRef, type LoreInput, type SourceContent, type Tree,
+  EXTERNAL, LOOSE, RULES, type Collected, type Diagnostic, type InputFile, type LockRef, type LoreInput, type Repository, type SourceContent, type Tree,
 } from "@lore/parser";
 import { InputError } from "./errors";
 import { GitMissingError, gitRoot, readBytesAt, readFileAt, readTracked, readTrackedBytes, remoteUrls, trackedPaths, untrackedPaths } from "./git";
@@ -96,38 +96,38 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     const place = givenPlaces[given];
     return place !== undefined && places.get(place.root) === place ? readTracked(place.root, path, place.listed) : null;
   };
-  const givenPlace = (places: Map<string, Place>, tree: Tree, collected: Collected): Place | undefined => {
-    if (tree === "repo") return undefined;
-    const place = givenPlaces[collected.repositoryGiven[collected.trees[tree]!.repository]!];
+  const givenPlace = (places: Map<string, Place>, repository: Repository, collected: Collected): Place | undefined => {
+    if (repository === "repo") return undefined;
+    const place = givenPlaces[collected.repositoryGiven[repository]!];
     return place !== undefined && places.get(place.root) === place ? place : undefined;
   };
-  const located = (tree: Tree, file: string, collected: Collected) => {
+  const located = (repository: Repository, file: string, collected: Collected) => {
     for (const [prefix, places] of [[EXTERNAL, repositories], [LOOSE, looseFolders]] as const) {
       if (!file.startsWith(prefix)) continue;
-      const place = givenPlace(places, tree, collected);
+      const place = givenPlace(places, repository, collected);
       return place === undefined ? undefined : { root: place.root, ref: null, path: file.slice(prefix.length), listed: place.listed };
     }
     if (repo === null) return undefined;
     return { root: repo, ref: rulesRef, path: file.startsWith(RULES) ? file.slice(RULES.length) : file, listed: governedTracked };
   };
-  const readBytes = (tree: Tree, file: string, collected: Collected): Buffer | null | undefined => {
-    const at = located(tree, file, collected);
+  const readBytes = (repository: Repository, file: string, collected: Collected): Buffer | null | undefined => {
+    const at = located(repository, file, collected);
     return at === undefined ? undefined : readListed(at.root, at.ref, at.path, at.listed);
   };
   const onDisk = (ref: LockRef, collected: Collected): { root: string; path: string } | undefined => {
-    const at = located(ref.tree, ref.path, collected);
+    const at = located(ref.repository, ref.path, collected);
     return at === undefined || at.ref !== null ? undefined : { root: at.root, path: at.path };
   };
   const tracks = (ref: LockRef, collected: Collected): boolean | null => {
-    const at = located(ref.tree, ref.path, collected);
+    const at = located(ref.repository, ref.path, collected);
     return at === undefined || at.ref !== null || ref.path.startsWith(LOOSE) ? null : at.listed.has(at.path);
   };
   const readSourceContent = (place: { tree: Tree }, file: string, collected: Collected): SourceContent | undefined => {
-    const bytes = readBytes(place.tree, file, collected);
+    const bytes = readBytes(place.tree === "repo" ? "repo" : collected.trees[place.tree]!.repository, file, collected);
     return bytes === undefined || bytes === null ? bytes : decode(bytes);
   };
   const readLock = (ref: LockRef, collected: Collected): string | null => {
-    const bytes = readBytes(ref.tree, ref.path, collected);
+    const bytes = readBytes(ref.repository, ref.path, collected);
     if (bytes === undefined) throw new InputError(`cannot read lock file ${ref.path}`);
     return bytes === null ? null : bytes.toString("utf8");
   };

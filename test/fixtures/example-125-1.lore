@@ -2,6 +2,6 @@
 Every stored price records the quote it came from.
 </rule>
 
-<rule id="render-budgets-kept" category="web_vitals">
-Every page shows its first content within its time budget.
-</rule>
+<context id="org-handbook" src="./../../handbook/review.md">
+Read for the organization's review conventions.
+</context>
