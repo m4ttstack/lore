@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import Ajv from "ajv/dist/2020";
@@ -207,7 +207,7 @@ describe("lore audit", () => {
     expect(code).toBe(1);
     expect(err).toBe("");
     const result = JSON.parse(out);
-    expect(Object.keys(result)).toEqual(["findings", "summary", "excluded"]);
+    expect(Object.keys(result)).toEqual(["findings", "summary", "excluded", "warnings"]);
     const ajv = new Ajv({ allErrors: true, strict: true });
     const schemas = join(import.meta.dir, "../../../spec/schemas");
     for (const name of readdirSync(schemas)) ajv.addSchema(JSON.parse(readFileSync(join(schemas, name), "utf8")));
@@ -227,6 +227,73 @@ describe("lore audit", () => {
     expect(await lore(["audit", "--repo", root, "--rules-ref", "HEAD~1"])).toEqual({ code: 0, out: "rules with a source: 1, without: 1\n", err: "" });
     const head = await lore(["audit", "--repo", root]);
     expect(head.out).toContain(".lore/a.lore\n  warn  never-reviewed  money-in-cents  docs/checkout-review.md#");
+  });
+});
+
+describe("files the command could not read", () => {
+  const linkOut = (root: string, path: string, content: string | null): void => {
+    const outside = tempDir();
+    if (content !== null) write(outside, { "target": content });
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    symlinkSync(join(outside, "target"), join(root, path));
+  };
+  const linked = (extra: Record<string, string>): string => {
+    const root = repoWith({ "docs/checkout-review.md": DOC, "lore-reviews.lock": LOCK, ...extra });
+    linkOut(root, ".lore/a.lore", RULE);
+    commit(root, {});
+    return root;
+  };
+  const WARNING = "lore: warning lore-file-not-read in .lore/a.lore line 1\n";
+
+  test("a tracked Lore file that links out of the repo is warned on stderr, and its record is no orphan", async () => {
+    expect(await lore(["audit", "--repo", linked({})])).toEqual({ code: 0, out: "rules with a source: 0, without: 0\n", err: WARNING });
+  });
+
+  test("its record is no orphan beside a readable Lore file of the same Lore root either", async () => {
+    const { code, out, err } = await lore(["audit", "--repo", linked({ ".lore/b.lore": PLAIN })]);
+    expect(code).toBe(0);
+    expect(err).toBe(WARNING);
+    expect(out).toBe("rules with a source: 0, without: 1\n");
+  });
+
+  test("a record under another Lore root is still an orphan", async () => {
+    const other = lockFor("gone-rule", SOURCE, DOC);
+    const { out } = await lore(["audit", "--repo", linked({ "apps/web/.loreconfig": "root: true\n", "apps/web/.lore/b.lore": PLAIN, "apps/web/lore-reviews.lock": other })]);
+    expect(out).toContain(`apps/web/lore-reviews.lock\n  warn  orphan-review  gone-rule  docs/checkout-review.md#${HEADING}\n`);
+  });
+
+  test("an unreadable .loreconfig is warned", async () => {
+    const root = shop();
+    linkOut(root, ".loreconfig", null);
+    commit(root, {});
+    const { code, err } = await lore(["audit", "--repo", root]);
+    expect(code).toBe(0);
+    expect(err).toBe("lore: warning lore-file-not-read in .loreconfig line 1\n");
+  });
+
+  test("the model's warnings are on stderr too, and none of them makes --strict exit 1", async () => {
+    const root = shop({ ".lore/b.lore": '<rule id="no-category">\nProse.\n</rule>\n' });
+    const { code, err } = await lore(["audit", "--repo", root, "--strict"]);
+    expect(code).toBe(0);
+    expect(err).toBe("lore: warning missing-category in .lore/b.lore line 1 (entry no-category)\n");
+  });
+
+  test("the warnings are those lore select gives for the same rules", async () => {
+    const root = linked({ ".lore/b.lore": '<context id="guide" src="docs/missing.md">\nRead it.\n</context>\n<rule id="no-category">\nProse.\n</rule>\n' });
+    const audited = JSON.parse((await lore(["audit", "--repo", root, "--format", "json"])).out).warnings;
+    const selected = JSON.parse((await lore(["select", "--repo", root, "--diff", "-", "--format", "json"])).out).warnings;
+    expect(audited.map((warning: { name: string }) => warning.name).sort()).toEqual(["lore-file-not-read", "missing-category", "missing-src-target"]);
+    expect(audited).toEqual(selected);
+  });
+
+  test("--format json carries the warnings beside excluded", async () => {
+    const { code, out, err } = await lore(["audit", "--repo", linked({ ".lore/b.lore": PLAIN }), "--format", "json"]);
+    expect(code).toBe(0);
+    expect(err).toBe("");
+    const result = JSON.parse(out);
+    expect(Object.keys(result)).toEqual(["findings", "summary", "excluded", "warnings"]);
+    expect(result.findings).toEqual([]);
+    expect(result.warnings).toEqual([{ name: "lore-file-not-read", file: ".lore/a.lore", entry: null, line: 1 }]);
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Example, ExampleFile } from "../../../tools/check/extract";
-import { audit, lockPathFor, lockRefs, type AuditOptions, type Finding } from "../src/audit";
+import { audit, lockPathFor, lockRefs, lockRefsHolding, type AuditOptions, type Finding } from "../src/audit";
 import { parseWithContext } from "../src/model";
 import { writeReviews, type ReviewRecord } from "../src/reviews";
 import { resolveSource } from "../src/sources";
@@ -124,6 +124,14 @@ describe("audit", () => {
     ]);
   });
 
+  test("a withheld lock file reports no orphan-review, and its live records are still used", () => {
+    const gone = record(AT_HEADING, { rule: "price-from-quote" });
+    const files = { [LORE]: rule(HEADING), "docs/review.md": DOC, [LOCK]: lock(record(AT_HEADING), gone) };
+    expect(run(files).findings.map((f) => f.name)).toEqual(["orphan-review"]);
+    expect(run(files, { withheld: [{ tree: "repo", path: LOCK }] }).findings).toEqual([]);
+    expect(run(files, { withheld: [{ tree: 0, path: LOCK }] }).findings.map((f) => f.name)).toEqual(["orphan-review"]);
+  });
+
   test("two matching headings are ambiguous-heading, not source-missing", () => {
     const doc = "## Money is integer minor units\n\nCents.\n\n## money is integer minor units\n\nAlso cents.\n";
     const result = run({ [LORE]: rule(HEADING), "docs/review.md": doc, [LOCK]: lock(record(AT_HEADING, {}, doc)) });
@@ -214,6 +222,22 @@ describe("lockPathFor", () => {
       "web-rule": { tree: "repo", path: "apps/web/lore-reviews.lock" },
       "shared-rule": { tree: 0, path: "external:lore/shop/lore-reviews.lock" },
     });
+  });
+});
+
+describe("lockRefsHolding", () => {
+  test("is the lock file of the Lore root that would hold a file, in each tree of its repository", () => {
+    const { collected } = parseWithContext(toInput(example({
+      ".lore/a.lore": rule("file: docs/review.md", "root-rule"),
+      "apps/web/.loreconfig": "root: true\n",
+      "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+      "external:lore/shop/.lore/c.lore": rule("file: docs/review.md", "shared-rule"),
+    })));
+    expect(lockRefsHolding(collected, ".lore/gone.lore", "repo")).toEqual([{ tree: "repo", path: LOCK }]);
+    expect(lockRefsHolding(collected, "apps/web/.lore/gone.lore", "repo")).toEqual([{ tree: "repo", path: "apps/web/lore-reviews.lock" }]);
+    expect(lockRefsHolding(collected, "apps/web/.loreconfig", "repo")).toEqual([{ tree: "repo", path: "apps/web/lore-reviews.lock" }]);
+    expect(lockRefsHolding(collected, "external:lore/shop/.lore/gone.lore", 0)).toEqual([{ tree: 0, path: "external:lore/shop/lore-reviews.lock" }]);
+    expect(lockRefsHolding(collected, "external:lore/other/.lore/gone.lore", 0)).toEqual([]);
   });
 });
 

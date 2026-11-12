@@ -1,5 +1,8 @@
-import { FINDINGS, lockRefs, readReviews, type AuditResult, type Finding, type LockFile, type LockRef, type ParsedInput } from "@lore/parser";
+import {
+  FINDINGS, lockRefs, lockRefsHolding, readReviews, type AuditResult, type Finding, type LockFile, type LockRef, type ParsedInput,
+} from "@lore/parser";
 import { InputError } from "./errors";
+import { unreadWarnings, type UnreadFile } from "./input";
 
 export function loadLocks(parsed: ParsedInput, readLock: (ref: LockRef) => string | null): LockFile[] {
   const locks: LockFile[] = [];
@@ -11,6 +14,15 @@ export function loadLocks(parsed: ParsedInput, readLock: (ref: LockRef) => strin
     locks.push({ ...ref, records: read.records });
   }
   return locks;
+}
+
+// The lock files whose records must not be taken for orphans: a file warned lore-file-not-read lies under their Lore root.
+export function withheldLocks(parsed: ParsedInput, unread: readonly UnreadFile[]): LockRef[] {
+  const { collected } = parsed;
+  const warned = new Set(unreadWarnings(unread, collected).map(({ file }) => file));
+  return unread
+    .filter(({ file }) => warned.has(file))
+    .flatMap(({ file, given }) => lockRefsHolding(collected, file, given === null ? "repo" : collected.repositoryGiven.indexOf(given)));
 }
 
 export function renderAudit(result: AuditResult): string {

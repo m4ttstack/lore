@@ -83,6 +83,12 @@ export function excludedLines(selection: Pick<Selection, "excluded">): string {
     .join("");
 }
 
+export function warningLines(warnings: readonly Diagnostic[]): string {
+  return warnings
+    .map(({ name, file, line, entry }) => `lore: warning ${name} in ${file} line ${line}${entry === null ? "" : ` (entry ${entry})`}\n`)
+    .join("");
+}
+
 function warningLine(warning: Diagnostic): string {
   const entry = warning.entry === null ? "" : ` (entry ${span(warning.entry)})`;
   return `- ${span(warning.name)} in ${span(warning.file)} line ${warning.line}${entry}`;

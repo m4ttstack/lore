@@ -1,16 +1,16 @@
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { RegexLimitError, audit, parseWithContext, selectDetailed } from "@lore/parser";
+import { RegexLimitError, audit, compareDiagnostics, missingSrcTargets, parseWithContext, selectDetailed } from "@lore/parser";
 import pkg from "../package.json";
 import { parseCommand, type AuditCommand, type CheckCommand, type SelectCommand, type VerdictsCommand } from "./args";
-import { loadLocks, renderAudit } from "./audit";
+import { loadLocks, renderAudit, withheldLocks } from "./audit";
 import { changeDiff, type ChangeSource } from "./change";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
 import { GitMissingError } from "./git";
 import { buildInput, findRepoRoot, unreadWarnings } from "./input";
 import { entrySources, toSelection } from "./selection";
-import { excludedLines, renderText } from "./text";
+import { excludedLines, renderText, warningLines } from "./text";
 import { checkVerdicts, readSelection } from "./verdicts";
 
 export interface IO {
@@ -155,10 +155,14 @@ async function runAudit(command: AuditCommand, io: IO): Promise<number> {
     locks: loadLocks(parsed, (ref) => built.readLock(ref, parsed.collected)),
     ...(command.maxAge === null ? {} : { maxAgeDays: command.maxAge }),
     levels: command.levels,
+    withheld: withheldLocks(parsed, built.unread),
   });
-  if (command.format === "json") io.stdout(`${JSON.stringify(result, null, 2)}\n`);
+  const warnings = [
+    ...parsed.model.warnings, ...missingSrcTargets(built.input, parsed.model), ...unreadWarnings(built.unread, parsed.collected),
+  ].sort(compareDiagnostics);
+  if (command.format === "json") io.stdout(`${JSON.stringify({ ...result, warnings }, null, 2)}\n`);
   else {
-    io.stderr(excludedLines(result));
+    io.stderr(excludedLines(result) + warningLines(warnings));
     io.stdout(renderAudit(result));
   }
   const failed = result.findings.some((finding) => finding.level === "error") || (command.strict && result.excluded.length > 0);

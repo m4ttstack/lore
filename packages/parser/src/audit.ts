@@ -1,4 +1,4 @@
-import { auditSettingsFor, type AuditSettings, type Collected, type CollectedFile, type Repository, type Tree } from "./collect";
+import { EXTERNAL, LOOSE, RULES, auditSettingsFor, loreRootIn, type AuditSettings, type Collected, type CollectedFile, type Repository, type Tree } from "./collect";
 import { FINDINGS, type FindingName, type Level } from "./loreconfig";
 import type { EntryPlace, ParsedInput } from "./model";
 import { LOCK_NAME, sameSource, type ReviewRecord } from "./reviews";
@@ -33,6 +33,8 @@ export interface AuditOptions {
   locks: readonly LockFile[];
   maxAgeDays?: number;
   levels?: Partial<Record<FindingName, Level>>;
+  // Lock files whose records are never orphan-review: a Lore or .loreconfig file under their Lore root could not be read.
+  withheld?: readonly LockRef[];
 }
 
 type Found = Omit<Finding, "level">;
@@ -46,6 +48,16 @@ export function lockPathFor(place: EntryPlace): LockRef {
 // The lock files an audit reads: one for each Lore root that holds a collected Lore file.
 export function lockRefs(parsed: ParsedInput): LockRef[] {
   return [...lockRoots(parsed.collected).values()].map(({ ref }) => ref);
+}
+
+// The lock files of the Lore roots that would hold a file at this prefixed path, in each tree of its repository that reaches it.
+export function lockRefsHolding(collected: Collected, file: string, repository: Repository): LockRef[] {
+  const prefix = [EXTERNAL, LOOSE, RULES].find((candidate) => file.startsWith(candidate)) ?? "";
+  const dir = dirOf(file.slice(prefix.length));
+  const trees: { tree: Tree; marked: string }[] = repository === "repo"
+    ? [{ tree: "repo", marked: "" }]
+    : collected.trees.flatMap((info, tree) => (info.repository === repository && within(dir, info.marked) ? [{ tree, marked: info.marked }] : []));
+  return trees.map(({ tree, marked }) => ({ tree, path: lockPath(prefix, loreRootIn(collected, dir, repository, marked)) }));
 }
 
 export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
@@ -113,6 +125,7 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
 function orphans(parsed: ParsedInput, options: AuditOptions, live: ReadonlyMap<string, Set<string>>): Finding[] {
   const { model, collected } = parsed;
   const roots = lockRoots(collected);
+  const withheld = new Set((options.withheld ?? []).map(lockKey));
   const excluded = new Map<string, Set<string | null>>();
   for (const error of model.errors) {
     const file = collected.files.find((candidate) => candidate.file === error.file);
@@ -124,7 +137,7 @@ function orphans(parsed: ParsedInput, options: AuditOptions, live: ReadonlyMap<s
     const key = lockKey(lock);
     const root = roots.get(key);
     const hidden = excluded.get(key);
-    if (root === undefined || hidden?.has(null)) continue;
+    if (root === undefined || hidden?.has(null) || withheld.has(key)) continue;
     const settings = settingsFor(collected, options, root.loreRoot, root.repository, root.loreRoot);
     for (const record of lock.records) {
       if (live.get(key)?.has(identity(record.rule, record)) || hidden?.has(record.rule)) continue;
@@ -193,6 +206,10 @@ function lockPath(prefix: string, loreRoot: string): string {
 
 function repositoryOf(collected: Collected, tree: Tree): Repository {
   return tree === "repo" ? "repo" : collected.trees[tree]!.repository;
+}
+
+function within(dir: string, ancestor: string): boolean {
+  return ancestor === "" || dir === ancestor || dir.startsWith(`${ancestor}/`);
 }
 
 function dirOf(path: string): string {

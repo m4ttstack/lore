@@ -104,6 +104,10 @@ export function auditSettingsFor(collected: Collected, dir: string, repository: 
   return settings;
 }
 
+export function loreRootIn(collected: Collected, dir: string, repository: Repository, marked: string): string {
+  return loreRootOf(configsOf(collected, repository), dir, marked);
+}
+
 function collectSource(source: Source, remotes: readonly string[], out: Collected): void {
   const { configs, excluded, marks } = readConfigs(source, remotes, out.diagnostics);
   const roots: { marked: string; tree: Tree }[] = source.folders === null

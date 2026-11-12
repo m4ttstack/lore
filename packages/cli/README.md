@@ -130,6 +130,7 @@ It reads every rule collected for the governed repo and the given folders, disab
 
 - Cited files, Lore files and lock files are read as `lore select` reads its rules: tracked files only, from the working tree. An untracked or ignored cited file is `source-missing`. A tracked file the command cannot read safely (a symlink out of its place, a file outside a sparse-checkout cone) is `source-unchecked`.
 - A lock file is read only once git tracks it, so `git add` the file `lore review` writes before auditing.
+- A Lore or `.loreconfig` file the command could not read is warned `lore-file-not-read`, as in `lore select`, and the records in the lock file of its Lore root are not reported as `orphan-review`, since the rules they belong to may only be unread.
 - With `--rules-ref <ref>`, the rules, the lock files and the cited files are all read at that revision.
 - A file that is not valid UTF-8 is fingerprinted as its bytes; a `heading` or `phrase` in it is never found.
 
@@ -196,7 +197,7 @@ never-reviewed: 1
 rules with a source: 2, without: 1
 ```
 
-JSON output is `{ "findings": [...], "summary": {...}, "excluded": [...] }`. `findings` and `summary` follow `spec/schemas/audit.schema.json`; `excluded` lists the excluded entries as `lore select` does. In text, excluded entries go to stderr, one line each, as in `lore select`. An excluded entry is not audited.
+JSON output is `{ "findings": [...], "summary": {...}, "excluded": [...], "warnings": [...] }`. `findings` and `summary` follow `spec/schemas/audit.schema.json`; `excluded` and `warnings` list the excluded entries and the warnings `lore select` would give for the same rules. In text, both go to stderr, one line each (`lore: excluded ...`, `lore: warning ...`). An excluded entry is not audited. Warnings never change the exit code, `--strict` included, as in `lore select`.
 
 A lock file that is not in the format (a bad header, a line that is not a record, two records for one source) is an input error, exit 2, naming the file and the line. It is never repaired.
 
