@@ -565,8 +565,8 @@ describe("help and version", () => {
 
   test("the help lists --also-in-scope and --expand", async () => {
     const { out } = await lore(["--help"]);
-    expect(out).toContain("  --also-in-scope        List rules whose scope covers a changed file but whose conditions did not hold\n");
-    expect(out).toContain("  --expand <id>          Print one of those rules in full (repeatable; it then needs a verdict)\n");
+    expect(out).toContain("  --also-in-scope            List rules whose scope covers a changed file but whose conditions did not hold\n");
+    expect(out).toContain("  --expand <id>              Print one of those rules in full (repeatable; it then needs a verdict)\n");
   });
 
   test("the exit codes are stated per command", async () => {
@@ -593,7 +593,8 @@ describe("help and version", () => {
     expect(out).toContain("--prune");
     expect(out).toContain("lore audit [rules] [options]");
     expect(out).toContain("--max-age <days>");
-    expect(out).toContain("--level <name=level>");
+    expect(out).toContain("  --level <finding>=<level>  Set a finding's level");
+    expect(out).toContain("lore audit also reads lock files and cited files there");
   });
 });
 
@@ -772,7 +773,7 @@ describe("lore check", () => {
   test("--help lists lore check", async () => {
     const { out } = await lore(["--help"]);
     expect(out).toContain("lore check [<commit> | --base <ref>] [rules] [options]");
-    expect(out).toContain("  --base <ref>           lore check: compare with the merge base of <ref> and HEAD (the branch so far)\n");
+    expect(out).toContain("  --base <ref>               lore check: compare with the merge base of <ref> and HEAD (the branch so far)\n");
     expect(await lore(["check", "--help"])).toEqual({ code: 0, out, err: "" });
   });
 });

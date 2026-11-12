@@ -35,37 +35,37 @@ const HELP = `Usage:
   lore --version
 
 Rules:
-  --repo <dir>           The governed repo's working tree (default: the git root above the current directory)
-  --no-repo              Take the governed repo to hold no Lore files; needs --remote
-  --remote <url>         The governed repo's remote, for matching "repo" (repeatable; default: read from git)
-  --rules-ref <ref>      Read the repo's Lore files at this git ref instead of the working tree
-  --given <dir>          A given folder (repeatable)
+  --repo <dir>               The governed repo's working tree (default: the git root above the current directory)
+  --no-repo                  Take the governed repo to hold no Lore files; needs --remote
+  --remote <url>             The governed repo's remote, for matching "repo" (repeatable; default: read from git)
+  --rules-ref <ref>          Read the repo's Lore files at this git ref instead of the working tree; lore audit also reads lock files and cited files there
+  --given <dir>              A given folder (repeatable)
 
 Change:
-  --diff <file|->        A unified diff, or - for stdin (lore select)
-  <commit>               The commit lore check reads the change from (default: uncommitted work, untracked files included)
-  --base <ref>           lore check: compare with the merge base of <ref> and HEAD (the branch so far)
+  --diff <file|->            A unified diff, or - for stdin (lore select)
+  <commit>                   The commit lore check reads the change from (default: uncommitted work, untracked files included)
+  --base <ref>               lore check: compare with the merge base of <ref> and HEAD (the branch so far)
 
 Output:
-  --format text|json     Default: text for lore check and lore audit; for lore select, text on a terminal, json otherwise
-  --capabilities <list>  Checks to run, default regex,ast-grep
-  --strict               Exit 1 when the rules have errors that excluded entries
-  --also-in-scope        List rules whose scope covers a changed file but whose conditions did not hold
-  --expand <id>          Print one of those rules in full (repeatable; it then needs a verdict)
+  --format text|json         Default: text for lore check and lore audit; for lore select, text on a terminal, json otherwise
+  --capabilities <list>      Checks to run, default regex,ast-grep
+  --strict                   Exit 1 when the rules have errors that excluded entries
+  --also-in-scope            List rules whose scope covers a changed file but whose conditions did not hold
+  --expand <id>              Print one of those rules in full (repeatable; it then needs a verdict)
 
 Verdicts:
-  --selection <file>     The JSON from lore select
-  <verdicts-file>        A verdict set, or - for stdin (default)
+  --selection <file>         The JSON from lore select
+  <verdicts-file>            A verdict set, or - for stdin (default)
 
 Audit:
-  --max-age <days>       Report a review older than this many days (overrides .loreconfig)
-  --level <name=level>   Set a finding's level: error, warn or off (repeatable; overrides .loreconfig)
+  --max-age <days>           Report a review older than this many days (overrides .loreconfig)
+  --level <finding>=<level>  Set a finding's level: error, warn or off (repeatable; overrides .loreconfig)
 
 Review:
-  <id>                   A rule you compared with its sources; its records are written (repeatable)
-  --file <lore-file>     Every rule with a source in this Lore file, named as lore audit prints it (repeatable)
-  --prune                Only remove records whose rule or source no longer exists
-  --date <YYYY-MM-DD>    The date to record (default: today)
+  <id>                       A rule you compared with its sources; its records are written (repeatable)
+  --file <lore-file>         Every rule with a source in this Lore file, named as lore audit prints it (repeatable)
+  --prune                    Only remove records whose rule or source no longer exists
+  --date <YYYY-MM-DD>        The date to record (default: today)
 
 Exit codes:
   lore select    0 the selection ran, 1 --strict was given and entries were excluded
