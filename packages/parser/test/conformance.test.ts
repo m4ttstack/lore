@@ -14,6 +14,11 @@ function withoutRanges(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value, (key, v) => (key === "range" ? undefined : v)));
 }
 
+function runAudit(example: Parameters<typeof auditOptions>[0], input: ReturnType<typeof toInput>) {
+  const parsed = parseWithContext(input);
+  return audit(parsed, auditOptions(example, parsed));
+}
+
 function auditJson({ findings, summary }: ReturnType<typeof audit>) {
   return { findings, summary };
 }
@@ -37,7 +42,7 @@ describe("conformance", () => {
         example.kind === "eligibility"
           ? await select(input, toChange(example.diff ?? ""), { capabilities: ["regex", "ast-grep"], astGrepBinary: astGrep })
           : example.kind === "audit"
-            ? auditJson(audit(parseWithContext(input), auditOptions(example)))
+            ? auditJson(runAudit(example, input))
             : parse(input);
       expect(withoutRanges(actual)).toEqual(expected);
     });

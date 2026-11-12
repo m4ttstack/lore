@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Example, ExampleFile } from "../../../tools/check/extract";
-import { audit, lockPathFor, type AuditOptions, type Finding } from "../src/audit";
+import { audit, lockPathFor, lockRefs, type AuditOptions, type Finding } from "../src/audit";
 import { parseWithContext } from "../src/model";
 import { writeReviews, type ReviewRecord } from "../src/reviews";
 import { resolveSource } from "../src/sources";
@@ -29,7 +29,8 @@ function example(files: Record<string, string>): Example {
 
 function run(files: Record<string, string>, options: Partial<AuditOptions> = {}) {
   const ex = example(files);
-  return audit(parseWithContext(toInput(ex)), { ...auditOptions(ex), ...options });
+  const parsed = parseWithContext(toInput(ex));
+  return audit(parsed, { ...auditOptions(ex, parsed), ...options });
 }
 
 function hashOf(source: Source, content: string): string {
@@ -207,11 +208,35 @@ describe("lockPathFor", () => {
       "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
       "external:lore/shop/.lore/c.lore": rule("file: docs/review.md", "shared-rule"),
     })));
-    const paths = Object.fromEntries(model.entries.map((entry) => [entry.id, lockPathFor(placeOf.get(entry)!, entry)]));
-    expect(paths).toEqual({
-      "root-rule": "lore-reviews.lock",
-      "web-rule": "apps/web/lore-reviews.lock",
-      "shared-rule": "external:lore/shop/lore-reviews.lock",
+    const refs = Object.fromEntries(model.entries.map((entry) => [entry.id, lockPathFor(placeOf.get(entry)!)]));
+    expect(refs).toEqual({
+      "root-rule": { tree: "repo", path: "lore-reviews.lock" },
+      "web-rule": { tree: "repo", path: "apps/web/lore-reviews.lock" },
+      "shared-rule": { tree: 0, path: "external:lore/shop/lore-reviews.lock" },
     });
+  });
+});
+
+describe("lock files of different repositories", () => {
+  test("a lock file at the same path in two repositories is told apart by its tree", () => {
+    const folder = (repository: string, id: string) => ({
+      folder: "", repository,
+      files: [
+        { path: ".loreconfig", content: "repo: github.com/acme/shop\n" },
+        { path: ".lore/a.lore", content: rule("file: /docs/review.md", id) },
+      ],
+    });
+    const parsed = parseWithContext({
+      repo: [{ path: "docs/review.md", content: DOC }],
+      given: [folder("/work/a", "a-rule"), folder("/work/b", "b-rule")],
+      remotes: ["https://github.com/acme/shop"],
+    });
+    const refs = parsed.model.entries.map((entry) => lockPathFor(parsed.placeOf.get(entry)!));
+    expect(refs).toEqual([{ tree: 0, path: "external:lore-reviews.lock" }, { tree: 1, path: "external:lore-reviews.lock" }]);
+    expect(lockRefs(parsed)).toEqual(refs);
+    const locks = parsed.model.entries.map((entry, n) => ({ ...refs[n]!, records: [record(source(), { rule: entry.id })] }));
+    const result = audit(parsed, { today: "2026-11-12", readSource: (_place, file) => (file === "docs/review.md" ? DOC : null), locks });
+    expect(result.findings).toEqual([]);
+    expect(result.summary).toEqual({ counts: {}, rulesWithSource: 2, rulesWithoutSource: 0 });
   });
 });

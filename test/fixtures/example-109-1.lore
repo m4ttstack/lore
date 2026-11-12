@@ -7,6 +7,8 @@
   phrase: Owned by the checkout team.
 - file: docs/checkout-review.md
   phrase: integers in minor units
+- file: docs/checkout-review.md
+  phrase: ' ## Dates'
 - file: apps/web/src/checkout/money.ts
   phrase: 'export function fromCents('
 </source>

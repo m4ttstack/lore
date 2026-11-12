@@ -5659,45 +5659,47 @@ Dates are shown in the shop's locale.
 
 A file is **Markdown** when its path ends in `.md`, `.mdx` or
 `.markdown`, compared case-sensitively, so `docs/NOTES.MD` is not
-Markdown. A file's lines are split at each line break: CR LF, a lone CR
-or a lone LF.
+Markdown. A file's lines end at CR LF, LF or CR, and only there.
 
-**Whitespace** is exactly these characters: U+0009 to U+000D, U+0020,
-U+00A0, U+1680, U+2000 to U+200A, U+2028, U+2029, U+202F, U+205F,
-U+3000 and U+FEFF. U+0085 is not whitespace.
+**Whitespace** is a space (U+0020) or a tab (U+0009), and nothing else.
+U+00A0, U+FEFF, U+2028, U+2029 and every other character are ordinary
+characters wherever this section speaks of whitespace.
 
-**Fenced code blocks.** A Markdown file's fenced code blocks are found
-as those in a rule's prose are (see Fences in [Entries](#entries)). A
-fence opens at a line whose first characters after any spaces and tabs
-are three or more backticks, with no further backtick on the line, or
-three or more tildes. It closes at the next line that, ignoring leading
-and trailing spaces and tabs, is a run of the same character at least as
-long. A fence that never closes runs to the end of the file. As in
-prose, CommonMark's indentation limit does not apply, so a fence opens
-at any indentation.
+**Fenced code blocks.** A Markdown file's fenced code blocks are those
+of CommonMark. An opening fence is a line of zero to three spaces, then
+three or more backticks or three or more tildes; after a run of
+backticks, the rest of the line holds no backtick. The fence closes at
+the next line of zero to three spaces, then a run of the same character
+at least as long as the opening run, then only whitespace. A fence that
+never closes runs to the end of the file. A line indented by four or
+more spaces, or by a tab, neither opens nor closes a fence. These are
+not the fences of a rule's prose, which ignore indentation (see Fences
+in [Entries](#entries)).
 
 **Headings.** A **heading** is a line, outside every fenced code block
 and other than a fence's opening and closing lines, that starts with
 zero to three spaces, then one to six `#`, then either the end of the
-line or a space or tab. Its **level** is its number of `#`. Its
-**text** is the rest of the line after the `#` and the spaces and tabs
-that follow them, with trailing whitespace removed, then a closing run
-of `#` removed when it is the whole text or follows a space or tab, then
-leading and trailing whitespace removed. Inline markup stays as written,
-so `## Money is *integer* minor units` has the text
-`Money is *integer* minor units`.
+line or whitespace. Its **level** is its number of `#`. Its **text** is
+the rest of the line after the `#` and the whitespace that follows
+them, with trailing whitespace removed, and then a closing run of `#`
+removed, with the whitespace before it, when it is the whole text or
+follows whitespace. Inline markup stays as written, so
+`## Money is *integer* minor units` has the text
+`Money is *integer* minor units`. The text can hold any character but a
+line ending, U+2028 and U+2029 included.
 
 **Slugs.** The **slug** of a string is found in three steps:
 
-1. Lower-case it with the Unicode default case conversion
-   (`toLowercase`, with its full mappings and not specific to any
-   language).
+1. Lower-case it with the Unicode default case mapping (`toLowercase`,
+   with its full mappings and not specific to any language).
 2. Remove every character that is not a letter (general category L), a
-   number (general category N), `_`, `-` or U+0020 SPACE.
+   mark (general category M), a number (general category N), `_`, `-`
+   or U+0020 SPACE.
 3. Turn each remaining space into `-`.
 
-Runs are not collapsed, so two spaces become `--`, and combining marks
-(general category M) are removed with the other characters.
+Runs are not collapsed, so two spaces become `--`. No Unicode
+normalization is applied, so a letter written with a combining mark
+differs from the same letter written as one precomposed character.
 
 A heading **matches** a `heading` value when its text equals the value,
 or when the value's slug is not empty and equals the slug of the
@@ -5710,11 +5712,11 @@ fewer, or to the end of the file. Its text is those lines joined with
 LF.
 
 **Phrases.** A phrase matches a text when, after each run of whitespace
-in both is replaced by one U+0020 SPACE, the phrase is a part of the
-text. A line break is whitespace, so a phrase can match across lines.
-A phrase with a `heading` is looked for in that heading's section, and
-one without a `heading` in the whole file, where its first match is
-the one used.
+and line endings in both is replaced by one U+0020 SPACE, the phrase is
+a part of the text. A phrase can therefore match across lines. A phrase
+with a `heading` is looked for in that heading's section, and one
+without a `heading` in the whole file, where its first match is the one
+used.
 
 A source **resolves** when its file exists and, for each of `heading`
 and `phrase` it has, the heading matches and the phrase matches. A
@@ -5728,8 +5730,14 @@ both `money-is-integer-minor-units` and `Money is integer minor units`
 match it. Letters and numbers of every script are kept, an upper-case
 `É` included as `é`, and `_` is kept. `Display casing` matches no
 heading: it equals no heading's text, and its slug equals no heading's
-slug. Nothing was reviewed, so every source that resolves is
-`never-reviewed`:
+slug. The heading `Remise appliquée` writes its `é` as `e` followed by
+U+0301 COMBINING ACUTE ACCENT, which the slug keeps, so the first value
+of `discounts-before-tax`, written the same way, matches, and the
+second, which writes `é` as the one character U+00E9, does not. The
+heading `Totals and taxes` holds a U+2028 LINE SEPARATOR between
+`Totals` and `and`: it does not end the line, so the line is one
+heading, and its slug drops the character. Nothing was reviewed, so
+every source that resolves is `never-reviewed`:
 
 ``````example audit
 === .lore/checkout.lore
@@ -5760,6 +5768,24 @@ heading: étape-2-sous_total-ht
 </source>
 The subtotal is shown before tax.
 </rule>
+
+<rule id="discounts-before-tax" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: remise-appliquée
+- file: docs/checkout-review.md
+  heading: remise-appliquée
+</source>
+A discount is applied before tax.
+</rule>
+
+<rule id="totals-with-taxes" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: totalsand-taxes
+</source>
+A displayed total includes taxes.
+</rule>
 === docs/checkout-review.md
 # Checkout review
 
@@ -5774,11 +5800,27 @@ Names keep the case they were entered in.
 ## Étape 2: sous_total (HT)
 
 Le sous-total est hors taxes.
+
+## Remise appliquée
+
+La remise est appliquée avant les taxes.
+
+## Totals and taxes
+
+A total includes taxes.
 === today
 2026-11-12
 === expect
 {
   "findings": [
+    {
+      "name": "source-missing", "level": "error", "rule": "discounts-before-tax", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "remise-appliquée", "phrase": null }, "reason": "heading not found: \"remise-appliquée\""
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "discounts-before-tax", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "remise-appliquée", "phrase": null }, "reason": null
+    },
     {
       "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
       "source": { "file": "docs/checkout-review.md", "heading": "money-is-integer-minor-units", "phrase": null }, "reason": null
@@ -5798,16 +5840,21 @@ Le sous-total est hors taxes.
     {
       "name": "never-reviewed", "level": "warn", "rule": "subtotal-before-tax", "file": ".lore/checkout.lore",
       "source": { "file": "docs/checkout-review.md", "heading": "étape-2-sous_total-ht", "phrase": null }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "totals-with-taxes", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "totalsand-taxes", "phrase": null }, "reason": null
     }
   ],
-  "summary": { "counts": { "source-missing": 1, "never-reviewed": 4 }, "rulesWithSource": 3, "rulesWithoutSource": 0 }
+  "summary": { "counts": { "source-missing": 2, "never-reviewed": 6 }, "rulesWithSource": 5, "rulesWithoutSource": 0 }
 }
 ``````
 
 A heading inside a fenced code block is not a heading. The tilde fence
-opens indented by six spaces and is not closed by the shorter `~~~`, so
-`Money` and `Dates` are inside it. The line of four backticks is not a
-fence, because a backtick follows the run, so `Rounding` is a heading.
+opens indented by two spaces and is not closed by the shorter `~~~`, so
+`Money` and `Dates` are inside it. The backticks indented by four spaces
+open no fence, and neither does the line of four backticks, because a
+backtick follows the run, so `Rounding` and `Subtotal` are headings.
 The last fence never closes, so `Totals` is inside it:
 
 ``````example audit
@@ -5821,6 +5868,8 @@ The last fence never closes, so `Totals` is inside it:
 - file: docs/checkout-review.md
   heading: Rounding
 - file: docs/checkout-review.md
+  heading: Subtotal
+- file: docs/checkout-review.md
   heading: Totals
 </source>
 Amounts are integers in minor units (cents).
@@ -5828,14 +5877,17 @@ Amounts are integers in minor units (cents).
 === docs/checkout-review.md
 # Checkout review
 
-      ~~~~
+  ~~~~
 ## Money
 ~~~
 ## Dates
 ~~~~~
 
-```` md`fences`
+    ```
 ## Rounding
+
+```` md`fences`
+## Subtotal
 
 ```
 ## Totals
@@ -5859,17 +5911,22 @@ Amounts are integers in minor units (cents).
     {
       "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
       "source": { "file": "docs/checkout-review.md", "heading": "Rounding", "phrase": null }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Subtotal", "phrase": null }, "reason": null
     }
   ],
-  "summary": { "counts": { "source-missing": 3, "never-reviewed": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+  "summary": { "counts": { "source-missing": 3, "never-reviewed": 2 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
 }
 ``````
 
-A phrase matches across whitespace of any kind and amount. In
+A phrase matches across any run of spaces, tabs and line endings. In
 `money.ts`, `function` and `fromCents(` are separated by a tab, and in
-the review `minor` and `units` by a line break and a U+00A0 NO-BREAK
-SPACE. Matching is case-sensitive, so `Integers in minor units` is not
-found:
+the review `minor` and `units` by a line ending. Matching is
+case-sensitive, so `Integers in minor units` is not found, and U+00A0
+NO-BREAK SPACE is not whitespace, so `rounded half to even` is not
+found where the review writes `half` and `to` with one between them:
 
 ``````example audit
 === .lore/checkout.lore
@@ -5881,6 +5938,8 @@ found:
   phrase: integers in minor units
 - file: docs/checkout-review.md
   phrase: Integers in minor units
+- file: docs/checkout-review.md
+  phrase: rounded half to even
 </source>
 Amounts are integers in minor units (cents).
 </rule>
@@ -5894,7 +5953,7 @@ export  function	fromCents(cents: number): Money {
 ## Money is integer minor units
 
 Amounts are integers in minor
- units (cents).
+units (cents). Totals are rounded half to even.
 === today
 2026-11-12
 === expect
@@ -5905,6 +5964,10 @@ Amounts are integers in minor
       "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "Integers in minor units" }, "reason": "phrase not found: \"Integers in minor units\""
     },
     {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "rounded half to even" }, "reason": "phrase not found: \"rounded half to even\""
+    },
+    {
       "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
       "source": { "file": "apps/web/src/checkout/money.ts", "heading": null, "phrase": "export function fromCents(" }, "reason": null
     },
@@ -5913,7 +5976,7 @@ Amounts are integers in minor
       "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "integers in minor units" }, "reason": null
     }
   ],
-  "summary": { "counts": { "source-missing": 1, "never-reviewed": 2 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+  "summary": { "counts": { "source-missing": 2, "never-reviewed": 2 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
 }
 ``````
 
@@ -5929,9 +5992,12 @@ The **fingerprint** of a source that resolves is a short hash of its
 | `phrase` only, Markdown file | The section of the last heading at or above the line where the first match begins, or the whole file when no heading is. |
 | `phrase` only, other file | The whole file. |
 
-A match that begins with whitespace begins on the line that holds the
-first character of that run of whitespace, and a line break belongs to
-the line it ends.
+A match begins on the line of its first character that is neither
+whitespace nor a line ending, so a phrase that starts with a space
+begins where the text after the space does. A phrase of nothing but
+whitespace begins where the run it matched begins: on the line of the
+run's first space or tab, or on the line that the run's first line
+ending ends.
 
 The reviewed text is normalized before it is hashed:
 
@@ -5965,6 +6031,10 @@ Each record here holds the fingerprint of the reviewed text the table
 gives, so nothing is reported. The first phrase sits above the first
 heading, so its reviewed text is the whole file, and the second is under
 `Money is integer minor units`, so its reviewed text is that section.
+The third starts with a space, which matches the line endings at the
+end of the `Money is integer minor units` section, but its match begins
+on the
+`## Dates` line, so its reviewed text is the `Dates` section.
 `docs/NOTES.MD` is not Markdown, so its phrase's reviewed text is the
 whole file and not the `Rounding` section. A tool that hashed any of
 them differently would report `source-changed`:
@@ -5980,6 +6050,8 @@ them differently would report `source-changed`:
   phrase: Owned by the checkout team.
 - file: docs/checkout-review.md
   phrase: integers in minor units
+- file: docs/checkout-review.md
+  phrase: ' ## Dates'
 - file: apps/web/src/checkout/money.ts
   phrase: 'export function fromCents('
 </source>
@@ -6019,6 +6091,7 @@ Round half to even.
 {"lore-reviews":1}
 {"rule":"money-in-minor-units","file":"apps/web/src/checkout/money.ts","heading":null,"phrase":"export function fromCents(","reviewed":"2026-11-02","hash":"d1252d5ef378"}
 {"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"9ac9b504bba3"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":" ## Dates","reviewed":"2026-11-02","hash":"d7fc8675e774"}
 {"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":"Owned by the checkout team.","reviewed":"2026-11-02","hash":"9ac9b504bba3"}
 {"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":"integers in minor units","reviewed":"2026-11-02","hash":"9f413384c605"}
 {"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
@@ -6093,10 +6166,14 @@ Dates are shown in the shop's locale.
 Review records are kept in **lock files**. Each Lore root (see
 [Lore root](#lore-root)) has at most one, named `lore-reviews.lock`, in
 the Lore root's directory: the governed repo's root, a directory with
-`root: true`, or the root of an external or loose folder. In the
-examples its path has the prefix its Lore root's files have, so the
-lock file of an external folder marked at `lore/shop/` is
-`external:lore/shop/lore-reviews.lock`. A lock file holds the records
+`root: true`, or the root of an external or loose folder. Its path has
+the prefix its Lore root's files have, so the lock file of an external
+folder marked at `lore/shop/` is `external:lore/shop/lore-reviews.lock`.
+That path does not say which repository the file is in (see
+[Document model](#document-model)), so two given folders of different
+repositories can have lock files with the same path. Each is still its
+own Lore root's lock file, and a tool MUST NOT read one in place of the
+other. A lock file holds the records
 of every rule collected under its Lore root, so a rule moved between
 Lore folders under one Lore root keeps its records. It is not a Lore
 file. Only a tool that records reviews writes it; an audit only reads

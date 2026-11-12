@@ -1,10 +1,10 @@
-import { auditSettingsFor, type AuditSettings, type Collected, type Repository, type Tree } from "./collect";
+import { auditSettingsFor, type AuditSettings, type Collected, type CollectedFile, type Repository, type Tree } from "./collect";
 import { FINDINGS, type FindingName, type Level } from "./loreconfig";
 import type { EntryPlace, ParsedInput } from "./model";
 import { LOCK_NAME, sameSource, type ReviewRecord } from "./reviews";
 import { resolveSource, type Resolved, type SourceContent } from "./sources";
 import { compareCodePoints } from "./text";
-import type { Diagnostic, Entry, Source } from "./types";
+import type { Diagnostic, Source } from "./types";
 
 export interface Finding {
   name: FindingName;
@@ -22,12 +22,15 @@ export interface AuditResult {
   excluded: Diagnostic[];
 }
 
+// Trees of different repositories can give the same path, so a lock file is named by both.
+export interface LockRef { tree: Tree; path: string }
+export interface LockFile extends LockRef { records: ReviewRecord[] }
+
 export interface AuditOptions {
   today: string;
   // null when the file does not exist, undefined when the files could not be looked at.
   readSource(place: EntryPlace, file: string): SourceContent | undefined;
-  // Keyed by the lock file's path with its tree prefix.
-  locks: ReadonlyMap<string, ReviewRecord[]>;
+  locks: readonly LockFile[];
   maxAgeDays?: number;
   levels?: Partial<Record<FindingName, Level>>;
 }
@@ -36,13 +39,20 @@ type Found = Omit<Finding, "level">;
 
 const DAY_MS = 86_400_000;
 
-export function lockPathFor(place: EntryPlace, _entry: Entry): string {
-  return lockPath(place.prefix, place.loreRoot);
+export function lockPathFor(place: EntryPlace): LockRef {
+  return { tree: place.tree, path: lockPath(place.prefix, place.loreRoot) };
+}
+
+// The lock files an audit reads: one for each Lore root that holds a collected Lore file.
+export function lockRefs(parsed: ParsedInput): LockRef[] {
+  return [...lockRoots(parsed.collected).values()].map(({ ref }) => ref);
 }
 
 export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
   const { model, collected, placeOf } = parsed;
   const findings: Finding[] = [];
+  const recordsOf = new Map<string, ReviewRecord[]>();
+  for (const lock of options.locks) if (!recordsOf.has(lockKey(lock))) recordsOf.set(lockKey(lock), lock.records);
   const live = new Map<string, Set<string>>();
   let rulesWithSource = 0;
   let rulesWithoutSource = 0;
@@ -50,7 +60,7 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
   for (const entry of model.entries) {
     if (entry.kind !== "rule") continue;
     const place = placeOf.get(entry)!;
-    const lock = lockPathFor(place, entry);
+    const lock = lockKey(lockPathFor(place));
     const dir = dirOf(entry.file.slice(place.prefix.length));
     const settings = settingsFor(collected, options, dir, repositoryOf(collected, place.tree), place.loreRoot);
     const add = (name: FindingName, source: Source | null, reason: string | null = null) =>
@@ -62,7 +72,7 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
       continue;
     }
     rulesWithSource++;
-    const records = options.locks.get(lock) ?? [];
+    const records = recordsOf.get(lock) ?? [];
     const known = setIn(live, lock);
     for (const source of entry.sources) {
       known.add(identity(entry.id, source));
@@ -102,29 +112,44 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
 // A record is no orphan while the rule it names might only be excluded: an excluded entry with no readable id hides every rule of its Lore root.
 function orphans(parsed: ParsedInput, options: AuditOptions, live: ReadonlyMap<string, Set<string>>): Finding[] {
   const { model, collected } = parsed;
-  const roots = new Map<string, { repository: Repository; loreRoot: string }>();
-  for (const file of collected.files) {
-    roots.set(lockPath(file.prefix, file.loreRoot), { repository: repositoryOf(collected, file.tree), loreRoot: file.loreRoot });
-  }
+  const roots = lockRoots(collected);
   const excluded = new Map<string, Set<string | null>>();
   for (const error of model.errors) {
     const file = collected.files.find((candidate) => candidate.file === error.file);
-    if (file !== undefined) setIn(excluded, lockPath(file.prefix, file.loreRoot)).add(error.entry);
+    if (file !== undefined) setIn(excluded, lockKey(fileLock(file))).add(error.entry);
   }
 
   const found: Finding[] = [];
-  for (const [lock, records] of options.locks) {
-    const root = roots.get(lock);
-    const hidden = excluded.get(lock);
+  for (const lock of options.locks) {
+    const key = lockKey(lock);
+    const root = roots.get(key);
+    const hidden = excluded.get(key);
     if (root === undefined || hidden?.has(null)) continue;
     const settings = settingsFor(collected, options, root.loreRoot, root.repository, root.loreRoot);
-    for (const record of records) {
-      if (live.get(lock)?.has(identity(record.rule, record)) || hidden?.has(record.rule)) continue;
+    for (const record of lock.records) {
+      if (live.get(key)?.has(identity(record.rule, record)) || hidden?.has(record.rule)) continue;
       const source = { file: record.file, heading: record.heading, phrase: record.phrase };
-      report(found, settings, { name: "orphan-review", rule: record.rule, file: lock, source, reason: null });
+      report(found, settings, { name: "orphan-review", rule: record.rule, file: lock.path, source, reason: null });
     }
   }
   return found;
+}
+
+function lockRoots(collected: Collected): Map<string, { ref: LockRef; repository: Repository; loreRoot: string }> {
+  const roots = new Map<string, { ref: LockRef; repository: Repository; loreRoot: string }>();
+  for (const file of collected.files) {
+    const ref = fileLock(file);
+    roots.set(lockKey(ref), { ref, repository: repositoryOf(collected, file.tree), loreRoot: file.loreRoot });
+  }
+  return roots;
+}
+
+function fileLock(file: CollectedFile): LockRef {
+  return { tree: file.tree, path: lockPath(file.prefix, file.loreRoot) };
+}
+
+function lockKey(ref: LockRef): string {
+  return JSON.stringify([ref.tree, ref.path]);
 }
 
 function settingsFor(collected: Collected, options: AuditOptions, dir: string, repository: Repository, loreRoot: string): AuditSettings {

@@ -26,7 +26,13 @@ test("the regex dialect example still holds a no-break space in its added line",
 test("the phrase whitespace example still holds a tab and a no-break space", () => {
   const inputs = extractExamples(markdown).filter((e) => e.kind === "audit").flatMap((e) => e.files.map((f) => f.content));
   expect(inputs.filter((c) => c.includes("export  function\tfromCents("))).toHaveLength(1);
-  expect(inputs.filter((c) => c.includes("minor\n" + NBSP + "units"))).toHaveLength(1);
+  expect(inputs.filter((c) => c.includes("half" + NBSP + "to even"))).toHaveLength(1);
+});
+
+test("the slug example still holds a combining mark and a line separator in its headings", () => {
+  const inputs = extractExamples(markdown).filter((e) => e.kind === "audit").flatMap((e) => e.files.map((f) => f.content));
+  expect(inputs.filter((c) => c.includes("## Remise applique\u0301e\n") && c.includes("## Totals\u2028and taxes\n"))).toHaveLength(1);
+  expect(inputs.filter((c) => c.includes("heading: remise-applique\u0301e\n") && c.includes("heading: remise-appliqu\u00e9e\n"))).toHaveLength(1);
 });
 
 test("the fingerprint normalization example keeps its trailing spaces", () => {

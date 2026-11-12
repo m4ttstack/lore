@@ -158,3 +158,65 @@ describe("resolveSource on other files and missing content", () => {
     expect(resolveSource(src({ heading: "A" }), bytes)).toEqual({ ok: false, reason: "heading" });
   });
 });
+
+describe("resolveSource follows CommonMark fences and only spaces and tabs as whitespace", () => {
+  const dates = (doc: string) => resolveSource(src({ heading: "Dates" }), doc);
+
+  test("a tilde fence hides a heading", () => {
+    expect(dates("~~~\n## Dates\n~~~\n")).toEqual({ ok: false, reason: "heading" });
+  });
+
+  test("a fence that never closes runs to the end of the file", () => {
+    expect(dates("# Intro\n\n```ts\nx\n\n## Dates\n")).toEqual({ ok: false, reason: "heading" });
+  });
+
+  test("a fence line indented four spaces is not a fence", () => {
+    expect(dates("    ```\n## Dates\n\nReal.\n")).toEqual({ ok: true, hash: fingerprint("## Dates\n\nReal."), ambiguous: false });
+  });
+
+  test("a fence line indented by a tab is not a fence", () => {
+    expect(dates("\t~~~\n## Dates\n\nReal.\n")).toEqual({ ok: true, hash: fingerprint("## Dates\n\nReal."), ambiguous: false });
+  });
+
+  test("a closer shorter than its opener does not close, nor does one with text after it or one indented four spaces", () => {
+    expect(dates("````\n```\n## Dates\n````\n")).toEqual({ ok: false, reason: "heading" });
+    expect(dates("~~~\n~~~ x\n## Dates\n~~~\n")).toEqual({ ok: false, reason: "heading" });
+    expect(dates("~~~\n    ~~~\n## Dates\n~~~\n")).toEqual({ ok: false, reason: "heading" });
+    expect(dates("  ~~~\n   ~~~~ \t\n## Dates\n")).toEqual({ ok: true, hash: fingerprint("## Dates"), ambiguous: false });
+  });
+
+  test("normalization keeps U+00A0 and other characters that are not spaces or tabs", () => {
+    expect(normalizeText("a \nb \t")).toBe("a \nb");
+    expect(normalizeText(" \n\nb")).toBe(" \n\nb");
+    expect(fingerprint("a ")).not.toBe(fingerprint("a"));
+  });
+
+  test("a phrase collapses spaces, tabs and line endings only", () => {
+    const doc = "Round half to even.\nTotals  are\tkept\r\nin cents.\n";
+    const file = { file: "docs/notes.txt", heading: null, phrase: null };
+    expect(resolveSource({ ...file, phrase: "Totals are kept in cents." }, doc)).toEqual({ ok: true, hash: fingerprint(doc), ambiguous: false });
+    expect(resolveSource({ ...file, phrase: "half to even" }, doc)).toEqual({ ok: false, reason: "phrase" });
+    expect(resolveSource({ ...file, phrase: "half to even" }, doc)).toEqual({ ok: true, hash: fingerprint(doc), ambiguous: false });
+  });
+
+  test("a slug keeps combining marks and compares them as written", () => {
+    expect(slug("Remise appliquée")).toBe("remise-appliquée");
+    const doc = "## Remise appliquée\n\nText.\n";
+    expect(resolveSource(src({ heading: "remise-appliquée" }), doc)).toEqual({
+      ok: true, hash: fingerprint("## Remise appliquée\n\nText."), ambiguous: false,
+    });
+    expect(resolveSource(src({ heading: "remise-appliquée" }), doc)).toEqual({ ok: false, reason: "heading" });
+  });
+
+  test("a heading line may hold U+2028, which stays in its text and leaves its slug", () => {
+    const doc = "## Totals and taxes\n\nText.\n";
+    const section = { ok: true as const, hash: fingerprint("## Totals and taxes\n\nText."), ambiguous: false };
+    expect(resolveSource(src({ heading: "Totals and taxes" }), doc)).toEqual(section);
+    expect(resolveSource(src({ heading: "totalsand-taxes" }), doc)).toEqual(section);
+  });
+
+  test("a phrase that starts with whitespace begins on the line of its first other character", () => {
+    const doc = "## Money\n\nCents.\n\n## Dates\n\nUse UTC.\n";
+    expect(resolveSource(src({ phrase: " ## Dates" }), doc)).toEqual(resolveSource(src({ heading: "Dates" }), doc));
+  });
+});

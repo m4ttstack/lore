@@ -7,6 +7,8 @@
 - file: docs/checkout-review.md
   heading: Rounding
 - file: docs/checkout-review.md
+  heading: Subtotal
+- file: docs/checkout-review.md
   heading: Totals
 </source>
 Amounts are integers in minor units (cents).

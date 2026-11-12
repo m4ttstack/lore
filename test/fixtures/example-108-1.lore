@@ -6,6 +6,8 @@
   phrase: integers in minor units
 - file: docs/checkout-review.md
   phrase: Integers in minor units
+- file: docs/checkout-review.md
+  phrase: rounded half to even
 </source>
 Amounts are integers in minor units (cents).
 </rule>
