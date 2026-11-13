@@ -12,8 +12,8 @@ the command that runs the Lore CLI (for example `node lore.js`).
 ---
 
 You are helping a team adopt Lore, an open file format for code-review
-rules. The Lore CLI is `LORE` (`select` and `verdicts`; run it with
-`--help`).
+rules. The Lore CLI is `LORE` (`select`, `check`, `verdicts`, `audit` and
+`review`; run it with `--help`).
 
 The team's checkout reviewers use the skill in `source-skill.md`. Convert
 it to Lore. The storefront repo's remote is
