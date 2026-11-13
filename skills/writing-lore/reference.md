@@ -186,7 +186,11 @@ is neither blank nor tag-shaped starts the **prose**, which runs to
   affects selection. Where a rule came from goes in `<source>`
   ([section 9](#9-sources-source)), not in a `source:` key here.
 - The **summary** is the prose's first paragraph, its lines joined. Tools
-  list rules by it, so make it one or two sentences stating the requirement.
+  list rules by it, and a rule listed but not triggered shows nothing else.
+  So it says when the rule applies before what it asks for, holds every
+  limit the rule states further down, and adds none the source does not
+  state. The reference CLI's text listing cuts it at 600 code points; its
+  JSON carries it whole.
 - The prose states the whole rule; `<when>` and `<check>` add no meaning.
 
 Watch out:

@@ -30,7 +30,7 @@ A flagged line is a place to look, not a verdict. A flagged line marked (removed
 const MAX_FLAGGED_LINES = 20;
 const MAX_LINE_CODE_POINTS = 200;
 const MAX_LISTED_RULES = 40;
-const MAX_SUMMARY_CODE_POINTS = 160;
+const MAX_SUMMARY_CODE_POINTS = 600;
 
 const NOTHING = "No Lore rules apply to this change.";
 const NOTHING_SELECTED = "No Lore rules were selected for this change.";
@@ -96,11 +96,14 @@ function warningLine(warning: Diagnostic): string {
 
 function listingSection(listed: ListedRule[], audience: "reviewer" | "author"): string {
   const lines = ["## Also in scope, not triggered", "", LISTING_PARAGRAPH[audience], ""];
-  for (const rule of listed.slice(0, MAX_LISTED_RULES)) {
+  const blocking = listed.filter((rule) => rule.severity === "blocking");
+  const advisory = listed.filter((rule) => rule.severity !== "blocking");
+  const printed = [...blocking, ...advisory.slice(0, Math.max(0, MAX_LISTED_RULES - blocking.length))];
+  for (const rule of printed) {
     const summary = rule.summary === "" ? "" : `: ${cut(rule.summary, MAX_SUMMARY_CODE_POINTS)}`;
     lines.push(`- ${span(rule.id)} (${rule.severity}, ${rule.category ?? "no category"})${summary}`);
   }
-  if (listed.length > MAX_LISTED_RULES) lines.push(`- and ${listed.length - MAX_LISTED_RULES} more; \`--format json\` lists them all`);
+  if (listed.length > printed.length) lines.push(`- and ${listed.length - printed.length} more; \`--format json\` lists them all`);
   return lines.join("\n");
 }
 

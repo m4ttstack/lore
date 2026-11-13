@@ -197,14 +197,81 @@ A flagged line is a place to look, not a verdict. A flagged line marked (removed
       expect(text).not.toContain("- and ");
     });
 
-    test("a summary is cut to 160 code points and ends with ..., never splitting a code point", () => {
-      const lines = ruleLines(renderText(withListing(base, [listed("long", { summary: "a".repeat(200) }), listed("wide", { summary: "\u{1F600}".repeat(200) })])));
-      expect(lines[0]).toBe(`- \`long\` (advisory, no category): ${"a".repeat(160)}...`);
-      expect(lines[1]).toBe(`- \`wide\` (advisory, no category): ${"\u{1F600}".repeat(160)}...`);
+    test("a summary of 600 code points is kept whole and a longer one is cut at 600 with ..., never splitting a code point", () => {
+      const lines = ruleLines(
+        renderText(
+          withListing(base, [
+            listed("edge", { summary: "a".repeat(600) }),
+            listed("long", { summary: "a".repeat(601) }),
+            listed("wide", { summary: "\u{1F600}".repeat(601) }),
+          ]),
+        ),
+      );
+      expect(lines[0]).toBe(`- \`edge\` (advisory, no category): ${"a".repeat(600)}`);
+      expect(lines[1]).toBe(`- \`long\` (advisory, no category): ${"a".repeat(600)}...`);
+      expect(lines[2]).toBe(`- \`wide\` (advisory, no category): ${"\u{1F600}".repeat(600)}...`);
     });
 
-    test("a summary of exactly 160 code points is kept whole", () => {
-      expect(ruleLines(renderText(withListing(base, [listed("edge", { summary: "a".repeat(160) })])))[0]).toBe(`- \`edge\` (advisory, no category): ${"a".repeat(160)}`);
+    test("a summary of 200 code points prints whole with no ...", () => {
+      const line = ruleLines(renderText(withListing(base, [listed("mid", { summary: "a".repeat(200) })])))[0];
+      expect(line).toBe(`- \`mid\` (advisory, no category): ${"a".repeat(200)}`);
+    });
+
+    const mixed = (blocking: number, advisory: number) => [
+      ...Array.from({ length: blocking }, (_, i) => listed(`b-${String(i).padStart(2, "0")}`, { severity: "blocking" })),
+      ...Array.from({ length: advisory }, (_, i) => listed(`a-${String(i).padStart(2, "0")}`)),
+    ];
+
+    test("every blocking rule prints even past 40, and no advisory rule does", () => {
+      const text = renderText(withListing(base, mixed(45, 10)));
+      const lines = ruleLines(text);
+      expect(lines).toHaveLength(45);
+      expect(lines.every((line) => line.includes("(blocking,"))).toBe(true);
+      expect(text).toContain("- `b-44` (blocking, no category): Summary of b-44.\n- and 10 more; `--format json` lists them all\n");
+    });
+
+    test("advisory rules fill the section up to 40 lines after the blocking ones", () => {
+      const text = renderText(withListing(base, mixed(30, 20)));
+      const lines = ruleLines(text);
+      expect(lines).toHaveLength(40);
+      expect(lines.filter((line) => line.includes("(blocking,"))).toHaveLength(30);
+      expect(lines[39]).toContain("`a-09`");
+      expect(text).toContain("- `a-09` (advisory, no category): Summary of a-09.\n- and 10 more; `--format json` lists them all\n");
+    });
+
+    test("45 advisory rules print 40 lines and count 5 more", () => {
+      const text = renderText(withListing(base, mixed(0, 45)));
+      expect(ruleLines(text)).toHaveLength(40);
+      expect(text).toContain("- and 5 more; `--format json` lists them all\n");
+    });
+
+    test("exactly 40 blocking rules fill the section and the count names the advisory ones", () => {
+      const text = renderText(withListing(base, mixed(40, 5)));
+      const lines = ruleLines(text);
+      expect(lines).toHaveLength(40);
+      expect(lines.every((line) => line.includes("(blocking,"))).toBe(true);
+      expect(text).toContain("- `b-39` (blocking, no category): Summary of b-39.\n- and 5 more; `--format json` lists them all\n");
+    });
+
+    test("blocking rules listed after more than 40 advisory ones all print", () => {
+      const unsorted = [...mixed(0, 45), ...mixed(3, 0)];
+      const text = renderText(withListing(base, unsorted));
+      const lines = ruleLines(text);
+      expect(lines).toHaveLength(40);
+      for (const id of ["b-00", "b-01", "b-02"]) expect(text).toContain(`- \`${id}\` (blocking, no category)`);
+      expect(lines.filter((line) => line.includes("(advisory,"))).toHaveLength(37);
+      expect(text).toContain("- and 8 more; `--format json` lists them all\n");
+    });
+
+    test("12 blocking and 5 advisory rules print 17 lines and no count line", () => {
+      const text = renderText(withListing(base, mixed(12, 5)));
+      expect(ruleLines(text)).toHaveLength(17);
+      expect(text).not.toContain("- and ");
+    });
+
+    test("the author audience prints the same rule lines under the cap", () => {
+      const rules = mixed(30, 20);
+      expect(ruleLines(renderText(withListing(base, rules), "author"))).toEqual(ruleLines(renderText(withListing(base, rules))));
     });
 
     test("a listed rule with an empty summary ends after its severity and category", () => {
