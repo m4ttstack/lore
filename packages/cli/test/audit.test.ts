@@ -247,6 +247,24 @@ describe("lore audit", () => {
       expect((await lore(["audit", ...given])).out).toContain("source-missing  policy-rule  loose:.linked/policy.md  file not found");
     });
 
+    test("a cited path matches its directory entries' names exactly, and .git in any letter case is refused", async () => {
+      const loose = folder(cited(["../.GIT/config", "../sub/.GIT/x", "../Docs/a.md", "../docs/A.md", "../docs/a.md"]));
+      write(loose, { ".git/config": "# Config\n", "sub/.git/x": "# X\n", "docs/a.md": "# A\n" });
+      const { code, out, err } = await lore(["audit", ...args(loose)]);
+      expect(err).toBe("");
+      expect(code).toBe(1);
+      const missing = (file: string) => `  error  source-missing  policy-rule  loose:${file}  file not found: loose:${file}\n`;
+      expect(out).toBe(
+        "loose:.lore/a.lore\n" +
+        missing(".GIT/config") + missing("sub/.GIT/x") + missing("Docs/a.md") + missing("docs/A.md") +
+        "  warn  never-reviewed  policy-rule  loose:docs/a.md\n" +
+        "\n" +
+        "source-missing: 4\n" +
+        "never-reviewed: 1\n" +
+        "rules with a source: 2, without: 1\n",
+      );
+    });
+
     test("an unreadable directory beside a cited file does not stop the run, and an unreadable cited file is source-unchecked", async () => {
       const loose = folder(cited(["../.github/policy.md", "../.private/policy.md", "../.github/locked.md"]));
       write(loose, { ".private/policy.md": "# Policy\n", ".github/locked.md": "# Policy\n" });

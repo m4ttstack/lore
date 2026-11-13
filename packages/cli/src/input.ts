@@ -1,4 +1,4 @@
-import { lstatSync, readdirSync, readFileSync, realpathSync, statSync, type Stats } from "node:fs";
+import { readdirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import {
   EXTERNAL, LOOSE, RULES, type Collected, type Diagnostic, type InputFile, type LockRef, type LoreInput, type Repository, type SourceContent, type Tree,
@@ -291,23 +291,23 @@ function walkLoose(dir: string): string[] {
   return paths;
 }
 
-// One file of a loose folder, found without listing the folder: as in its listing, no symlink is followed, at the file
-// or on the way to it, and nothing below .git is read. Null when there is no such file; undefined when it, or a
-// directory on the way, cannot be read.
+// One file of a loose folder, found by listing only the directories on its path: as in the folder's listing, each
+// name must be an entry's exact name, whatever case the filesystem folds, no symlink is followed, and no .git in any
+// case is read. Null when there is no such file; undefined when it, or a directory on the way, cannot be read.
 function readLoose(root: string, path: string): Buffer | null | undefined {
   const names = path.split("/");
-  if (names.some((name) => name === "" || name === "." || name === "..") || names.slice(0, -1).includes(GIT_FOLDER)) return null;
+  if (names.some((name) => name === "" || name === "." || name === ".." || name.toLowerCase() === GIT_FOLDER)) return null;
   let at = root;
   for (const [n, name] of names.entries()) {
-    at = join(at, name);
-    let stats: Stats;
+    let entries: Dirent[];
     try {
-      stats = lstatSync(at);
-    } catch (error) {
-      const { code } = error as NodeJS.ErrnoException;
-      return code === "ENOENT" || code === "ENOTDIR" ? null : undefined;
+      entries = readdirSync(at, { withFileTypes: true });
+    } catch {
+      return undefined;
     }
-    if (n === names.length - 1 ? !stats.isFile() : !stats.isDirectory()) return null;
+    const entry = entries.find((candidate) => candidate.name === name);
+    if (entry === undefined || (n === names.length - 1 ? !entry.isFile() : !entry.isDirectory())) return null;
+    at = join(at, name);
   }
   try {
     return readFileSync(at);
