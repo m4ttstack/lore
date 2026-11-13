@@ -226,8 +226,8 @@ A file that is not valid UTF-8 is hashed as its raw bytes, and a
 
 ### The lock file
 
-One file, `lore-reviews.lock`, in the nearest directory above a rule's
-Lore folder that is a Lore root (the governed repo's root or a directory
+One file, `lore-reviews.lock`, in the nearest directory at or above the directory that holds the
+Lore file that is a Lore root (the governed repo's root or a directory
 with `root: true`) or a directory marked with `repo:`. It holds the
 records for every rule it covers, so moving a rule between Lore folders
 it covers keeps its record. It is not inside a Lore folder and is not a
