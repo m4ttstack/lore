@@ -148,8 +148,10 @@ Fill every slot of this shape:
     incident write-up or code that motivates it, if a reader can open one.
   - Every tool that reads the rules needs lore 0.6.0 or later before a
     rule uses `<source>`: an older one excludes the rule.
-- **First paragraph:** the requirement, as what the change must do, in one
-  or two sentences. Tools show it as the rule's summary.
+- **First paragraph:** what a listing shows for a rule the change did not
+  trigger, and a reviewer may judge the rule by it alone. So it says when
+  the rule applies before what it asks for, carries the rule's limits, and
+  stays under 600 code points (tools cut it there).
 - **The rest:** the stakes and the specifics a reviewer needs. Someone who
   never read the source must be able to apply the rule from its prose
   alone.
@@ -224,6 +226,7 @@ Lore now holds: two copies drift apart.
 | A source `file` on your machine, or a leading `/` in an external folder | a copy beside the rules, cited `./` |
 | Citing sections the conversion then deletes from the source | cite a copy of the source as converted |
 | Running `lore review` on rules you just wrote | the person who reads them against their sources runs it |
+| A general demand first, the limit in a later paragraph | scope and limit in the first paragraph |
 | "This shipped once (!4120)" in the prose | the stakes without the reference the reviewer cannot open |
 | A procedure step written as a rule | leave it in the skill; convert only the end state |
 | A formatting or import rule a linter can decide | a lint rule |

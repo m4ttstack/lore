@@ -51,6 +51,14 @@ A read of an optional amount (`quote.tax ?? 0`, `line.discount ?? 0`) keeps its 
 
 A checkout page that shows a quoted price also shows when the quote expires (`quote.expiresAt`). Without it, a customer who comes back later is surprised by a new price at payment.
 
+## 10. Money helpers say their unit `[NON-BLOCKING]`
+
+A helper that takes or returns an amount says in its doc comment whether the amount is in cents.
+
+Reviewers keep asking which unit a helper works in, and a wrong guess is off by a factor of a hundred.
+
+This applies only to functions exported from apps/web/src/checkout/lib/. A function local to a component file, or one that is not exported, needs no such comment.
+
 ---
 
 This skill is kept in the checkout team's skills repository, not in the storefront repo. Reviewers of the storefront do not all have a checkout of it.
