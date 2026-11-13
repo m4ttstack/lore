@@ -82,7 +82,7 @@ function shop(extra: Record<string, string> = {}): string {
 
 const lockOf = (root: string, path = "lore-reviews.lock"): string => readFileSync(join(root, path), "utf8");
 const untracked = (lock: string): string => `lore: ${lock} is not tracked by git; lore audit reads it once it is tracked (for example after git add)\n`;
-const notPruning = (lock: string, reason: string): string => `lore: not pruning ${lock}: its Lore root is not wholly collected (${reason})\n`;
+const notPruning = (lock: string, reason: string): string => `lore: not pruning ${lock}: it may cover a rule this run did not collect (${reason})\n`;
 
 describe("parsing lore review", () => {
   test("reads rule ids, --date, --repo and --given", () => {
@@ -331,7 +331,7 @@ describe("records that are not provably orphans are kept", () => {
     expect(lockOf(root)).toBe(writeReviews([KEPT, record("money-in-minor-units", MONEY, DOC, TODAY)]));
   });
 
-  test("a Lore file with a parse error keeps every record of its Lore root", async () => {
+  test("a Lore file with a parse error keeps every record of its lock file", async () => {
     const root = shop({ ".lore/bad.lore": '<rule id="broken-rule" category="functional_correctness">\nProse.\n', "lore-reviews.lock": LOCK });
     const excluded = "lore: excluded unreadable-structure in .lore/bad.lore line 1\n";
     const reviewed = await lore(["review", "money-in-minor-units", "--repo", root]);
@@ -343,7 +343,7 @@ describe("records that are not provably orphans are kept", () => {
     expect(lockOf(root)).toBe(writeReviews([GONE, KEPT, record("money-in-minor-units", MONEY, DOC, TODAY)]));
   });
 
-  test("a Lore file that could not be read keeps every record of its Lore root, with the warning", async () => {
+  test("a Lore file that could not be read keeps every record of its lock file, with the warning", async () => {
     const root = shop({ "lore-reviews.lock": LOCK });
     const outside = tempDir();
     write(outside, { target: DATES_RULE });
@@ -359,28 +359,28 @@ describe("records that are not provably orphans are kept", () => {
     expect(lockOf(root)).toBe(writeReviews([GONE, KEPT, record("money-in-minor-units", MONEY, DOC, TODAY)]));
   });
 
-  test("rules under a directory repo-inside-repo excludes keep their records through a review of another rule and --prune", async () => {
+  test("a directory repo-inside-repo excludes covers its own rules, so --prune removes their records from the outer lock file", async () => {
     const web = record("web-rule", MONEY);
     const lock = writeReviews([GONE, record("money-in-minor-units", MONEY), web]);
     const root = shop({
       "apps/web/.loreconfig": "repo: github.com/acme/shop\n",
       "apps/web/.lore/web.lore": ruleCiting("web-rule", `/${MONEY.file}`),
+      "apps/web/lore-reviews.lock": writeReviews([web]),
       "lore-reviews.lock": lock,
     });
     const excluded = "lore: excluded repo-inside-repo in apps/web/.loreconfig line 1\n";
     expect(await lore(["review", "money-in-minor-units", "--repo", root])).toEqual({
       code: 0, out: "reviewed money-in-minor-units (1 source)\n", err: excluded,
     });
-    const after = writeReviews([GONE, record("money-in-minor-units", MONEY, DOC, TODAY), web]);
-    expect(lockOf(root)).toBe(after);
-    expect(lockOf(root).split("\n")).toContain(JSON.stringify(web));
+    expect(lockOf(root)).toBe(writeReviews([GONE, record("money-in-minor-units", MONEY, DOC, TODAY), web]));
     expect(await lore(["review", "--prune", "--repo", root])).toEqual({
-      code: 0, out: "", err: excluded + notPruning("lore-reviews.lock", "an error in apps/web/.loreconfig may hide rules"),
+      code: 0, out: "pruned 2 records from lore-reviews.lock\n", err: excluded,
     });
-    expect(lockOf(root)).toBe(after);
+    expect(lockOf(root)).toBe(writeReviews([record("money-in-minor-units", MONEY, DOC, TODAY)]));
+    expect(lockOf(root, "apps/web/lore-reviews.lock")).toBe(writeReviews([web]));
   });
 
-  test("rules under a directory nested-repo excludes in a given folder keep their records through --prune and a review", async () => {
+  test("a directory nested-repo excludes in a given folder covers its own rules, so --prune removes their records from the outer lock file", async () => {
     const root = shop();
     git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
     const web = record("web-rule", MONEY);
@@ -394,33 +394,34 @@ describe("records that are not provably orphans are kept", () => {
     });
     const args = ["--repo", root, "--given", join(folder, "lore")];
     const excluded = "lore: excluded nested-repo in external:lore/shop/apps/web/.loreconfig line 1\n";
-    expect(await lore(["review", "--prune", ...args])).toEqual({
-      code: 0, out: "", err: excluded + notPruning("external:lore/shop/lore-reviews.lock", "external:lore/shop/apps/web/.loreconfig names another repository"),
-    });
-    expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(lock);
     expect(await lore(["review", "shared-rule", ...args])).toEqual({ code: 0, out: "reviewed shared-rule (1 source)\n", err: excluded });
     expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(writeReviews([GONE, record("shared-rule", MONEY, DOC, TODAY), web]));
+    expect(await lore(["review", "--prune", ...args])).toEqual({
+      code: 0, out: "pruned 2 records from external:lore/shop/lore-reviews.lock\n", err: excluded,
+    });
+    expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(writeReviews([record("shared-rule", MONEY, DOC, TODAY)]));
   });
 
-  test("two external folders of one repository under one Lore root share its lock file, and neither prunes the other's records", async () => {
+  test("two external folders of one repository under one Lore root each have their own lock file", async () => {
     const root = repoWith({ "docs/checkout-review.md": DOC });
     git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
-    const web = record("web-rule", MONEY);
-    const lock = writeReviews([record("shop-rule", MONEY), web]);
+    const web = writeReviews([record("web-rule", MONEY)]);
     const folder = repoWith({
       "lore/.loreconfig": "root: true\n",
       "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
       "lore/shop/.lore/a.lore": ruleCiting("shop-rule", `/${MONEY.file}`),
       "lore/web/.loreconfig": "repo: github.com/acme/shop\n",
       "lore/web/.lore/b.lore": ruleCiting("web-rule", `/${MONEY.file}`),
-      "lore/lore-reviews.lock": lock,
+      "lore/web/lore-reviews.lock": web,
     });
     const args = ["--repo", root, "--given", join(folder, "lore")];
-    expect(await lore(["review", "--prune", ...args])).toEqual({ code: 0, out: "", err: "" });
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(lock);
-    expect(await lore(["review", "shop-rule", ...args])).toEqual({ code: 0, out: "reviewed shop-rule (1 source)\n", err: "" });
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(writeReviews([record("shop-rule", MONEY, DOC, TODAY), web]));
-    expect(lockOf(folder, "lore/lore-reviews.lock").split("\n")).toContain(JSON.stringify(web));
+    expect(await lore(["review", "shop-rule", ...args])).toEqual({
+      code: 0, out: "reviewed shop-rule (1 source)\n", err: untracked("external:lore/shop/lore-reviews.lock"),
+    });
+    expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(writeReviews([record("shop-rule", MONEY, DOC, TODAY)]));
+    expect(lockOf(folder, "lore/web/lore-reviews.lock")).toBe(web);
+    expect(existsSync(join(folder, "lore/lore-reviews.lock"))).toBe(false);
+    git(folder, "add", "-A");
     expect((await lore(["audit", ...args])).out).toBe("rules with a source: 2, without: 0\n");
   });
 
@@ -432,7 +433,7 @@ describe("records that are not provably orphans are kept", () => {
   });
 });
 
-describe("a Lore root the run did not wholly collect keeps every other rule's record", () => {
+describe("a shared rules repository keeps each governed repo's records in the lock files of its own marked directories", () => {
   const governed = (repository: string): string => {
     const root = repoWith({ "docs/checkout-review.md": DOC });
     git(root, "remote", "add", "origin", `https://github.com/acme/${repository}.git`);
@@ -441,99 +442,109 @@ describe("a Lore root the run did not wholly collect keeps every other rule's re
   const SHOP = record("shop-rule", MONEY);
   const WEB = record("web-rule", MONEY);
   const BLOG = record("blog-rule", MONEY);
+  const TEAM = record("team-rule", MONEY);
   const GONE = record("gone-rule", MONEY);
-  const SHARED = "external:lore/lore-reviews.lock";
-  const linesOf = (text: string): string[] => text.split("\n");
-  const team = (extra: Record<string, string>, records: ReviewRecord[]): string => repoWith({
+  const SHOP_LOCK = "lore/shop/lore-reviews.lock";
+  const OTHER_LOCKS = ["lore/web/lore-reviews.lock", "lore/blog/lore-reviews.lock", "lore/lore-reviews.lock"];
+  const team = (extra: Record<string, string> = {}): string => repoWith({
+    "docs/checkout-review.md": DOC,
     "lore/.loreconfig": "root: true\n",
     "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
     "lore/shop/.lore/a.lore": ruleCiting("shop-rule", `/${MONEY.file}`),
-    "lore/lore-reviews.lock": writeReviews(records),
+    "lore/web/.loreconfig": "repo: github.com/acme/shop\n",
+    "lore/web/.lore/b.lore": ruleCiting("web-rule", `/${MONEY.file}`),
+    "lore/blog/.loreconfig": "repo: github.com/acme/blog\n",
+    "lore/blog/.lore/c.lore": ruleCiting("blog-rule", `/${MONEY.file}`),
+    "lore/own/.lore/t.lore": ruleCiting("team-rule", `/${MONEY.file}`),
+    [SHOP_LOCK]: writeReviews([SHOP, GONE]),
+    "lore/web/lore-reviews.lock": writeReviews([WEB]),
+    "lore/blog/lore-reviews.lock": writeReviews([BLOG, GONE]),
+    "lore/lore-reviews.lock": writeReviews([TEAM, GONE]),
     ...extra,
   });
+  const snapshot = (folder: string, paths: string[]): string[] => paths.map((path) => lockOf(folder, path));
 
-  test("folders for different repositories under one Lore root: a review from either side and --prune delete nothing", async () => {
+  test("a review and --prune from the shop write only the shop's lock files", async () => {
+    const folder = team();
+    const others = snapshot(folder, OTHER_LOCKS);
+    const args = ["--repo", governed("shop"), "--given", join(folder, "lore")];
+    expect(await lore(["review", "shop-rule", "web-rule", ...args])).toEqual({
+      code: 0, out: "reviewed shop-rule (1 source)\nreviewed web-rule (1 source)\n", err: "",
+    });
+    expect(lockOf(folder, SHOP_LOCK)).toBe(writeReviews([GONE, record("shop-rule", MONEY, DOC, TODAY)]));
+    expect(lockOf(folder, OTHER_LOCKS[0])).toBe(writeReviews([record("web-rule", MONEY, DOC, TODAY)]));
+    git(folder, "checkout", "-q", "--", "lore/web/lore-reviews.lock");
+    expect(snapshot(folder, OTHER_LOCKS)).toEqual(others);
+    expect(await lore(["review", "--prune", ...args])).toEqual({ code: 0, out: `pruned 1 record from external:${SHOP_LOCK}\n`, err: "" });
+    expect(lockOf(folder, SHOP_LOCK)).toBe(writeReviews([record("shop-rule", MONEY, DOC, TODAY)]));
+    expect(snapshot(folder, OTHER_LOCKS)).toEqual(others);
+  });
+
+  test("the same id in the shop's and the blog's folders keeps one record in each folder's lock file", async () => {
     const folder = team({
-      "lore/web/.loreconfig": "repo: github.com/acme/shop\n",
-      "lore/web/.lore/b.lore": ruleCiting("web-rule", `/${MONEY.file}`),
-      "lore/blog/.loreconfig": "repo: github.com/acme/blog\n",
-      "lore/blog/.lore/c.lore": ruleCiting("blog-rule", `/${MONEY.file}`),
-    }, [SHOP, WEB, BLOG, GONE]);
+      "lore/shop/.lore/a.lore": ruleCiting("dup", `/${MONEY.file}`),
+      "lore/blog/.lore/c.lore": ruleCiting("dup", `/${DATES.file}`, "Dates"),
+      [SHOP_LOCK]: writeReviews([]),
+      "lore/blog/lore-reviews.lock": writeReviews([]),
+    });
     const fromShop = ["--repo", governed("shop"), "--given", join(folder, "lore")];
-    expect(await lore(["review", "shop-rule", ...fromShop])).toEqual({ code: 0, out: "reviewed shop-rule (1 source)\n", err: "" });
-    const afterShop = writeReviews([BLOG, GONE, record("shop-rule", MONEY, DOC, TODAY), WEB]);
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(afterShop);
-    for (const kept of [BLOG, GONE, WEB]) expect(linesOf(lockOf(folder, "lore/lore-reviews.lock"))).toContain(JSON.stringify(kept));
-    expect(await lore(["review", "--prune", ...fromShop])).toEqual({
-      code: 0, out: "", err: notPruning(SHARED, "external:lore/blog/.loreconfig names another repository"),
-    });
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(afterShop);
-
     const fromBlog = ["--repo", governed("blog"), "--given", join(folder, "lore")];
-    expect(await lore(["review", "blog-rule", ...fromBlog])).toEqual({ code: 0, out: "reviewed blog-rule (1 source)\n", err: "" });
-    const afterBlog = writeReviews([record("blog-rule", MONEY, DOC, TODAY), GONE, record("shop-rule", MONEY, DOC, TODAY), WEB]);
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(afterBlog);
-    expect(await lore(["review", "--prune", ...fromBlog])).toEqual({
-      code: 0, out: "", err: notPruning(SHARED, "external:lore/shop/.loreconfig names another repository"),
-    });
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(afterBlog);
+    expect((await lore(["review", "dup", "--date", "2026-11-01", ...fromShop])).code).toBe(0);
+    expect((await lore(["review", "dup", "--date", "2026-11-02", ...fromBlog])).code).toBe(0);
+    expect(lockOf(folder, SHOP_LOCK)).toBe(writeReviews([record("dup", MONEY, DOC, "2026-11-01")]));
+    expect(lockOf(folder, "lore/blog/lore-reviews.lock")).toBe(writeReviews([record("dup", DATES, DOC, "2026-11-02")]));
+    for (const args of [fromShop, fromBlog]) {
+      const { out } = await lore(["audit", ...args]);
+      expect(out).not.toContain("never-reviewed");
+      expect(out).not.toContain("orphan-review");
+    }
   });
 
-  test("only part of a shared Lore root given: a review and --prune delete nothing, and --prune with the whole root does", async () => {
-    const folder = team({
-      "lore/web/.loreconfig": "repo: github.com/acme/shop\n",
-      "lore/web/.lore/b.lore": ruleCiting("web-rule", `/${MONEY.file}`),
-    }, [SHOP, WEB, GONE]);
-    const root = governed("shop");
-    const part = ["--repo", root, "--given", join(folder, "lore/shop")];
-    expect(await lore(["review", "shop-rule", ...part])).toEqual({ code: 0, out: "reviewed shop-rule (1 source)\n", err: "" });
-    const after = writeReviews([GONE, record("shop-rule", MONEY, DOC, TODAY), WEB]);
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(after);
-    expect(await lore(["review", "--prune", ...part])).toEqual({
-      code: 0, out: "", err: notPruning(SHARED, "the given folders hold only part of its Lore root"),
+  test("a rule the rules repository reviewed in its own run, in an untracked Lore file, is never touched from the shop", async () => {
+    const folder = team();
+    write(folder, { "lore/own/.lore/n.lore": ruleCiting("team-new", `/${DATES.file}`, "Dates") });
+    expect(await lore(["review", "team-new", "--repo", folder])).toEqual({
+      code: 0, out: "reviewed team-new (1 source)\n",
+      err: "lore: excluded repo-inside-repo in lore/blog/.loreconfig line 1\nlore: excluded repo-inside-repo in lore/shop/.loreconfig line 1\nlore: excluded repo-inside-repo in lore/web/.loreconfig line 1\n",
     });
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(after);
-    expect(await lore(["review", "--prune", "--repo", root, "--given", join(folder, "lore")])).toEqual({
-      code: 0, out: `pruned 1 record from ${SHARED}\n`, err: "",
-    });
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(writeReviews([record("shop-rule", MONEY, DOC, TODAY), WEB]));
+    git(folder, "add", "lore/lore-reviews.lock");
+    const own = lockOf(folder, "lore/lore-reviews.lock");
+    expect(own.split("\n")).toContain(JSON.stringify(record("team-new", DATES, DOC, TODAY)));
+    const args = ["--repo", governed("shop"), "--given", join(folder, "lore")];
+    expect((await lore(["audit", ...args])).out).not.toContain("team-new");
+    expect(await lore(["review", "--prune", ...args])).toEqual({ code: 0, out: `pruned 1 record from external:${SHOP_LOCK}\n`, err: "" });
+    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(own);
   });
 
-  test("nested-repo below a directory marked for another repository: a review and --prune delete nothing", async () => {
-    const dates = record("shop-dates", DATES);
+  test("a run given one marked folder prunes that folder's lock file only", async () => {
+    const folder = team({ "lore/web/lore-reviews.lock": writeReviews([WEB, GONE]) });
+    const others = snapshot(folder, OTHER_LOCKS);
+    const args = ["--repo", governed("shop"), "--given", join(folder, "lore/shop")];
+    expect(await lore(["review", "--prune", ...args])).toEqual({ code: 0, out: `pruned 1 record from external:${SHOP_LOCK}\n`, err: "" });
+    expect(snapshot(folder, OTHER_LOCKS)).toEqual(others);
+  });
+
+  test("nested-repo below a directory marked for another repository leaves the nested directory's lock file alone", async () => {
+    const webLock = writeReviews([WEB]);
     const folder = repoWith({
       "lore/.loreconfig": "root: true\n",
       "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
-      "lore/shop/.lore/a.lore": ruleCiting("shop-dates", `/${DATES.file}`, "Dates"),
+      "lore/shop/.lore/a.lore": ruleCiting("shop-rule", `/${MONEY.file}`),
       "lore/apps/web/.loreconfig": "repo: github.com/acme/shop\n",
       "lore/apps/web/.lore/b.lore": ruleCiting("web-rule", `/${MONEY.file}`),
-      "lore/lore-reviews.lock": writeReviews([dates, WEB]),
+      "lore/apps/web/lore-reviews.lock": webLock,
+      [SHOP_LOCK]: writeReviews([SHOP, GONE]),
     });
     commit(folder, { "lore/apps/.loreconfig": "repo: github.com/acme/blog\n" });
     const args = ["--repo", governed("shop"), "--given", join(folder, "lore")];
     const excluded = "lore: excluded nested-repo in external:lore/apps/web/.loreconfig line 1\n";
-    expect(await lore(["review", "shop-dates", ...args])).toEqual({ code: 0, out: "reviewed shop-dates (1 source)\n", err: excluded });
-    const after = writeReviews([record("shop-dates", DATES, DOC, TODAY), WEB]);
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(after);
-    expect(await lore(["review", "--prune", ...args])).toEqual({
-      code: 0, out: "", err: excluded + notPruning(SHARED, "external:lore/apps/.loreconfig names another repository"),
-    });
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(after);
-  });
-  test("a Lore file in no directory marked for the shop under the Lore root: a review and --prune delete nothing", async () => {
-    const TEAM = record("team-rule", MONEY);
-    const folder = team({ "lore/own/.lore/t.lore": ruleCiting("team-rule", `/${MONEY.file}`) }, [SHOP, TEAM, GONE]);
-    const args = ["--repo", governed("shop"), "--given", join(folder, "lore")];
-    expect(await lore(["review", "shop-rule", ...args])).toEqual({ code: 0, out: "reviewed shop-rule (1 source)\n", err: "" });
-    const after = writeReviews([GONE, record("shop-rule", MONEY, DOC, TODAY), TEAM]);
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(after);
-    expect(await lore(["review", "--prune", ...args])).toEqual({
-      code: 0, out: "", err: notPruning(SHARED, "external:lore/own/.lore/t.lore is in no directory marked for this repository"),
-    });
-    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(after);
+    expect(await lore(["review", "shop-rule", ...args])).toEqual({ code: 0, out: "reviewed shop-rule (1 source)\n", err: excluded });
+    expect(await lore(["review", "--prune", ...args])).toEqual({ code: 0, out: `pruned 1 record from external:${SHOP_LOCK}\n`, err: excluded });
+    expect(lockOf(folder, SHOP_LOCK)).toBe(writeReviews([record("shop-rule", MONEY, DOC, TODAY)]));
+    expect(lockOf(folder, "lore/apps/web/lore-reviews.lock")).toBe(webLock);
   });
 
-  test("the governed repo given as a folder reaches one lock file twice, so the run is refused and the file left as it was", async () => {
+  test("the governed repo given as a folder writes each rule's record to its own lock file", async () => {
     const A = record("a-rule", MONEY);
     const B = record("b-rule", MONEY);
     const root = repoWith({
@@ -542,20 +553,19 @@ describe("a Lore root the run did not wholly collect keeps every other rule's re
       "lore/a/.loreconfig": "repo: github.com/acme/shop\n",
       "lore/a/.lore/r.lore": ruleCiting("a-rule", `/${MONEY.file}`),
       "lore/b/.lore/r.lore": ruleCiting("b-rule", `/${MONEY.file}`),
-      "lore/lore-reviews.lock": writeReviews([A, B, GONE]),
+      "lore/a/lore-reviews.lock": writeReviews([A]),
+      "lore/lore-reviews.lock": writeReviews([B, GONE]),
     });
     git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
-    const lock = lockOf(root, "lore/lore-reviews.lock");
-    const refused = "lore: lock file lore/lore-reviews.lock is also external:lore/lore-reviews.lock: the governed repo is also given as a folder\n";
-    for (const run of [["a-rule", "b-rule"], ["--prune"]]) {
-      const { code, out, err } = await lore(["review", ...run, "--repo", root, "--given", join(root, "lore")]);
-      expect(code).toBe(2);
-      expect(out).toBe("");
-      expect(err).toEndWith(refused);
-      expect(lockOf(root, "lore/lore-reviews.lock")).toBe(lock);
-    }
-    expect(await lore(["review", "b-rule", "--repo", root])).toMatchObject({ code: 0, out: "reviewed b-rule (1 source)\n" });
-    expect(lockOf(root, "lore/lore-reviews.lock")).toBe(writeReviews([A, record("b-rule", MONEY, DOC, TODAY), GONE]));
+    const args = ["--repo", root, "--given", join(root, "lore")];
+    const excluded = "lore: excluded repo-inside-repo in lore/a/.loreconfig line 1\n";
+    expect(await lore(["review", "a-rule", "b-rule", ...args])).toEqual({
+      code: 0, out: "reviewed a-rule (1 source)\nreviewed b-rule (1 source)\n", err: excluded,
+    });
+    expect(lockOf(root, "lore/a/lore-reviews.lock")).toBe(writeReviews([record("a-rule", MONEY, DOC, TODAY)]));
+    expect(lockOf(root, "lore/lore-reviews.lock")).toBe(writeReviews([record("b-rule", MONEY, DOC, TODAY), GONE]));
+    expect(await lore(["review", "--prune", ...args])).toEqual({ code: 0, out: "pruned 1 record from lore/lore-reviews.lock\n", err: excluded });
+    expect(lockOf(root, "lore/a/lore-reviews.lock")).toBe(writeReviews([record("a-rule", MONEY, DOC, TODAY)]));
+    expect(lockOf(root, "lore/lore-reviews.lock")).toBe(writeReviews([record("b-rule", MONEY, DOC, TODAY)]));
   });
 });
-

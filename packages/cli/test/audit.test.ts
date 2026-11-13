@@ -80,7 +80,7 @@ function lockFor(rule: string, source: Source, text: string, reviewed = "2026-11
 
 const LOCK = lockFor("money-in-minor-units", SOURCE, DOC);
 const notChecked = (lock: string, reason: string): string =>
-  `lore: orphan-review not checked in ${lock}: its Lore root is not wholly collected (${reason})\n`;
+  `lore: orphan-review not checked in ${lock}: it may cover a rule this run did not collect (${reason})\n`;
 
 function shop(extra: Record<string, string> = {}): string {
   return repoWith({ ".lore/a.lore": `${RULE}\n${PLAIN}`, "docs/checkout-review.md": DOC, "lore-reviews.lock": LOCK, ...extra });
@@ -213,15 +213,15 @@ describe("lore audit", () => {
     expect((await lore(["audit", "--repo", root, "--strict"])).code).toBe(1);
   });
 
-  test("a rule under a directory repo-inside-repo excludes is no orphan-review", async () => {
+  test("a directory repo-inside-repo excludes covers its own rules, so a record of one in the outer lock file is an orphan", async () => {
     const root = shop({
       "apps/web/.loreconfig": "repo: github.com/acme/shop\n",
       "apps/web/.lore/web.lore": ruleCiting("web-rule", `/${SOURCE.file}`),
       "lore-reviews.lock": LOCK + lockFor("web-rule", SOURCE, DOC).split("\n")[1] + "\n",
     });
     expect(await lore(["audit", "--repo", root])).toEqual({
-      code: 0, out: "rules with a source: 1, without: 1\n",
-      err: "lore: excluded repo-inside-repo in apps/web/.loreconfig line 1\n" + notChecked("lore-reviews.lock", "an error in apps/web/.loreconfig may hide rules"),
+      code: 0, out: `lore-reviews.lock\n  warn  orphan-review  web-rule  docs/checkout-review.md#${HEADING}\n\norphan-review: 1\nrules with a source: 1, without: 1\n`,
+      err: "lore: excluded repo-inside-repo in apps/web/.loreconfig line 1\n",
     });
   });
 
@@ -323,26 +323,26 @@ describe("files the command could not read", () => {
   });
 });
 
-describe("a Lore root the run did not wholly collect", () => {
+describe("a lock file that may cover a rule the run did not collect", () => {
   const team = () => repoWith({
     "lore/.loreconfig": "root: true\n",
     "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
     "lore/shop/.lore/a.lore": ruleCiting("shop-rule", `/${SOURCE.file}`),
-    "lore/blog/.loreconfig": "repo: github.com/acme/blog\n",
-    "lore/blog/.lore/b.lore": ruleCiting("blog-rule", `/${SOURCE.file}`),
-    "lore/lore-reviews.lock": lockFor("blog-rule", SOURCE, DOC) + lockFor("shop-rule", SOURCE, DOC).split("\n")[1] + "\n",
+    "lore/shop/.lore/bad.lore": "<rule id=\"x\">\n",
+    "lore/shop/lore-reviews.lock": lockFor("gone-rule", SOURCE, DOC) + lockFor("shop-rule", SOURCE, DOC).split("\n")[1] + "\n",
   });
   const governed = () => {
     const root = repoWith({ "docs/checkout-review.md": DOC });
     git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
     return root;
   };
-  const SHARED = "external:lore/lore-reviews.lock";
-  const REASON = "external:lore/blog/.loreconfig names another repository";
+  const LOCKED = "external:lore/shop/lore-reviews.lock";
+  const REASON = "an error in external:lore/shop/.lore/bad.lore may hide rules";
+  const EXCLUDED = "lore: excluded unreadable-structure in external:lore/shop/.lore/bad.lore line 1\n";
 
   test("reports no orphan-review there and says on stderr that it did not check", async () => {
     expect(await lore(["audit", "--repo", governed(), "--given", join(team(), "lore")])).toEqual({
-      code: 0, out: "rules with a source: 1, without: 0\n", err: notChecked(SHARED, REASON),
+      code: 0, out: "rules with a source: 1, without: 0\n", err: EXCLUDED + notChecked(LOCKED, REASON),
     });
   });
 
@@ -352,52 +352,16 @@ describe("a Lore root the run did not wholly collect", () => {
     expect(err).toBe("");
     const result = JSON.parse(out);
     expect(result.findings).toEqual([]);
-    expect(result.unjudged).toEqual([{ file: SHARED, reason: REASON }]);
+    expect(result.unjudged).toEqual([{ file: LOCKED, reason: REASON }]);
   });
 
-  test("a wholly collected Lore root reports its orphans and lists nothing under unjudged", async () => {
+  test("a lock file the run collected every rule of reports its orphans and lists nothing under unjudged", async () => {
     const root = shop({ "lore-reviews.lock": LOCK + lockFor("gone-rule", SOURCE, DOC).split("\n")[1] + "\n" });
     const { code, out, err } = await lore(["audit", "--repo", root]);
     expect(code).toBe(0);
     expect(err).toBe("");
     expect(out).toContain(`lore-reviews.lock\n  warn  orphan-review  gone-rule  docs/checkout-review.md#${HEADING}\n`);
     expect(JSON.parse((await lore(["audit", "--repo", root, "--format", "json"])).out).unjudged).toEqual([]);
-  });
-});
-
-describe("lock files the audit cannot judge whole", () => {
-  test("a Lore file in no directory marked for the shop under the Lore root", async () => {
-    const folder = repoWith({
-      "lore/.loreconfig": "root: true\n",
-      "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
-      "lore/shop/.lore/a.lore": ruleCiting("shop-rule", `/${SOURCE.file}`),
-      "lore/own/.lore/t.lore": ruleCiting("team-rule", `/${SOURCE.file}`),
-      "lore/lore-reviews.lock": lockFor("shop-rule", SOURCE, DOC) + lockFor("team-rule", SOURCE, DOC).split("\n")[1] + "\n",
-    });
-    const root = repoWith({ "docs/checkout-review.md": DOC });
-    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
-    expect(await lore(["audit", "--repo", root, "--given", join(folder, "lore")])).toEqual({
-      code: 0, out: "rules with a source: 1, without: 0\n",
-      err: notChecked("external:lore/lore-reviews.lock", "external:lore/own/.lore/t.lore is in no directory marked for this repository"),
-    });
-  });
-
-  test("the governed repo given as a folder judges its lock file under neither name", async () => {
-    const root = repoWith({
-      "docs/checkout-review.md": DOC,
-      "lore/.loreconfig": "root: true\n",
-      "lore/a/.loreconfig": "repo: github.com/acme/shop\n",
-      "lore/a/.lore/r.lore": ruleCiting("a-rule", `/${SOURCE.file}`),
-      "lore/b/.lore/r.lore": ruleCiting("b-rule", `/${SOURCE.file}`),
-      "lore/lore-reviews.lock": lockFor("a-rule", SOURCE, DOC) + lockFor("b-rule", SOURCE, DOC).split("\n")[1] + "\n" +
-        lockFor("gone-rule", SOURCE, DOC).split("\n")[1] + "\n",
-    });
-    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
-    const { code, out } = await lore(["audit", "--repo", root, "--given", join(root, "lore")]);
-    expect(code).toBe(0);
-    expect(out).not.toContain("orphan-review");
-    const json = JSON.parse((await lore(["audit", "--repo", root, "--given", join(root, "lore"), "--format", "json"])).out);
-    expect(json.unjudged.map((entry: { file: string }) => entry.file)).toEqual(["external:lore/lore-reviews.lock", "lore/lore-reviews.lock"]);
   });
 
   test("an untracked Lore file that lore review recorded is no orphan until git tracks it", async () => {
@@ -415,6 +379,96 @@ describe("lock files the audit cannot judge whole", () => {
     expect(tracked.err).toBe("");
     expect(tracked.out).toContain(`lore-reviews.lock\n  warn  orphan-review  gone-rule  docs/checkout-review.md#${HEADING}\n`);
     expect(tracked.out).not.toContain("orphan-review  fresh");
+  });
+});
+
+describe("a shared rules repository: each governed repo reads the lock files of its own marked directories", () => {
+  const line = (rule: string, source: Source = SOURCE): string => `${lockFor(rule, source, DOC).split("\n")[1]}\n`;
+  const DATES: Source = { file: "docs/checkout-review.md", heading: "Dates", phrase: null };
+  const governed = (repository: string) => {
+    const root = repoWith({ "docs/checkout-review.md": DOC });
+    git(root, "remote", "add", "origin", `https://github.com/acme/${repository}.git`);
+    return root;
+  };
+  const team = (extra: Record<string, string> = {}) => repoWith({
+    "docs/checkout-review.md": DOC,
+    "lore/.loreconfig": "root: true\n",
+    "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+    "lore/shop/.lore/a.lore": ruleCiting("shop-rule", `/${SOURCE.file}`),
+    "lore/web/.loreconfig": "repo: github.com/acme/shop\n",
+    "lore/web/.lore/b.lore": ruleCiting("web-rule", `/${SOURCE.file}`),
+    "lore/blog/.loreconfig": "repo: github.com/acme/blog\n",
+    "lore/blog/.lore/c.lore": ruleCiting("blog-rule", `/${SOURCE.file}`),
+    "lore/own/.lore/t.lore": ruleCiting("team-rule", `/${SOURCE.file}`),
+    "lore/shop/lore-reviews.lock": lockFor("shop-rule", SOURCE, DOC) + line("shop-gone"),
+    "lore/web/lore-reviews.lock": lockFor("web-rule", SOURCE, DOC),
+    "lore/blog/lore-reviews.lock": lockFor("blog-rule", SOURCE, DOC) + line("blog-gone"),
+    "lore/lore-reviews.lock": lockFor("team-rule", SOURCE, DOC) + line("team-gone"),
+    ...extra,
+  });
+  const orphanLine = (lock: string, rule: string) => `${lock}\n  warn  orphan-review  ${rule}  docs/checkout-review.md#${HEADING}\n`;
+
+  test("the shop, the blog and the rules repository itself each judge only their own lock files", async () => {
+    const folder = team();
+    const fromShop = await lore(["audit", "--repo", governed("shop"), "--given", join(folder, "lore")]);
+    expect(fromShop).toEqual({
+      code: 0, out: `${orphanLine("external:lore/shop/lore-reviews.lock", "shop-gone")}\norphan-review: 1\nrules with a source: 2, without: 0\n`, err: "",
+    });
+    const fromBlog = await lore(["audit", "--repo", governed("blog"), "--given", join(folder, "lore")]);
+    expect(fromBlog).toEqual({
+      code: 0, out: `${orphanLine("external:lore/blog/lore-reviews.lock", "blog-gone")}\norphan-review: 1\nrules with a source: 1, without: 0\n`, err: "",
+    });
+    const own = await lore(["audit", "--repo", folder]);
+    expect(own.out).toBe(`${orphanLine("lore/lore-reviews.lock", "team-gone")}\norphan-review: 1\nrules with a source: 1, without: 0\n`);
+    expect(own.err).not.toContain("orphan-review not checked");
+  });
+
+  test("the same id in the shop's and the blog's folders is judged against each folder's own record", async () => {
+    const folder = team({
+      "lore/shop/.lore/a.lore": ruleCiting("dup", `/${SOURCE.file}`),
+      "lore/blog/.lore/c.lore": ruleCiting("dup", `/${DATES.file}`, "Dates"),
+      "lore/shop/lore-reviews.lock": lockFor("dup", SOURCE, DOC),
+      "lore/blog/lore-reviews.lock": lockFor("dup", DATES, DOC),
+    });
+    for (const repository of ["shop", "blog"]) {
+      const { code, out, err } = await lore(["audit", "--repo", governed(repository), "--given", join(folder, "lore")]);
+      expect({ code, err }).toEqual({ code: 0, err: "" });
+      expect(out).not.toContain("never-reviewed");
+      expect(out).not.toContain("orphan-review");
+    }
+  });
+
+  test("an untracked Lore file in the rules repository is noted in its own audit and never in the shop's", async () => {
+    const folder = team();
+    write(folder, {
+      "lore/own/.lore/n.lore": ruleCiting("team-new", `/${DATES.file}`, "Dates"),
+      "lore/shop/.lore/n.lore": ruleCiting("shop-new", `/${DATES.file}`, "Dates"),
+    });
+    const own = await lore(["audit", "--repo", folder]);
+    expect(own.out).not.toContain("orphan-review");
+    expect(own.err).toEndWith(notChecked("lore/lore-reviews.lock", "lore/own/.lore/n.lore is not tracked by git"));
+    expect(own.err).not.toContain("lore/shop/.lore/n.lore");
+    const fromShop = await lore(["audit", "--repo", governed("shop"), "--given", join(folder, "lore")]);
+    expect(fromShop.err).toBe("");
+    expect(fromShop.out).not.toContain("team-");
+  });
+
+  test("the governed repo given as a folder judges each of its two lock files against its own rules", async () => {
+    const root = repoWith({
+      "docs/checkout-review.md": DOC,
+      "lore/.loreconfig": "root: true\n",
+      "lore/a/.loreconfig": "repo: github.com/acme/shop\n",
+      "lore/a/.lore/r.lore": ruleCiting("a-rule", `/${SOURCE.file}`),
+      "lore/b/.lore/r.lore": ruleCiting("b-rule", `/${SOURCE.file}`),
+      "lore/a/lore-reviews.lock": lockFor("a-rule", SOURCE, DOC),
+      "lore/lore-reviews.lock": lockFor("b-rule", SOURCE, DOC) + line("gone-rule"),
+    });
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    const json = JSON.parse((await lore(["audit", "--repo", root, "--given", join(root, "lore"), "--format", "json"])).out);
+    expect(json.unjudged).toEqual([]);
+    expect(json.findings.map((finding: { name: string; rule: string; file: string }) => [finding.name, finding.rule, finding.file])).toEqual([
+      ["orphan-review", "gone-rule", "lore/lore-reviews.lock"],
+    ]);
   });
 });
 

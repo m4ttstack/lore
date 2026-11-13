@@ -5,7 +5,7 @@ import {
   type Entry, type Finding, type LockFile, type LockRef, type ParsedInput, type ReviewRecord,
 } from "@lore/parser";
 import type { ReviewCommand } from "./args";
-import { findingLine, loadLocks, sharedLocks, withheldLocks } from "./audit";
+import { findingLine, loadLocks, withheldLocks } from "./audit";
 import { InputError, UsageError } from "./errors";
 import { readContained } from "./git";
 import type { BuiltInput } from "./input";
@@ -13,14 +13,10 @@ import type { BuiltInput } from "./input";
 export interface Reviewed { out: string; err: string; refused: boolean }
 
 // Every usage error and every lock file is checked before anything is written. Only --prune deletes another rule's
-// record, and only where the run collected the lock file's whole Lore root.
+// record, and only from a lock file whose every Lore file the run collected.
 export function review(parsed: ParsedInput, built: BuiltInput, command: ReviewCommand, date: string): Reviewed {
   const { collected, placeOf } = parsed;
   const rules = namedRules(parsed, command);
-  const [shared] = sharedLocks(parsed, built);
-  if (shared !== undefined) {
-    throw new InputError(`lock file ${shared.governed.path} is also ${shared.given.path}: the governed repo is also given as a folder`);
-  }
   const onDisk = (ref: LockRef) => built.onDisk(ref, collected);
   const locks = new Map(loadLocks(parsed, (ref) => readOnDisk(onDisk(ref), ref.path)).map((lock) => [lockKey(lock), lock]));
 
@@ -66,7 +62,7 @@ export function review(parsed: ParsedInput, built: BuiltInput, command: ReviewCo
   if (command.prune) {
     for (const { lock, records, partial } of orphanRecords(parsed, [...locks.values()], withheldLocks(parsed, built))) {
       if (partial === null) orphans.set(lockKey(lock), new Set(records));
-      else err.push(`lore: not pruning ${lock.path}: its Lore root is not wholly collected (${partial})\n`);
+      else err.push(`lore: not pruning ${lock.path}: it may cover a rule this run did not collect (${partial})\n`);
     }
   }
   const writes: { ref: LockRef; text: string }[] = [];
