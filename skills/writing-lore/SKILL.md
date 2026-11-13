@@ -150,14 +150,17 @@ Fill every slot of this shape:
     rule uses `<source>`: an older one excludes the rule.
 - **First paragraph:** what a listing shows for a rule the change did not
   trigger, and a reviewer may judge the rule by it alone. So it says when
-  the rule applies before what it asks for, carries the rule's limits, and
-  stays under 600 code points (tools cut it there).
+  the rule applies before what it asks for, holds every limit the rule
+  states further down, and adds none the source does not state. It stays
+  under 600 code points: the reference CLI's text listing cuts it there,
+  and its JSON carries it whole.
 - **The rest:** the stakes and the specifics a reviewer needs. Someone who
   never read the source must be able to apply the rule from its prose
   alone.
 - **Converting:** keep the source's wording. Change it only to drop what
   the reviewer cannot open (ticket and MR numbers, internal links), to turn
-  a question heading into a requirement, or where the format forces it.
+  a question heading into a requirement, to move a limit the source
+  states up into the first paragraph, or where the format forces it.
   Every change goes in the conversion notes. The `<source>` `heading`
   still names the heading as the source writes it, question and all.
 
