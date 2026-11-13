@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
-import { closeSync, lstatSync, openSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { closeSync, lstatSync, openSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import {
   lockKey, lockPathFor, missingReason, orphanRecords, resolveSource, writeReviews,
   type Entry, type Finding, type LockFile, type LockRef, type ParsedInput, type ReviewRecord,
@@ -112,6 +112,8 @@ function namedRules(parsed: ParsedInput, command: ReviewCommand): Entry[] {
 // The working tree's lock file, tracked or not, since an earlier run may not be staged yet.
 function readOnDisk(at: { root: string; path: string } | undefined, shown: string): string | null {
   if (at === undefined) throw new InputError(`cannot read lock file ${shown}`);
+  const folded = foldedName(join(at.root, at.path));
+  if (folded !== null) throw new InputError(`cannot read lock file ${shown}: ${folded} differs from it only in letter case`);
   try {
     lstatSync(join(at.root, at.path));
   } catch {
@@ -120,6 +122,20 @@ function readOnDisk(at: { root: string; path: string } | undefined, shown: strin
   const text = readContained(at.root, at.path);
   if (text === null) throw new InputError(`cannot read lock file ${shown}`);
   return text;
+}
+
+// Where a filesystem folds case, such a file would be read and written in the lock file's place, while lore audit,
+// which matches names exactly, never reads it.
+function foldedName(target: string): string | null {
+  const name = basename(target);
+  let names: string[];
+  try {
+    names = readdirSync(dirname(target));
+  } catch {
+    return null;
+  }
+  if (names.includes(name)) return null;
+  return names.find((other) => other.toLowerCase() === name.toLowerCase()) ?? null;
 }
 
 // Written beside the lock file and renamed over it, so an interrupted run leaves the old file or the new one. The

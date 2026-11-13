@@ -278,6 +278,17 @@ describe("lore review", () => {
     expect(readdirSync(root).filter((name) => name.startsWith("lore-reviews")).sort()).toEqual(["lore-reviews.lock", ...planted].sort());
   });
 
+  test("a file whose name differs from the lock file's only in letter case is refused, and nothing is written", async () => {
+    const root = shop();
+    const miscased = writeReviews([record("gone-rule", MONEY)]);
+    write(root, { "LORE-REVIEWS.LOCK": miscased });
+    expect(await lore(["review", "money-in-minor-units", "--repo", root])).toEqual({
+      code: 2, out: "", err: "lore: cannot read lock file lore-reviews.lock: LORE-REVIEWS.LOCK differs from it only in letter case\n",
+    });
+    expect(readdirSync(root).filter((name) => name.toLowerCase().startsWith("lore-reviews"))).toEqual(["LORE-REVIEWS.LOCK"]);
+    expect(readFileSync(join(root, "LORE-REVIEWS.LOCK"), "utf8")).toBe(miscased);
+  });
+
   test("when nothing changes the lock file is not rewritten", async () => {
     const crlf = writeReviews([record("money-in-minor-units", MONEY, DOC, TODAY)]).replaceAll("\n", "\r\n");
     const root = shop({ "lore-reviews.lock": crlf });
