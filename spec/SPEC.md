@@ -6507,16 +6507,19 @@ belongs to no source of a collected rule under that Lore root gets
 **collected the whole Lore root**. A record is never reported when an
 error excludes an entry with its `rule` as id under that Lore root.
 
-A tool collected the whole Lore root of a lock file when all three of
+A tool collected the whole Lore root of a lock file when all four of
 these hold, checked in this order:
 
 1. **It read every directory at or below the Lore root's directory.** In
-   the governed repo and in a loose folder this always holds. In an
-   external folder's repository it holds when the Lore root's directory
-   is one of that repository's given folders or lies inside one (see
-   [External folders](#external-folders)). When a `root: true` above a
-   given folder makes the Lore root higher than it, other folders under
-   the Lore root were not read and may hold rules.
+   the governed repo this always holds. It holds in a loose folder too,
+   whose files are by definition those outside directories whose names
+   start with `.` other than `.lore`, so a file in such a directory is
+   no part of the folder (see [External folders](#external-folders)). In
+   an external folder's repository it holds when the Lore root's
+   directory is one of that repository's given folders or lies inside
+   one. When a `root: true` above a given folder makes the Lore root
+   higher than it, other folders under the Lore root were not read and
+   may hold rules, even when every one of them is a given folder too.
 2. **No directory at or below the Lore root's directory is marked for
    another repository.** That is, no `.loreconfig` there has a `repo`
    key whose value does not name the governed repo (see
@@ -6529,8 +6532,14 @@ these hold, checked in this order:
    the governed repo's. A `.loreconfig` inside a directory an error
    excludes is not read, and an `invalid-loreconfig` is not read for its
    `repo` key. In the governed repo every `repo` key is
-   `repo-inside-repo`, which item 3 covers.
-3. **No error or unread file may hide a rule under the Lore root without
+   `repo-inside-repo`, which item 4 covers.
+3. **In a given folder's repository, every Lore file at or below the
+   Lore root's directory lies at or below a directory marked for the
+   governed repo.** A Lore file in no marked directory is not collected
+   (see [External folders](#external-folders)), yet it can be a rule of
+   the given folder's own repository whose record is in the same lock
+   file.
+4. **No error or unread file may hide a rule under the Lore root without
    naming it:**
    - an error that excludes a Lore file under that Lore root, or an
      entry with no readable id there;
@@ -6545,12 +6554,14 @@ these hold, checked in this order:
      it is collected, though it may have been meant to mark its
      directory;
    - a Lore file or `.loreconfig` under that Lore root that the tool
-     could not read.
+     could not read, or that it can see but did not collect, such as an
+     untracked file in the governed repo's working tree, whose rules a
+     tool that records reviews may have recorded.
 
 When the tool did not collect the whole Lore root, no record of that
 lock file is reported. A real orphan there is reported again once the
-Lore root is collected whole: the error fixed, or every folder of the
-Lore root given. A lock file whose Lore root holds directories marked
+Lore root is collected whole: the error fixed, or the folder that holds
+the Lore root given. A lock file whose Lore root holds directories marked
 for different repositories never gets `orphan-review` from either. How
 a tool shows that it did not judge a lock file, and how a tool that
 records reviews removes orphan records, are tool behavior; a tool that
@@ -6958,6 +6969,54 @@ Dates are shown in the shop's locale.
 {"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
 {"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
 {"rule":"web-dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+A Lore file in no marked directory is not collected either.
+`lore/own/.lore/team.lore` lies under the Lore root `lore/` and in no
+marked directory: it is a rule of the team repository itself, whose
+record is in the same lock file, so no record is reported:
+
+``````example audit
+=== external:lore/.loreconfig
+root: true
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/.lore/shared.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== external:lore/own/.lore/team.lore
+<rule id="handbook-reviewed" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+The review handbook is read before each release.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== external:lore/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"handbook-reviewed","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
 === today
 2026-11-12
 === expect

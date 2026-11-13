@@ -64,7 +64,7 @@ Audit:
 Review:
   <id>                       A rule you compared with its sources; its records are written (repeatable)
   --file <lore-file>         Every rule with a source in this Lore file, named as lore audit prints it (repeatable)
-  --prune                    Remove records whose rule or source no longer exists; no other run removes any
+  --prune                    Remove records whose rule or source no longer exists; no other run removes another rule's records
   --date <YYYY-MM-DD>        The date to record (default: today)
 
 Exit codes:
