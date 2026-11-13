@@ -108,6 +108,14 @@ describe("audit", () => {
     expect(run(files).findings).toEqual([]);
   });
 
+  test("a today that is not a real date written YYYY-MM-DD is refused", () => {
+    const files = { [LORE]: rule(HEADING), "docs/review.md": DOC, [LOCK]: lock(record(AT_HEADING)) };
+    for (const today of ["2026-02-31", "2026-13-01", "2026-11-12T00:00", "12 November 2026"]) {
+      expect(() => run(files, { today })).toThrow(`today must be a real date written YYYY-MM-DD, not ${today}`);
+    }
+    expect(run(files, { today: "2028-02-29" }).findings).toEqual([]);
+  });
+
   test("a review exactly the age limit old is not overdue", () => {
     const files = { [LORE]: rule(HEADING), "docs/review.md": DOC, [LOCK]: lock(record(AT_HEADING, { reviewed: "2026-11-02" })) };
     expect(run(files, { maxAgeDays: 10 }).findings).toEqual([]);

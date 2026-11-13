@@ -1,4 +1,5 @@
 import Ajv from "ajv/dist/2020";
+import { isRealDate } from "../../packages/parser/src/reviews";
 import { extractExamples, type Example } from "./extract";
 
 export interface Problem { rule: string; line: number; message: string }
@@ -35,7 +36,6 @@ const LOOSE_FOLDER_FILE = "loose:.";
 const CHECK_TAG = /^[ \t]*<check[ \t>]/m;
 // An example cannot say that a file could not be looked at, so this finding has no example.
 const UNEXAMPLED_FINDINGS = new Set(["source-unchecked"]);
-const TODAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
 interface Diagnostic { name: string; file: string; entry: string | null; line: number }
 interface Hit { rule: string; file: string; line: number; text: string; side?: "new" | "old" }
@@ -84,7 +84,7 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
     if (ex.kind === "eligibility" && ex.diff === null) report("diff", "an eligibility example needs a diff");
     if (ex.kind !== "eligibility" && ex.diff !== null) report("diff", `a ${ex.kind} example takes no diff`);
     if (ex.kind === "parse" && ex.remote !== null) report("remote", "a parse example takes no remote");
-    if (ex.kind === "audit" && (ex.today === null || !TODAY.test(ex.today))) report("today", "an audit example needs a today section of one YYYY-MM-DD line");
+    if (ex.kind === "audit" && (ex.today === null || !isRealDate(ex.today))) report("today", "an audit example needs a today section of one YYYY-MM-DD line");
     if (ex.kind !== "audit" && ex.today !== null) report("today", `a ${ex.kind} example takes no today section`);
     if (ex.diff !== null) checkDiff(ex, report);
 

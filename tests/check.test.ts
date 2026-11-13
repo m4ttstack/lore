@@ -365,6 +365,8 @@ test("today: an audit example needs one date, and other kinds take none", () => 
   const ok = auditExpect([missing("c-rule")]);
   expect(rules(withAudit(ok, ""))).toEqual(["today"]);
   expect(rules(withAudit(ok, "=== today\n12 November 2026\n"))).toEqual(["today"]);
+  expect(rules(withAudit(ok, "=== today\n2026-02-31\n"))).toEqual(["today"]);
+  expect(rules(withAudit(ok, "=== today\n2028-02-29\n"))).toEqual([]);
   expect(rules(swap("=== expect\n" + parseExpect, "=== today\n2026-11-12\n=== expect\n" + parseExpect))).toEqual(["today"]);
 });
 

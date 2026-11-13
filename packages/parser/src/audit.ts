@@ -1,7 +1,7 @@
 import { EXTERNAL, LOOSE, RULES, auditSettingsFor, loreRootIn, type AuditSettings, type Collected, type Repository, type Tree } from "./collect";
 import { FINDINGS, type FindingName, type Level } from "./loreconfig";
 import type { EntryPlace, ParsedInput } from "./model";
-import { LOCK_NAME, sameSource, type ReviewRecord } from "./reviews";
+import { LOCK_NAME, isRealDate, sameSource, type ReviewRecord } from "./reviews";
 import { resolveSource, type Resolved, type SourceContent } from "./sources";
 import { compareCodePoints } from "./text";
 import type { Diagnostic, Source } from "./types";
@@ -75,6 +75,7 @@ export function lockRefHolding(collected: Collected, file: string, repository: R
 }
 
 export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
+  if (!isRealDate(options.today)) throw new RangeError(`today must be a real date written YYYY-MM-DD, not ${options.today}`);
   const { model, collected, placeOf } = parsed;
   const findings: Finding[] = [];
   const recordsOf = new Map<string, ReviewRecord[]>();
