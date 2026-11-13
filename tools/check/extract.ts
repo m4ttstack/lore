@@ -1,4 +1,4 @@
-export type ExampleKind = "parse" | "eligibility";
+export type ExampleKind = "parse" | "eligibility" | "audit";
 export type Place = "repo" | "external" | "rules" | "loose";
 export interface ExampleFile { path: string; place: Place; content: string }
 export interface Example {
@@ -10,6 +10,7 @@ export interface Example {
   files: ExampleFile[];
   remote: string | null;   // raw section text
   diff: string | null;     // raw section text
+  today: string | null;    // raw section text
   expect: string | null;   // raw section text
 }
 
@@ -92,10 +93,10 @@ function build(number: number, kind: string, section: string, line: number, body
     }
   }
 
-  const example: Example = { number, kind, section, line, requires, files: [], remote: null, diff: null, expect: null };
+  const example: Example = { number, kind, section, line, requires, files: [], remote: null, diff: null, today: null, expect: null };
   for (const s of sections) {
     const content = s.lines.join("\n");
-    if (s.name === "remote" || s.name === "diff" || s.name === "expect") {
+    if (s.name === "remote" || s.name === "diff" || s.name === "today" || s.name === "expect") {
       if (example[s.name] !== null) throw new Error(`duplicate "${s.name}" section in example at line ${line}`);
       example[s.name] = content;
     } else example.files.push({ path: s.name, place: placeOf(s.name), content });

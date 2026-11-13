@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { extractExamples } from "../../../tools/check/extract";
-import { parse, select } from "../src/index";
+import { audit, parse, parseWithContext, select } from "../src/index";
 import pending from "./pending.json";
-import { astGrepBinary, toChange, toInput } from "./harness";
+import { astGrepBinary, auditOptions, toChange, toInput } from "./harness";
 
 const specPath = new URL("../../../spec/SPEC.md", import.meta.url);
 const examples = extractExamples(readFileSync(specPath, "utf8"));
@@ -12,6 +12,15 @@ const astGrep = astGrepBinary();
 
 function withoutRanges(value: unknown): unknown {
   return JSON.parse(JSON.stringify(value, (key, v) => (key === "range" ? undefined : v)));
+}
+
+function runAudit(example: Parameters<typeof auditOptions>[0], input: ReturnType<typeof toInput>) {
+  const parsed = parseWithContext(input);
+  return audit(parsed, auditOptions(example, parsed));
+}
+
+function auditJson({ findings, summary }: ReturnType<typeof audit>) {
+  return { findings, summary };
 }
 
 describe("conformance", () => {
@@ -32,7 +41,9 @@ describe("conformance", () => {
       const actual =
         example.kind === "eligibility"
           ? await select(input, toChange(example.diff ?? ""), { capabilities: ["regex", "ast-grep"], astGrepBinary: astGrep })
-          : parse(input);
+          : example.kind === "audit"
+            ? auditJson(runAudit(example, input))
+            : parse(input);
       expect(withoutRanges(actual)).toEqual(expected);
     });
   }

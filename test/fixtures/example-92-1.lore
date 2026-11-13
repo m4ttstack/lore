@@ -1,3 +1,7 @@
-<rule id="order-schema-versioned" category="api_contracts">
-Every change to the order schema bumps its version.
+<rule id="round-half-to-even" category="functional_correctness">
+<source>
+file: docs/NOTES.MD
+heading: Rounding
+</source>
+Amounts are rounded half to even.
 </rule>

@@ -1,0 +1,11 @@
+<scope>
+files: ["**/*.{ts,tsx"]
+</scope>
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale">
+Displayed dates are formatted with the shop's locale.
+</rule>

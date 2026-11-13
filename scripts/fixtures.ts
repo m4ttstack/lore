@@ -16,7 +16,7 @@ const GENERATED = /^(example-\d+-\d+|readme-\d+)\.lore$/;
 interface Diagnostic { name: string; file: string }
 
 function errorNames(example: Example, path: string): string[] {
-  if (example.expect === null) return [];
+  if (example.expect === null || example.kind === "audit") return [];
   const expect = JSON.parse(example.expect) as { errors?: Diagnostic[]; excluded?: Diagnostic[] };
   const diagnostics = example.kind === "eligibility" ? expect.excluded ?? [] : expect.errors ?? [];
   return diagnostics.filter((d) => d.file === path).map((d) => d.name);

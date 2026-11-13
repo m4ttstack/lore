@@ -93,7 +93,7 @@
     "children": {
       "patterns": [
         {
-          "begin": "^[ \\t]*(<)(when|scope|meta)((?:[ \\t].*)?)(>)[ \\t]*$",
+          "begin": "^[ \\t]*(<)(when|scope|meta|source)((?:[ \\t].*)?)(>)[ \\t]*$",
           "while": "^(?![ \\t]*</\\2>[ \\t]*$)(?!</(?:rule|context)>[ \\t]*$)",
           "beginCaptures": {
             "1": { "name": "punctuation.definition.tag.begin.lore" },

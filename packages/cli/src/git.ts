@@ -18,16 +18,20 @@ export interface GitOptions {
 }
 
 export function git(root: string, args: string[], okCodes: readonly number[] = [0], options: GitOptions = {}): string {
+  return gitBytes(root, args, okCodes, options).toString("utf8");
+}
+
+function gitBytes(root: string, args: string[], okCodes: readonly number[] = [0], options: GitOptions = {}): Buffer {
   try {
     // gitRoot matches git's English message, so a translated git must not answer in another language.
     // A partial clone must not fetch a missing object from its promisor remote: the command never uses the network.
     const { GIT_DIR: _dir, GIT_WORK_TREE: _tree, ...inherited } = process.env;
     const env = { ...inherited, ...options.env, LC_ALL: "C", GIT_NO_LAZY_FETCH: "1" };
     const stdin = options.input === undefined ? "ignore" : "pipe";
-    return execFileSync("git", ["-C", root, ...args], { encoding: "utf8", env, input: options.input, maxBuffer: MAX_BUFFER, stdio: [stdin, "pipe", "pipe"] });
+    return execFileSync("git", ["-C", root, ...args], { env, input: options.input, maxBuffer: MAX_BUFFER, stdio: [stdin, "pipe", "pipe"] });
   } catch (error) {
-    const { code, stderr, stdout, status } = error as NodeJS.ErrnoException & { stderr?: string; stdout?: string; status?: number };
-    if (typeof status === "number" && okCodes.includes(status)) return String(stdout ?? "");
+    const { code, stderr, stdout, status } = error as NodeJS.ErrnoException & { stderr?: Buffer; stdout?: Buffer; status?: number };
+    if (typeof status === "number" && okCodes.includes(status)) return stdout ?? Buffer.alloc(0);
     if (code === "ENOENT") throw new GitMissingError("git is not installed");
     const reason = String(stderr ?? "").trim().split("\n")[0] ?? "";
     throw new InputError(`git ${args.join(" ")} failed${reason === "" ? "" : `: ${reason}`}`);
@@ -82,31 +86,86 @@ export function readContained(root: string, path: string): string | null {
 // Null unless both the path and the file it resolves to through any symlinks are in tracked, so an
 // ignored or untracked file (a token in .npmrc, say) never reaches the output by name or by link.
 export function readTracked(root: string, path: string, tracked: ReadonlySet<string>): string | null {
+  return readTrackedBytes(root, path, tracked)?.toString("utf8") ?? null;
+}
+
+export function readTrackedBytes(root: string, path: string, tracked: ReadonlySet<string>): Buffer | null {
   if (!tracked.has(path)) return null;
   try {
     const real = realpathSync(resolve(root, path));
     const from = relative(realpathSync(root), real).split(sep).join("/");
     if (!tracked.has(from) || !statSync(real).isFile()) return null;
-    return readFileSync(real, "utf8");
+    return readFileSync(real);
   } catch {
     return null;
   }
 }
 
-export function readFileAt(root: string, ref: string | null, path: string): string {
-  if (ref !== null) {
-    try {
-      return git(root, ["show", `${ref}:${path}`]);
-    } catch (error) {
-      if (error instanceof InputError && /failed: fatal: bad object /.test(error.message) && isPartialClone(root)) {
-        throw new InputError(`${path} at ${ref} is not in this partial clone and lazy fetching is off; fetch it first, lore never fetches`);
-      }
-      throw error;
-    }
+// Each path a tree lists, with its mode.
+export type RefTree = ReadonlyMap<string, string>;
+
+const SYMLINK = "120000";
+const REGULAR = new Set(["100644", "100755"]);
+const MAX_LINKS = 40;
+
+export function refTree(root: string, ref: string): RefTree {
+  if (ref.startsWith("-")) throw new InputError(`not a git ref: ${ref}`);
+  const tree = new Map<string, string>();
+  for (const line of git(root, ["ls-tree", "-r", "-z", ref]).split("\0")) {
+    const tab = line.indexOf("\t");
+    if (tab !== -1) tree.set(line.slice(tab + 1), line.slice(0, line.indexOf(" ")));
   }
+  return tree;
+}
+
+// readTrackedBytes at a ref: the path and the file it resolves to through any symlinks of the tree must both be listed
+// in tracked, and the file a regular one. A link that leaves the repository, or names an absolute path, is not followed.
+export function readTrackedBytesAt(root: string, ref: string, path: string, tracked: ReadonlySet<string>, tree: RefTree): Buffer | null {
+  if (!tracked.has(path)) return null;
+  const real = realPathAt(root, ref, path, tree);
+  if (real === null || !tracked.has(real) || !REGULAR.has(tree.get(real) ?? "")) return null;
+  return readBytesAt(root, ref, real);
+}
+
+function realPathAt(root: string, ref: string, path: string, tree: RefTree): string | null {
+  const resolved: string[] = [];
+  const pending = path.split("/");
+  let links = 0;
+  while (pending.length > 0) {
+    const name = pending.shift()!;
+    if (name === "" || name === ".") continue;
+    if (name === "..") {
+      if (resolved.pop() === undefined) return null;
+      continue;
+    }
+    const at = [...resolved, name].join("/");
+    if (tree.get(at) !== SYMLINK) {
+      resolved.push(name);
+      continue;
+    }
+    const target = readBytesAt(root, ref, at).toString("utf8");
+    if (++links > MAX_LINKS || target.startsWith("/")) return null;
+    pending.unshift(...target.split("/"));
+  }
+  return resolved.join("/");
+}
+
+export function readFileAt(root: string, ref: string | null, path: string): string {
+  if (ref !== null) return readBytesAt(root, ref, path).toString("utf8");
   const content = readContained(root, path);
   if (content === null) throw new InputError(`cannot read ${path} inside ${root}`);
   return content;
+}
+
+export function readBytesAt(root: string, ref: string, path: string): Buffer {
+  try {
+    return gitBytes(root, ["show", `${ref}:${path}`]);
+  } catch (error) {
+    if (error instanceof InputError && /failed: fatal: bad object /.test(error.message) && isPartialClone(root)) {
+      throw new InputError(`${path} at ${ref} is not in this partial clone and lazy fetching is off; fetch it first, lore never fetches`);
+    }
+    throw error;
+  }
 }
 
 // A fetch line is "<name>\t<url> (fetch)", then " [<filter>]" for a partial clone; the URL may hold spaces.

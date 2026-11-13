@@ -1,5 +1,5 @@
 import { checkDefaults, checkScope } from "./blocks";
-import { collect, type Collected, type Tree } from "./collect";
+import { collect, LOOSE, type Collected, type Tree } from "./collect";
 import { DEFAULT_FILES, lineDiagnostic, readEntry, resolveScope, type EntryResult, type FileContext } from "./entries";
 import { disjoint } from "./glob";
 import { dedent } from "./indent";
@@ -11,6 +11,9 @@ import { readBlock, type BlockProblem } from "./yaml";
 export interface EntryPlace {
   base: string;
   tree: Tree;
+  // loreRoot is a directory of the entry's own repository, without the prefix.
+  loreRoot: string;
+  prefix: string;
   // True when the entry got empty-scope: it stays in the model and is never eligible.
   emptyScope: boolean;
   checkLines: readonly number[];
@@ -21,10 +24,12 @@ export interface ParsedInput {
   model: DocumentModel;
   collected: Collected;
   placeOf: WeakMap<Entry, EntryPlace>;
+  // The Lore file of each error found in one, since two given repositories can hold a file at the same path.
+  errorPlaceOf: WeakMap<Diagnostic, FilePlace>;
 }
 
 interface ReadEntry { result: EntryResult; fileFiles: readonly string[]; place: FilePlace }
-type FilePlace = Pick<EntryPlace, "base" | "tree">;
+export type FilePlace = Pick<EntryPlace, "base" | "tree" | "loreRoot" | "prefix">;
 
 const parsedModels = new WeakMap<DocumentModel, ParsedInput>();
 
@@ -40,21 +45,25 @@ export function parsedContextOf(model: DocumentModel): ParsedInput | undefined {
 export function parseWithContext(input: LoreInput): ParsedInput {
   const collected = collect(input);
   const errors: Diagnostic[] = [...collected.diagnostics];
+  const errorPlaceOf = new WeakMap<Diagnostic, FilePlace>();
   const read: ReadEntry[] = [];
   for (const file of collected.files) {
     const lore = parseFile(file.file, file.content);
     const categories = new Set(file.categories);
     const blocks = readFileBlocks(lore, categories);
     if ("error" in blocks || lore.diagnostics.length > 0) {
-      errors.push("error" in blocks ? blocks.error : lore.diagnostics[0]!);
+      const error = "error" in blocks ? blocks.error : lore.diagnostics[0]!;
+      errors.push(error);
+      errorPlaceOf.set(error, { base: file.base, tree: file.tree, loreRoot: file.loreRoot, prefix: file.prefix });
       continue;
     }
     const context: FileContext = {
-      base: file.base, filePrefix: file.prefix, prefix: file.tree === "repo" ? "" : file.prefix, loreRoot: file.loreRoot, categories,
+      base: file.base, filePrefix: file.prefix, prefix: file.tree === "repo" ? "" : file.prefix,
+      repoPrefix: file.prefix === LOOSE ? LOOSE : "", loreRoot: file.loreRoot, categories,
       defaults: blocks.defaults, scope: resolveScope(file.base, blocks.scope),
     };
     const fileFiles = blocks.scope.files ?? DEFAULT_FILES;
-    const place = { base: file.base, tree: file.tree };
+    const place = { base: file.base, tree: file.tree, loreRoot: file.loreRoot, prefix: file.prefix };
     for (const node of lore.nodes) if (node.kind === "entry") read.push({ result: readEntry(lore, node, context), fileFiles, place });
   }
 
@@ -64,20 +73,22 @@ export function parseWithContext(input: LoreInput): ParsedInput {
   const warnings: Diagnostic[] = [...collected.warnings];
   const placeOf = new WeakMap<Entry, EntryPlace>();
   for (const { result, fileFiles, place } of read) {
-    if ("error" in result) errors.push(result.error);
-    else if (uses.get(result.id)! > 1) errors.push(result.diagnostic("duplicate-id"));
-    else {
-      entries.push(result.entry);
-      if (result.entry.kind === "rule" && result.entry.category === null) warnings.push(result.diagnostic("missing-category"));
-      const own = result.ownScope;
-      const emptyScope = own !== null && own.files.every((glob) => fileFiles.every((outer) => disjoint(glob, outer)));
-      if (emptyScope) warnings.push(result.diagnostic("empty-scope", own.line));
-      placeOf.set(result.entry, { ...place, emptyScope, checkLines: result.checkLines, diagnostic: result.diagnostic });
+    if ("error" in result || uses.get(result.id)! > 1) {
+      const error = "error" in result ? result.error : result.diagnostic("duplicate-id");
+      errors.push(error);
+      errorPlaceOf.set(error, place);
+      continue;
     }
+    entries.push(result.entry);
+    if (result.entry.kind === "rule" && result.entry.category === null) warnings.push(result.diagnostic("missing-category"));
+    const own = result.ownScope;
+    const emptyScope = own !== null && own.files.every((glob) => fileFiles.every((outer) => disjoint(glob, outer)));
+    if (emptyScope) warnings.push(result.diagnostic("empty-scope", own.line));
+    placeOf.set(result.entry, { ...place, emptyScope, checkLines: result.checkLines, diagnostic: result.diagnostic });
   }
   warnings.push(...unknownDisabledIds(collected, read));
   const model = { entries, errors: errors.sort(compareDiagnostics), warnings: warnings.sort(compareDiagnostics) };
-  const parsed = { model, collected, placeOf };
+  const parsed = { model, collected, placeOf, errorPlaceOf };
   parsedModels.set(model, parsed);
   return parsed;
 }

@@ -1,3 +1,9 @@
-<rule id="price-from-quote" category="functional_correctness">
-A displayed price must come from the quote that produced it.
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: /docs/decisions/0042-quote-prices.md
+- file: ../../../handbook.md
+  heading: Prices
+</source>
+A price the web app displays comes from the quote that produced it.
 </rule>

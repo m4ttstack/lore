@@ -1,5 +1,5 @@
 import { FIXED_CATEGORIES } from "./blocks";
-import { namesRepo, readLoreconfig, type DisableItem } from "./loreconfig";
+import { DEFAULT_LEVELS, FINDINGS, namesRepo, readLoreconfig, type AuditConfig, type DisableItem, type FindingName, type Level } from "./loreconfig";
 import { compareCodePoints, lineRange } from "./text";
 import type { Diagnostic, GivenFolder, InputFile, LoreInput } from "./types";
 
@@ -26,8 +26,11 @@ export interface ConfigFile {
   root: boolean;
   categories: string[];
   disable: DisableItem[];
+  audit: AuditConfig | null;
   trees: Tree[];
 }
+
+export interface AuditSettings { maxAgeDays: number | null; levels: Record<FindingName, Level> }
 
 export interface TreeInfo { repository: number; marked: string }
 
@@ -42,6 +45,8 @@ export interface Collected {
   // Indexed by Repository number: the index in input.given of the first folder of that repository.
   repositoryGiven: number[];
   configsByRepository: ReadonlyMap<Repository, ReadonlyMap<string, ConfigFile>>;
+  // Each directory that repo-inside-repo or nested-repo excludes, in its repository, with its .loreconfig's path.
+  excluded: { dir: string; repository: Repository; file: string }[];
 }
 
 type Config = Omit<ConfigFile, "trees">;
@@ -60,7 +65,7 @@ const NO_CONFIGS: Configs = new Map();
 export function collect(input: LoreInput): Collected {
   const given = repositories(input.given);
   const collected: Collected = {
-    files: [], configs: [], diagnostics: [], warnings: [], trees: [],
+    files: [], configs: [], diagnostics: [], warnings: [], trees: [], excluded: [],
     repositoryFiles: given.map(({ files }) => files), repositoryGiven: given.map(({ at }) => at), configsByRepository: new Map(),
   };
   const governed = input.rules === undefined
@@ -91,8 +96,23 @@ export function disabledFor(collected: Collected, entryId: string, path: string,
   return listsId(applying(own, stands, loreRootOf(own, stands, marked)), entryId);
 }
 
+export function auditSettingsFor(collected: Collected, dir: string, repository: Repository, loreRoot: string): AuditSettings {
+  const settings: AuditSettings = { maxAgeDays: null, levels: { ...DEFAULT_LEVELS } };
+  for (const { audit } of applying(configsOf(collected, repository), dir, loreRoot)) {
+    if (audit === null) continue;
+    if (audit.maxAgeDays !== undefined) settings.maxAgeDays = audit.maxAgeDays;
+    for (const finding of FINDINGS) settings.levels[finding] = audit.levels[finding] ?? settings.levels[finding];
+  }
+  return settings;
+}
+
+export function loreRootIn(collected: Collected, dir: string, repository: Repository, marked: string): string {
+  return loreRootOf(configsOf(collected, repository), dir, marked);
+}
+
 function collectSource(source: Source, remotes: readonly string[], out: Collected): void {
-  const { configs, excluded, marks } = readConfigs(source, remotes, out.diagnostics);
+  const { configs, excluded, marks } = readConfigs(source, remotes, out);
+  out.excluded.push(...excluded.map((dir) => ({ dir, repository: source.repository, file: source.prefix + join(dir, CONFIG_NAME) })));
   const roots: { marked: string; tree: Tree }[] = source.folders === null
     ? [{ marked: ROOT, tree: "repo" }]
     : marks.map((marked) => ({ marked, tree: out.trees.push({ repository: source.repository as number, marked }) - 1 }));
@@ -124,7 +144,7 @@ function collectSource(source: Source, remotes: readonly string[], out: Collecte
 function readConfigs(
   source: Source,
   remotes: readonly string[],
-  diagnostics: Diagnostic[],
+  out: Pick<Collected, "diagnostics">,
 ): { configs: Configs; excluded: string[]; marks: string[] } {
   const configs = new Map<string, Config>();
   const excluded: string[] = [];
@@ -140,12 +160,12 @@ function readConfigs(
     const name = source.prefix + file.path;
     const read = readLoreconfig(file.content);
     const report = (problem: string, line: number) =>
-      diagnostics.push({ name: problem, file: name, entry: null, line, range: lineRange(read.lines, line) });
+      out.diagnostics.push({ name: problem, file: name, entry: null, line, range: lineRange(read.lines, line) });
     if (read.config === null) {
       report("invalid-loreconfig", read.problem);
       continue;
     }
-    const { root, repo, categories, disable } = read.config;
+    const { root, repo, categories, disable, audit } = read.config;
     if (repo !== null) {
       const problem = source.folders === null ? "repo-inside-repo"
         : marked.some((above) => above !== dir && within(dir, above)) ? "nested-repo"
@@ -158,7 +178,7 @@ function readConfigs(
       marked.push(dir);
       if (source.folders!.some((folder) => within(dir, folder)) && namesRepo(repo.value, remotes)) marks.push(dir);
     }
-    configs.set(dir, { file: name, dir, repository: source.repository, root, categories, disable });
+    configs.set(dir, { file: name, dir, repository: source.repository, root, categories, disable, audit });
   }
   return { configs, excluded, marks };
 }

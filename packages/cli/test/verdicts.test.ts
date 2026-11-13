@@ -4,7 +4,7 @@ import { InputError } from "../src/errors";
 import { checkVerdicts, readSelection } from "../src/verdicts";
 
 const rule = (id: string) => ({
-  id, file: ".lore/a.lore", category: null, severity: "advisory" as const, summary: id, prose: id, meta: null, hits: [],
+  id, file: ".lore/a.lore", category: null, severity: "advisory" as const, summary: id, prose: id, meta: null, sources: [], hits: [],
 });
 
 const selection: Selection = {

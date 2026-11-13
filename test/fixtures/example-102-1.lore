@@ -1,16 +1,6 @@
-<scope>
-files: ["src/**/*.tsx"]
-</scope>
-
-<rule id="checkout-prices-from-quote" category="functional_correctness">
-<scope>
-files: ["src/checkout/**"]
-</scope>
-A price the checkout displays comes from the quote that produced it.
+<rule id="checkout-currency-from-settings" category="functional_correctness">
+<check>
+'USD'
+</check>
+Checkout display text never hard-codes a currency code.
 </rule>
-
-<context id="web-architecture" src="docs/architecture.md">
-</context>
-
-<context id="review-handbook" src="../../../../handbook.md">
-</context>

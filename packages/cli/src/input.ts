@@ -1,8 +1,12 @@
-import { readdirSync, realpathSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
-import { EXTERNAL, LOOSE, type Collected, type Diagnostic, type InputFile, type LoreInput } from "@lore/parser";
+import {
+  EXTERNAL, LOOSE, RULES, type Collected, type Diagnostic, type InputFile, type LockRef, type LoreInput, type Repository, type SourceContent, type Tree,
+} from "@lore/parser";
 import { InputError } from "./errors";
-import { GitMissingError, gitRoot, readFileAt, readTracked, remoteUrls, trackedPaths, untrackedPaths } from "./git";
+import {
+  GitMissingError, gitRoot, readFileAt, readTracked, readTrackedBytes, readTrackedBytesAt, refTree, remoteUrls, trackedPaths, untrackedPaths, type RefTree,
+} from "./git";
 
 export interface RuleSources {
   repo: string | null;
@@ -17,6 +21,19 @@ export interface BuiltInput {
   readSrc(file: string, given?: number): string | null;
   // Tracked Lore and .loreconfig files the command could not read; unreadWarnings keeps those the parser would have collected.
   unread: UnreadFile[];
+  // A cited file of the place's tree, read as lore audit needs it: text, or bytes when it is not UTF-8; null when the
+  // place does not track it; undefined when it could not be looked at. collected maps a tree to its given folder.
+  readSourceContent(place: { tree: Tree }, file: string, collected: Collected): SourceContent | undefined;
+  // A lock file's text, or null when its place does not track it; an input error when it is tracked but cannot be read.
+  readLock(ref: LockRef, collected: Collected): string | null;
+  // Where a file of a tree lies in the working tree: its place's root and its path there. Undefined under --rules-ref
+  // or --no-repo for a governed-repo path.
+  onDisk(ref: LockRef, collected: Collected): { root: string; path: string } | undefined;
+  // Whether git tracked a file of a tree when the input was built; null for a loose folder, which is in no working copy,
+  // and wherever onDisk is undefined.
+  tracks(ref: LockRef, collected: Collected): boolean | null;
+  // The governed working tree's untracked Lore and .loreconfig files that the input left out; none under --rules-ref.
+  untracked(): string[];
 }
 export interface UnreadFile {
   // With its source's prefix: "loose:" or "external:" for a given folder, none for the governed repo.
@@ -28,6 +45,7 @@ interface Place { root: string; listed: Set<string>; files: InputFile[]; unread:
 
 const LORE_FOLDER = ".lore";
 const CONFIG_NAME = ".loreconfig";
+const GIT_FOLDER = ".git";
 
 export function findRepoRoot(dir: string): string | null {
   return gitRoot(dir);
@@ -83,6 +101,49 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     const place = givenPlaces[given];
     return place !== undefined && places.get(place.root) === place ? readTracked(place.root, path, place.listed) : null;
   };
+  const givenPlace = (places: Map<string, Place>, repository: Repository, collected: Collected): Place | undefined => {
+    if (repository === "repo") return undefined;
+    const place = givenPlaces[collected.repositoryGiven[repository]!];
+    return place !== undefined && places.get(place.root) === place ? place : undefined;
+  };
+  const located = (repository: Repository, file: string, collected: Collected) => {
+    for (const [prefix, places] of [[EXTERNAL, repositories], [LOOSE, looseFolders]] as const) {
+      if (!file.startsWith(prefix)) continue;
+      const place = givenPlace(places, repository, collected);
+      if (place === undefined) return undefined;
+      return { root: place.root, ref: null, path: file.slice(prefix.length), listed: prefix === LOOSE ? null : place.listed };
+    }
+    if (repo === null) return undefined;
+    return { root: repo, ref: rulesRef, path: file.startsWith(RULES) ? file.slice(RULES.length) : file, listed: governedTracked };
+  };
+  let governedTree: RefTree | undefined;
+  const listings: Listings = new Map();
+  const readBytes = (repository: Repository, file: string, collected: Collected): Buffer | null | undefined => {
+    const at = located(repository, file, collected);
+    if (at === undefined) return undefined;
+    if (at.listed === null) return readLoose(at.root, at.path, listings);
+    const tree = at.ref === null ? null : (governedTree ??= refTree(at.root, at.ref));
+    return readListed(at.root, at.ref, at.path, at.listed, tree);
+  };
+  const onDisk = (ref: LockRef, collected: Collected): { root: string; path: string } | undefined => {
+    const at = located(ref.repository, ref.path, collected);
+    return at === undefined || at.ref !== null ? undefined : { root: at.root, path: at.path };
+  };
+  const untracked = (): string[] =>
+    repo === null || rulesRef !== null || sources.untrackedLore === true ? [] : untrackedPaths(repo).filter(wantsContent);
+  const tracks = (ref: LockRef, collected: Collected): boolean | null => {
+    const at = located(ref.repository, ref.path, collected);
+    return at === undefined || at.ref !== null || at.listed === null ? null : at.listed.has(at.path);
+  };
+  const readSourceContent = (place: { tree: Tree }, file: string, collected: Collected): SourceContent | undefined => {
+    const bytes = readBytes(place.tree === "repo" ? "repo" : collected.trees[place.tree]!.repository, file, collected);
+    return bytes === undefined || bytes === null ? bytes : decode(bytes);
+  };
+  const readLock = (ref: LockRef, collected: Collected): string | null => {
+    const bytes = readBytes(ref.repository, ref.path, collected);
+    if (bytes === undefined) throw new InputError(`cannot read lock file ${ref.path}`);
+    return bytes === null ? null : bytes.toString("utf8");
+  };
   const readSrc = (file: string, given?: number): string | null => {
     if (file.startsWith(EXTERNAL)) return readGiven(repositories, file.slice(EXTERNAL.length), given);
     if (file.startsWith(LOOSE)) return readGiven(looseFolders, file.slice(LOOSE.length), given);
@@ -99,7 +160,28 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     ...[...repositories.values(), ...looseFolders.values()].flatMap((place) =>
       place.unread.filter((path) => reached(path, place.folders)).map((path) => ({ file: place.prefix + path, given: givenPlaces.indexOf(place) }))),
   ];
-  return { input, readSrc, unread };
+  return { input, readSrc, unread, readSourceContent, readLock, onDisk, tracks, untracked };
+}
+
+// A listed path whose file cannot be read safely (a symlink out of the place, a skipped sparse-checkout file) could not be looked at.
+function readListed(root: string, ref: string | null, path: string, listed: ReadonlySet<string>, tree: RefTree | null): Buffer | null | undefined {
+  if (!listed.has(path)) return null;
+  if (ref === null) return readTrackedBytes(root, path, listed) ?? undefined;
+  try {
+    return readTrackedBytesAt(root, ref, path, listed, tree!) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const UTF8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+
+function decode(bytes: Buffer): string | Uint8Array {
+  try {
+    return UTF8.decode(bytes);
+  } catch {
+    return new Uint8Array(bytes);
+  }
 }
 
 // One lore-file-not-read per unread file the parser would have collected: a Lore file counts only in a marked tree
@@ -207,6 +289,39 @@ function walkLoose(dir: string): string[] {
   };
   walk(dir, "");
   return paths;
+}
+
+// One file of a loose folder, found by listing only the directories on its path: as in the folder's listing, each
+// name must be an entry's exact name, whatever case the filesystem folds, no symlink is followed, and no .git in any
+// case is read. Null when there is no such file; undefined when it, or a directory on the way, cannot be read.
+// listings: each directory's entries as first listed in this run, or undefined when it could not be listed.
+type Listings = Map<string, Map<string, Dirent> | undefined>;
+
+function readLoose(root: string, path: string, listings: Listings): Buffer | null | undefined {
+  const names = path.split("/");
+  if (names.some((name) => name === "" || name === "." || name === ".." || name.toLowerCase() === GIT_FOLDER)) return null;
+  let at = root;
+  for (const [n, name] of names.entries()) {
+    if (!listings.has(at)) listings.set(at, listing(at));
+    const entries = listings.get(at);
+    if (entries === undefined) return undefined;
+    const entry = entries.get(name);
+    if (entry === undefined || (n === names.length - 1 ? !entry.isFile() : !entry.isDirectory())) return null;
+    at = join(at, name);
+  }
+  try {
+    return readFileSync(at);
+  } catch {
+    return undefined;
+  }
+}
+
+function listing(dir: string): Map<string, Dirent> | undefined {
+  try {
+    return new Map(readdirSync(dir, { withFileTypes: true }).map((entry) => [entry.name, entry]));
+  } catch {
+    return undefined;
+  }
 }
 
 // A path listed by more than one place is ambiguous, so it is read from none rather than from whichever came first.

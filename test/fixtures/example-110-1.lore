@@ -1,0 +1,8 @@
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: docs/checkout-review.md
+  heading: Checkout review
+</source>
+Amounts are integers in minor units (cents).
+</rule>

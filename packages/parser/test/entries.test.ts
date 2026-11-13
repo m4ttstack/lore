@@ -255,4 +255,68 @@ describe("context src", () => {
     expect(model(context("<context id=\"a\">")).entries[0]?.src).toBeNull();
     expect(model(rule("<rule id=\"a\" category=\"security\">")).entries[0]?.src).toBeNull();
   });
+
+  test("an entry without a source block has sources: []", () => {
+    expect(model(rule("<rule id=\"a\" category=\"security\">")).entries[0]?.sources).toEqual([]);
+    expect(model(context("<context id=\"a\">")).entries[0]?.sources).toEqual([]);
+  });
+});
+
+describe("<source>", () => {
+  const NESTED = "apps/web/.lore/a.lore";
+  const tag = "<rule id=\"a\" category=\"security\">";
+  const withSource = (body: string, open = "<source>") => rule(`${tag}\n${open}\n${body}\n</source>`);
+  const sources = (body: string, path = NESTED) => model(withSource(body), path).entries[0]?.sources;
+
+  test("a mapping source resolves its file from the base", () => {
+    expect(sources("file: docs/review.md\nheading: Money")).toEqual([
+      { file: "apps/web/docs/review.md", heading: "Money", phrase: null },
+    ]);
+  });
+
+  test("a list keeps the order it is written in", () => {
+    expect(sources("- file: docs/review.md\n  phrase: minor units\n- file: src/money.ts")).toEqual([
+      { file: "apps/web/docs/review.md", heading: null, phrase: "minor units" },
+      { file: "apps/web/src/money.ts", heading: null, phrase: null },
+    ]);
+  });
+
+  test("a leading slash is the governed repo's root", () => {
+    expect(sources("file: /docs/review.md")).toEqual([{ file: "docs/review.md", heading: null, phrase: null }]);
+  });
+
+  test("a file-relative path resolves from the Lore file's directory", () => {
+    expect(sources("file: ./notes.md")).toEqual([{ file: "apps/web/.lore/notes.md", heading: null, phrase: null }]);
+  });
+
+  test("a path that escapes the Lore root is invalid-source", () => {
+    expect(only(withSource("file: ../../../x.md"))).toEqual({ name: "invalid-source", entry: "a", line: 2 });
+  });
+
+  test("a value of the wrong shape is invalid-source at the child's opening tag line", () => {
+    for (const body of ["[]", "docs/review.md", "file: docs/review.md\nsection: Money", "heading: Money", "file: \"\"", "file: 42"]) {
+      expect(only(withSource(body))).toEqual({ name: "invalid-source", entry: "a", line: 2 });
+    }
+  });
+
+  test("a heading on a file that is not Markdown is invalid-source", () => {
+    expect(only(withSource("file: src/a.ts\nheading: X"))).toEqual({ name: "invalid-source", entry: "a", line: 2 });
+  });
+
+  test("two items that resolve to the same file, heading and phrase are invalid-source", () => {
+    expect(only(withSource("- file: docs/x.md\n- file: /docs/x.md"))).toEqual({ name: "invalid-source", entry: "a", line: 2 });
+  });
+
+  test("an attribute on the block is unknown-attribute", () => {
+    expect(only(rule(`${tag}\n<source lang="x">\nfile: docs/x.md\n</source>`))).toEqual({ name: "unknown-attribute", entry: "a", line: 2 });
+  });
+
+  test("a second block is duplicate-child", () => {
+    const twice = `${tag}\n<source>\nfile: docs/x.md\n</source>\n<source>\nfile: docs/y.md\n</source>`;
+    expect(only(rule(twice))).toEqual({ name: "duplicate-child", entry: "a", line: 5 });
+  });
+
+  test("a source on a context is unknown-child", () => {
+    expect(only(context("<context id=\"a\">\n<source>\nfile: docs/x.md\n</source>"))).toEqual({ name: "unknown-child", entry: "a", line: 2 });
+  });
 });

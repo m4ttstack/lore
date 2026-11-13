@@ -299,4 +299,37 @@ describe("prettier plugin", () => {
       "",
     ].join("\n"));
   });
+
+  test("formats a source block's YAML and is stable on a second pass", async () => {
+    const written = [
+      "<rule id=\"money-in-minor-units\" category=\"functional_correctness\">",
+      "<source>",
+      "-   file:   docs/checkout-review.md",
+      "    heading: 'Money is integer minor units'",
+      "-   {file: ./money.ts, phrase: 'export function fromCents('}",
+      "</source>",
+      "<scope>",
+      "files:   [ \"src/checkout/**\" ]",
+      "</scope>",
+      "Amounts are integers in minor units (cents).",
+      "</rule>",
+    ].join("\n");
+    const expected = [
+      "<rule id=\"money-in-minor-units\" category=\"functional_correctness\">",
+      "  <source>",
+      "    - file: docs/checkout-review.md",
+      "      heading: \"Money is integer minor units\"",
+      "    - { file: ./money.ts, phrase: \"export function fromCents(\" }",
+      "  </source>",
+      "  <scope>",
+      "    files: [\"src/checkout/**\"]",
+      "  </scope>",
+      "  Amounts are integers in minor units (cents).",
+      "</rule>",
+      "",
+    ].join("\n");
+    const formatted = await format(written);
+    expect(formatted).toBe(expected);
+    expect(await format(formatted)).toBe(formatted);
+  });
 });

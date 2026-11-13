@@ -28,6 +28,23 @@ describe("hover", () => {
     expect(text(hover(content, { line: 8, character: 3 }, facts))).toMatch(/^`<rule>`: .+\.$/);
   });
 
+  test("a source tag and its keys each have a text", () => {
+    const content = "<rule id=\"a\">\n  <source>\n    - file: docs/checkout-review.md\n      heading: Money\n      phrase: cents\n  </source>\nText.\n</rule>\n";
+    const facts = { diagnostics: [], entries: [] };
+    expect(text(hover(content, { line: 1, character: 4 }, facts))).toMatch(/^`<source>`: .+\.$/);
+    expect(text(hover(content, { line: 2, character: 7 }, facts))).toMatch(/^`file`: .+\.$/);
+    expect(text(hover(content, { line: 3, character: 7 }, facts))).toMatch(/^`heading`: .+\.$/);
+    expect(text(hover(content, { line: 4, character: 7 }, facts))).toMatch(/^`phrase`: .+\.$/);
+  });
+
+  test("the heading text names the Markdown extensions, and the file text says where a leading / starts", () => {
+    const content = "<rule id=\"a\">\n  <source>\n    - file: docs/checkout-review.md\n      heading: Money\n  </source>\nText.\n</rule>\n";
+    const facts = { diagnostics: [], entries: [] };
+    const heading = text(hover(content, { line: 3, character: 7 }, facts));
+    for (const extension of ["`.md`", "`.mdx`", "`.markdown`"]) expect(heading).toContain(extension);
+    expect(text(hover(content, { line: 2, character: 7 }, facts))).toContain("loose folder");
+  });
+
   test("tag-shaped lines in prose or in a fence are not described", () => {
     const content = "<rule id=\"a\">\nDisplay text never hard-codes a currency code.\n<when>\nchanged: [\"x\"]\n</when>\n\n"
       + "```lore\n<rule id=\"b\">\n</rule>\n```\n</rule>\n";

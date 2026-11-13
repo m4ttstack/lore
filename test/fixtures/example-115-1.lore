@@ -1,0 +1,7 @@
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>

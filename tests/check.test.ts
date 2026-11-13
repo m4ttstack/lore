@@ -4,7 +4,7 @@ import { extractExamples } from "../tools/check/extract";
 import { checkSpec, specSections, type RegistryEntry, type SchemaName, type SchemaSet } from "../tools/check/check";
 
 const F = "``````";
-const names: SchemaName[] = ["defaults", "scope", "when", "meta", "loreconfig", "document-model", "eligibility"];
+const names: SchemaName[] = ["defaults", "scope", "when", "meta", "loreconfig", "document-model", "eligibility", "audit"];
 const schemas = Object.fromEntries(
   names.map((n) => [n, JSON.parse(readFileSync(new URL(`../spec/schemas/${n}.schema.json`, import.meta.url), "utf8"))]),
 ) as SchemaSet;
@@ -99,7 +99,7 @@ test("requires a diff exactly for eligibility examples", () => {
   expect(rules(swap("=== diff\nM src/x.ts\n+2 two\n", ""))).toContain("diff");
   expect(rules(swap("=== expect\n" + parseExpect, "=== diff\nA lore/a.lore\n=== expect\n" + parseExpect))).toContain("diff");
   const remote = "=== remote\ngit@example.com:acme/shop.git\n=== expect\n" + parseExpect;
-  expect(rules(swap("=== expect\n" + parseExpect, remote))).toContain("diff");
+  expect(rules(swap("=== expect\n" + parseExpect, remote))).toContain("remote");
 });
 
 test("diff-syntax: rejects malformed diff lines", () => {
@@ -231,7 +231,7 @@ test("agent-copy: the For agents quote must equal AGENT.md", () => {
 
 const ruleEntry = (id: string, file = "lore/a.lore") => ({
   kind: "rule", id, file, category: "code_style", severity: "advisory", disabled: false,
-  scopes: [{ files: ["**"], ignores: [] }], when: null, checks: [], meta: null, summary: "", prose: "", src: null,
+  scopes: [{ files: ["**"], ignores: [] }], when: null, checks: [], meta: null, summary: "", prose: "", src: null, sources: [],
 });
 const diag = (name: string, file: string, entry: string | null, line: number) => ({ name, file, entry, line });
 const withParse = (value: object, md = clean) => swap(parseExpect, JSON.stringify(value), md);
@@ -345,4 +345,145 @@ test("a repeated eligible id fails the eligibility schema", () => {
 
 test("registry-table: descriptions must match the registry", () => {
   expect(rules(swap("| `bad-thing` | error | A bad thing. |", "| `bad-thing` | error | Reworded. |"))).toEqual(["registry-table"]);
+});
+
+const missing = (rule: string, file = "lore/c.lore") => ({
+  name: "source-missing", level: "error", rule, file,
+  source: { file: "docs/review.md", heading: null, phrase: null }, reason: "file not found: docs/review.md",
+});
+const summary = (rulesWithSource = 2, rulesWithoutSource = 0) => ({ rulesWithSource, rulesWithoutSource });
+const auditExpect = (findings: object[], counts: object = { "source-missing": findings.length }, rules = summary()) =>
+  JSON.stringify({ findings, summary: { counts, ...rules } });
+const citing = (id: string, source = "file: docs/review.md") => `<rule id="${id}">\n<source>\n${source}\n</source>\nProse.\n</rule>`;
+const LORE = [citing("c-rule"), citing("d-rule")].join("\n");
+const auditExample = (expect: string, sections = "=== today\n2026-11-12\n", lore = LORE) =>
+  ["## Auditing", "An audit MUST look.", F + "example audit", "=== lore/c.lore", lore, sections + "=== expect", expect, F].join("\n");
+const withAudit = (expect: string, sections?: string, lore?: string) =>
+  swap("## Errors and warnings", auditExample(expect, sections, lore) + "\n## Errors and warnings");
+const RECORD = '"file":"docs/review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"';
+const lockSection = (...lines: string[]) => `=== today\n2026-11-12\n=== lore-reviews.lock\n{"lore-reviews":1}\n${lines.join("\n")}\n`;
+const orphan = (rule: string, source: { file: string; heading: string | null; phrase: string | null } = { file: "docs/review.md", heading: null, phrase: null }) =>
+  ({ ...missing(rule, "lore-reviews.lock"), name: "orphan-review", level: "warn", source, reason: null });
+
+test("audit: a well-formed audit example passes", () => {
+  expect(check(withAudit(auditExpect([missing("c-rule"), missing("d-rule")])))).toEqual([]);
+});
+
+test("today: an audit example needs one date, and other kinds take none", () => {
+  const ok = auditExpect([missing("c-rule")]);
+  expect(rules(withAudit(ok, ""))).toEqual(["today"]);
+  expect(rules(withAudit(ok, "=== today\n12 November 2026\n"))).toEqual(["today"]);
+  expect(rules(withAudit(ok, "=== today\n2026-02-31\n"))).toEqual(["today"]);
+  expect(rules(withAudit(ok, "=== today\n2028-02-29\n"))).toEqual([]);
+  expect(rules(swap("=== expect\n" + parseExpect, "=== today\n2026-11-12\n=== expect\n" + parseExpect))).toEqual(["today"]);
+});
+
+test("diff and sections: an audit example takes a remote, but no diff or rules: section", () => {
+  const ok = auditExpect([missing("c-rule")]);
+  expect(rules(withAudit(ok, "=== today\n2026-11-12\n=== remote\nhttps://github.com/acme/blog\n"))).toEqual([]);
+  expect(rules(withAudit(ok, "=== today\n2026-11-12\n=== diff\nA lore/c.lore\n"))).toEqual(["diff"]);
+  expect(rules(withAudit(ok, "=== today\n2026-11-12\n=== rules:lore/c.lore\nx\n"))).toEqual(["sections"]);
+});
+
+test("expect: an audit expect must pass the audit schema", () => {
+  expect(rules(withAudit(JSON.stringify({ findings: [] })))).toEqual(["expect"]);
+  expect(rules(withAudit(auditExpect([{ ...missing("c-rule"), name: "source-gone" }])))).toEqual(["expect"]);
+});
+
+test("order and counts: findings sort by file, rule, then finding, and counts tally them", () => {
+  expect(rules(withAudit(auditExpect([missing("d-rule"), missing("c-rule")])))).toEqual(["order"]);
+  const both = [{ ...missing("c-rule"), name: "never-reviewed", level: "warn", reason: null }, missing("c-rule")];
+  expect(rules(withAudit(auditExpect(both, { "source-missing": 1, "never-reviewed": 1 })))).toEqual(["order"]);
+  expect(rules(withAudit(auditExpect([missing("c-rule")], { "source-missing": 2 })))).toEqual(["counts"]);
+  expect(rules(withAudit(auditExpect([missing("c-rule")], { "source-missing": 1, "never-reviewed": 1 })))).toEqual(["counts"]);
+});
+
+test("unknown-file and unknown-entry: a finding names an input and an id in it", () => {
+  expect(rules(withAudit(auditExpect([missing("c-rule", "lore/z.lore")])))).toEqual(["unknown-file"]);
+  expect(rules(withAudit(auditExpect([missing("e-rule")])))).toEqual(["unknown-entry"]);
+  const lock = lockSection(`{"rule":"gone-rule",${RECORD}}`);
+  expect(rules(withAudit(auditExpect([orphan("gone-rule")], { "orphan-review": 1 }), lock))).toEqual([]);
+  expect(rules(withAudit(auditExpect([orphan("c-rule")], { "orphan-review": 1 }), lock))).toEqual(["unknown-entry"]);
+});
+
+test("unknown-source: a finding's source is one its rule has, or for orphan-review one of the record's", () => {
+  const one = [citing("c-rule"), '<rule id="d-rule">\nProse.\n</rule>'].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")], undefined, summary(1, 1)), undefined, one))).toEqual([]);
+  const plain = ['<rule id="c-rule">\nProse.\n</rule>', citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")], undefined, summary(1, 1)), undefined, plain))).toEqual(["unknown-source"]);
+  const headed = { ...missing("c-rule"), source: { file: "docs/review.md", heading: "Dates", phrase: null } };
+  expect(rules(withAudit(auditExpect([headed])))).toEqual(["unknown-source"]);
+  const cited = [citing("c-rule", "- file: /docs/notes.md\n- file: docs/review.md\n  heading: Dates"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([headed]), undefined, cited))).toEqual([]);
+  const quoted = [citing("c-rule", "file: ../docs/review.md\nphrase: 'it''s here'"), citing("d-rule")].join("\n");
+  const phrased = { ...missing("c-rule"), source: { file: "docs/review.md", heading: null, phrase: "it's here" } };
+  expect(rules(withAudit(auditExpect([phrased]), undefined, quoted))).toEqual([]);
+  const meta = { ...missing("c-rule"), name: "meta-source", level: "warn", source: null, reason: null };
+  expect(rules(withAudit(auditExpect([meta], { "meta-source": 1 }, summary(1, 1)), undefined, plain))).toEqual([]);
+  expect(rules(withAudit(auditExpect([meta], { "meta-source": 1 }, summary(1, 1))))).toEqual(["unknown-source", "counts"]);
+
+  const lock = lockSection(`{"rule":"gone-rule",${RECORD}}`);
+  const elsewhere = orphan("gone-rule", { file: "docs/review.md", heading: "Dates", phrase: null });
+  expect(rules(withAudit(auditExpect([elsewhere], { "orphan-review": 1 }), lock))).toEqual(["unknown-source"]);
+  const spaced = lockSection(`{"rule": "gone-rule", ${RECORD.replaceAll(",", ", ")}}`);
+  expect(rules(withAudit(auditExpect([orphan("gone-rule")], { "orphan-review": 1 }), spaced))).toEqual([]);
+});
+
+test("unknown-entry and unknown-source: rules and sources are read as the parser reads them", () => {
+  const fence = "```";
+  const fenced = [
+    citing("c-rule"),
+    `<rule id="d-rule">\n<source>\nfile: docs/review.md\n</source>\nAn example:\n\n${fence}\n</rule>\n<rule id="e-rule">\n<source>\nfile: docs/review.md\n</source>\n${fence}\n</rule>`,
+  ].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule"), missing("d-rule")]), undefined, fenced))).toEqual([]);
+  expect(rules(withAudit(auditExpect([missing("c-rule"), missing("e-rule")]), undefined, fenced))).toEqual(["unknown-entry"]);
+  const indented = ['<rule id="c-rule">\n  <source>\n  file: docs/review.md\n  </source>\nProse.\n</rule>', citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), undefined, indented))).toEqual([]);
+  const commented = [citing("c-rule", "file: docs/review.md # the handbook"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), undefined, commented))).toEqual([]);
+  const headed = { ...missing("c-rule"), source: { file: "docs/review.md", heading: "Dates", phrase: null } };
+  const flow = [citing("c-rule", "[{ file: docs/notes.md }, { file: docs/review.md, heading: Dates }]"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([headed]), undefined, flow))).toEqual([]);
+  const json = [citing("c-rule", '{"file": "docs/review.md", "heading": "Dates"}'), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([headed]), undefined, json))).toEqual([]);
+  const block = [citing("c-rule", "file: docs/review.md\nheading: >-\n  Dates"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([headed]), undefined, block))).toEqual([]);
+});
+
+test("unknown-source: a source block the parser would reject gives no source", () => {
+  const numbered = [citing("c-rule", "file: docs/review.md\nheading: 2024"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), undefined, numbered))).toEqual(["unknown-source"]);
+  const twice = ['<rule id="c-rule">\n<source>\nfile: docs/review.md\n</source>\n<source>\nfile: docs/notes.md\n</source>\nProse.\n</rule>', citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), undefined, twice))).toEqual(["unknown-source"]);
+});
+
+test("unknown-entry: a rule missing because its file's scan stopped names the scan's error", () => {
+  const stray = `stray text\n${LORE}`;
+  const problems = check(withAudit(auditExpect([missing("c-rule")], undefined, summary(0, 0)), undefined, stray));
+  expect(problems.map((p) => p.rule)).toEqual(["unknown-entry", "counts"]);
+  expect(problems[0]!.message).toEndWith('"c-rule" does not appear in lore/c.lore: its scan stops at line 1 with top-level-text');
+  expect(check(withAudit(auditExpect([missing("e-rule")])))[0]!.message).toEndWith('"e-rule" does not appear in lore/c.lore');
+});
+
+test("lock-file: every lock file of an audit example is well-formed", () => {
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), lockSection('{"rule":"gone-rule"}')))).toEqual(["lock-file"]);
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), lockSection(`{"rule":"gone-rule",${RECORD}}`)))).toEqual([]);
+});
+
+test("counts: the rule counts fit the rules the inputs hold and the rules the findings name", () => {
+  const plain = ['<rule id="c-rule">\nProse.\n</rule>', '<rule id="d-rule">\nProse.\n</rule>'].join("\n");
+  const none = (rulesWithSource: number, rulesWithoutSource: number) => auditExpect([], {}, summary(rulesWithSource, rulesWithoutSource));
+  expect(rules(withAudit(none(0, 2), undefined, plain))).toEqual([]);
+  expect(rules(withAudit(none(1, 0), undefined, plain))).toEqual(["counts"]);
+  expect(rules(withAudit(none(0, 3), undefined, plain))).toEqual(["counts"]);
+  expect(rules(withAudit(none(2, 0)))).toEqual([]);
+  expect(rules(withAudit(none(1, 0)))).toEqual([]);
+  expect(rules(withAudit(auditExpect([missing("c-rule"), missing("d-rule")], undefined, summary(1, 0))))).toEqual(["counts"]);
+});
+
+test("untested-finding: every finding but source-unchecked needs an audit example once the audit heading exists", () => {
+  const audited = withAudit(auditExpect([missing("c-rule")]));
+  expect(rules(audited)).toEqual([]);
+  const untested = rules(swap("## Auditing", "## Auditing sources", audited));
+  expect(untested.filter((r) => r === "untested-finding")).toHaveLength(6);
 });

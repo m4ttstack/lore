@@ -125,6 +125,35 @@ addedContains: ["'USD'"]
       (tag_name))))
 
 ================================================================================
+Source block
+================================================================================
+
+<rule id="money-in-minor-units">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+</rule>
+
+--------------------------------------------------------------------------------
+
+(source_file
+  (rule
+    (start_tag
+      (tag_name)
+      (attribute
+        (attribute_name)
+        (attribute_value)))
+    (child
+      (start_tag
+        (tag_name))
+      (yaml_body)
+      (end_tag
+        (tag_name)))
+    (end_tag
+      (tag_name))))
+
+================================================================================
 Closing tag inside a fenced block in prose
 ================================================================================
 

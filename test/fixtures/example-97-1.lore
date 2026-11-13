@@ -1,11 +1,27 @@
-<scope>
-files: ["apps/web/src/checkout/**"]
-</scope>
-
-<rule id="price-source-recorded" category="data_provenance">
-Every price the checkout stores records the quote it came from.
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: ./../../handbook/review.md
+</source>
+A displayed price must come from the quote that produced it.
 </rule>
 
-<context id="review-handbook" src="./../../handbook.md">
-Read for the organization's review conventions.
-</context>
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/../currency-review.md
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs//locale-review.md
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+<source>
+file: /../quote-review.md
+</source>
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>

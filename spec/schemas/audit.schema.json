@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lore.dev/schemas/v1/audit.schema.json",
+  "title": "Lore audit result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["findings", "summary"],
+  "properties": {
+    "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["counts", "rulesWithSource", "rulesWithoutSource"],
+      "properties": {
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "source-missing": { "$ref": "#/$defs/count" },
+            "source-unchecked": { "$ref": "#/$defs/count" },
+            "ambiguous-heading": { "$ref": "#/$defs/count" },
+            "source-changed": { "$ref": "#/$defs/count" },
+            "never-reviewed": { "$ref": "#/$defs/count" },
+            "review-overdue": { "$ref": "#/$defs/count" },
+            "orphan-review": { "$ref": "#/$defs/count" },
+            "meta-source": { "$ref": "#/$defs/count" }
+          }
+        },
+        "rulesWithSource": { "type": "integer", "minimum": 0 },
+        "rulesWithoutSource": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "findingName": {
+      "enum": [
+        "source-missing", "source-unchecked", "ambiguous-heading", "source-changed",
+        "never-reviewed", "review-overdue", "orphan-review", "meta-source"
+      ]
+    },
+    "count": { "type": "integer", "minimum": 1 },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "level", "rule", "file", "source", "reason"],
+      "properties": {
+        "name": { "$ref": "#/$defs/findingName" },
+        "level": { "enum": ["error", "warn"] },
+        "rule": { "type": ["string", "null"] },
+        "file": { "type": "string" },
+        "source": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["file", "heading", "phrase"],
+              "properties": {
+                "file": { "type": "string" },
+                "heading": { "type": ["string", "null"] },
+                "phrase": { "type": ["string", "null"] }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "reason": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

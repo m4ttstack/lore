@@ -94,17 +94,20 @@ Terms used throughout:
 ## Conformance examples
 
 Each conformance example gives inputs and the output a conforming tool
-produces from them. There are two kinds:
+produces from them. There are three kinds:
 
 - a **parse** example gives Lore files, and any `.loreconfig` files that
   apply to them, and expects the document model a tool builds from them;
 - an **eligibility** example also gives a change, and expects the
   eligible entries, the hits, the excluded files and entries, and
-  the warnings.
+  the warnings;
+- an **audit** example also gives the files the rules cite, any lock
+  files and the date, and expects the findings of an audit (see
+  [Auditing sources](#auditing-sources)).
 
 An example is a fenced block. Its opening line starts at column 0 and is
 exactly six backticks, directly followed by `example`, one or more spaces
-or tabs, and the kind: `parse` or `eligibility`. Its closing line is
+or tabs, and the kind: `parse`, `eligibility` or `audit`. Its closing line is
 exactly six backticks. An opening line inside another fenced block does
 not start an example. Six backticks let an example's inputs hold
 ordinary fenced code blocks. Examples are numbered in document order,
@@ -129,8 +132,9 @@ of the example:
 | `=== external:<path>` | An input file at `<path>` in the external repository described below. |
 | `=== loose:<path>` | A file of one given folder that is in no working copy, `<path>` relative to that folder. |
 | `=== rules:<path>` | Eligibility only. A file of the governed repo as it is at the rules revision (see [Collecting files](#collecting-files)). With at least one such section, the tool is given a rules revision. |
-| `=== remote` | Eligibility only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, and in every parse example, the remote is `https://github.com/acme/shop`. |
+| `=== remote` | Eligibility and audit only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, and in every parse example, the remote is `https://github.com/acme/shop`. |
 | `=== diff` | Eligibility only, required. The change, in the format below. |
+| `=== today` | Audit only, required. One line: the date of the audit, `YYYY-MM-DD`. |
 | `=== expect` | The expected output, as JSON. |
 
 The diff has one line per changed file, each optionally followed by that
@@ -176,15 +180,27 @@ tracked files of one other repository, and the tool was given that
 repository's root as a given folder. Each `<path>` is relative to
 that repository's root.
 
+**Audit inputs.** An audit example's input files are also the files its
+sources cite. A source's file exists when the example has an input file
+at exactly its resolved path, prefix included, and is absent otherwise,
+so every source in an audit example could be looked at. An input named
+`lore-reviews.lock` is the lock file in the directory that holds it
+(see [The lock file](#the-lock-file)), and no example holds a malformed
+one. The audit runs on the date in `=== today`, and its
+levels and age limits come from the example's `.loreconfig` files only.
+
 **Expected output.** A parse example's expect is a document model,
 valid against
 [`document-model.schema.json`](schemas/document-model.schema.json). An
 eligibility example's expect is an eligibility result, valid against
 [`eligibility.schema.json`](schemas/eligibility.schema.json).
-[Document model](#document-model) defines every field. A tool's output
+[Document model](#document-model) defines every field of both. An audit
+example's expect is an audit result, valid against
+[`audit.schema.json`](schemas/audit.schema.json), whose fields
+[Findings](#findings) defines. A tool's output
 matches the expect when the two are equal as JSON values: arrays compare
 item by item in order (see Order below), and objects compare regardless
-of the order of their members. In both kinds:
+of the order of their members. In every kind:
 
 - **Paths.** Every `file` field is a path exactly as written in the
   example: after `=== ` for an input file, keeping the `external:`,
@@ -224,7 +240,8 @@ of the order of their members. In both kinds:
   file. Diagnostics are ordered by `file`, then `line`, then `name`,
   then `entry`, null first. `eligible` is in ascending order, and hits
   are ordered by `rule`, then `file`, then side with new before old,
-  then `line`. Strings compare code point by code point.
+  then `line`. Findings are ordered as [Findings](#findings) says.
+  Strings compare code point by code point.
 
 For illustration, here is an eligibility example as it is written in this
 document. It is shown inside a longer fence, so it is not numbered or
@@ -301,7 +318,8 @@ customer sees one total and is charged another.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote\nthat produced it.\n\nRecomputing a price from its inputs drops quote-level discounts, so the\ncustomer sees one total and is charged another.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -334,7 +352,8 @@ expires.
       "when": null, "checks": [], "meta": null,
       "summary": "A checkout page that shows a quoted price also shows when the quote expires.",
       "prose": "A checkout page that shows a quoted price also shows when the quote\nexpires.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -384,7 +403,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -450,7 +470,8 @@ Displayed dates are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "Displayed dates are formatted with the shop's locale.",
       "prose": "Displayed dates are formatted with the shop's locale.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -550,7 +571,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -583,7 +605,8 @@ Product names are stored as written: `Fish & Chips`, never `Fish &amp; Chips`.
       "when": { "addedContains": ["&amp;"] }, "checks": [], "meta": null,
       "summary": "Product names are stored as written: `Fish & Chips`, never `Fish &amp; Chips`.",
       "prose": "Product names are stored as written: `Fish & Chips`, never `Fish &amp; Chips`.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -808,7 +831,8 @@ Displayed times are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -899,7 +923,8 @@ addedContains: ["'USD'"]
       "when": null, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.\n\n<when>\naddedContains: [\"'USD'\"]\n</when>",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -932,7 +957,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "Lore syntax shown in a rule's prose sits in a fenced code block, so its closing tags do not end the rule.",
       "prose": "Lore syntax shown in a rule's prose sits in a fenced code block, so its\nclosing tags do not end the rule.\n\n```\n<rule id=\"price-from-quote\">\nA displayed price must come from the quote that produced it.\n</rule>\n```",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -962,7 +988,8 @@ The rule continues here.
       "when": null, "checks": [], "meta": null,
       "summary": "An entry ends at its closing tag at column 0. An indented closing tag, like the next line, is prose:",
       "prose": "An entry ends at its closing tag at column 0. An indented closing tag,\nlike the next line, is prose:\n\n  </rule>\n\nThe rule continues here.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1000,7 +1027,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "<!-- Agreed in the 2026 pricing review. --> A displayed price must come from the quote that produced it.",
       "prose": "<!-- Agreed in the 2026 pricing review. -->\nA displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "currency-from-settings", "file": ".lore/checkout.lore",
@@ -1009,7 +1037,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "<!-- Check new code only. --> <when> addedContains: [\"'USD'\"] </when> Display text never hard-codes a currency code.",
       "prose": "<!-- Check new code only. -->\n<when>\naddedContains: [\"'USD'\"]\n</when>\nDisplay text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1036,7 +1065,8 @@ addedContains: ["'USD'"]
       "when": { "addedContains": ["'USD'"] }, "checks": [], "meta": null,
       "summary": "",
       "prose": "",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1118,7 +1148,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.\n\n<rule id=\"currency-from-settings\" category=\"functional_correctness\">\nDisplay text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1150,7 +1181,8 @@ four spaces becomes empty, and the trailing blank lines are dropped:
       "when": null, "checks": [], "meta": null,
       "summary": "The order page shows the total from the quote that produced it.",
       "prose": "The order page shows the total\n  from the quote that produced it.\n\nA total rebuilt from line items drops quote-level discounts.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1181,7 +1213,8 @@ A tilde fence works as well as a backtick fence.
       "when": null, "checks": [], "meta": null,
       "summary": "A tilde fence works as well as a backtick fence.",
       "prose": "A tilde fence works as well as a backtick fence.\n\n~~~~\n~~~\n</rule>\n~~~~",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1266,7 +1299,8 @@ It uses the shop's `currency` setting.
       "when": { "addedContains": ["'USD'"] }, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.\n\nIt uses the shop's `currency` setting.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "currency-indented", "file": ".lore/indented.lore",
@@ -1275,7 +1309,8 @@ It uses the shop's `currency` setting.
       "when": { "addedContains": ["'USD'"] }, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.\n\nIt uses the shop's `currency` setting.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "currency-tabs", "file": ".lore/tabs.lore",
@@ -1284,7 +1319,8 @@ It uses the shop's `currency` setting.
       "when": { "addedContains": ["'USD'"] }, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.\n\nIt uses the shop's `currency` setting.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1315,7 +1351,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1327,7 +1364,7 @@ A displayed price must come from the quote that produced it.
 
 ### Structured blocks
 
-`<defaults>`, `<scope>`, `<when>` and `<meta>` are **structured
+`<defaults>`, `<scope>`, `<when>`, `<meta>` and `<source>` are **structured
 blocks**, and so is a `.loreconfig` file. Their contents are YAML 1.2
 read with the core schema: for a block in a Lore file, after
 [Indentation](#indentation); for a `.loreconfig`, as written.
@@ -1425,7 +1462,8 @@ Error messages come from the message catalog, never from string literals.
       "when": null, "checks": [], "meta": null,
       "summary": "Visible labels come from the message catalog, never from string literals.",
       "prose": "Visible labels come from the message catalog, never from string literals.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "errors-from-messages", "file": ".lore/yaml.lore",
@@ -1434,7 +1472,8 @@ Error messages come from the message catalog, never from string literals.
       "when": null, "checks": [], "meta": null,
       "summary": "Error messages come from the message catalog, never from string literals.",
       "prose": "Error messages come from the message catalog, never from string literals.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1467,7 +1506,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1528,7 +1568,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1566,7 +1607,8 @@ A price is never written as a number literal in display code.
       "when": { "addedMatches": ["\\d+\\.\\d{2}"] }, "checks": [], "meta": null,
       "summary": "A price is never written as a number literal in display code.",
       "prose": "A price is never written as a number literal in display code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1605,7 +1647,8 @@ New checkout code carries no `TODO #checkout` markers.
       "meta": { "owner": "checkout", "source": "docs/review.md#todos" },
       "summary": "New checkout code carries no `TODO #checkout` markers.",
       "prose": "New checkout code carries no `TODO #checkout` markers.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1652,7 +1695,8 @@ with a currency symbol.
       "when": { "addedMatches": ["[A-Z]+_PRICE", "[$€£]"] }, "checks": [], "meta": null,
       "summary": "Prices come from the quote, never from a module constant or a literal with a currency symbol.",
       "prose": "Prices come from the quote, never from a module constant or a literal\nwith a currency symbol.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1704,7 +1748,8 @@ Displayed dates are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1739,7 +1784,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": {},
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -1780,7 +1826,8 @@ Display text never hard-codes a currency code.
       "meta": { "reviewed": "yes", "legacy": "off", "enforced": true, "owner": null, "since": 2026 },
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1819,7 +1866,8 @@ Metadata nested 101 deep is not.
       "meta": { "teams": [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]] },
       "summary": "Metadata nested 100 deep is read.",
       "prose": "Metadata nested 100 deep is read.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -1887,7 +1935,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "price-test-per-currency", "file": "apps/web/src/checkout/.lore/pricing.lore",
@@ -1896,7 +1945,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "A change to price formatting adds a test for each supported currency.",
       "prose": "A change to price formatting adds a test for each supported currency.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "context", "id": "checkout-architecture", "file": "apps/web/src/checkout/.lore/pricing.lore",
@@ -1905,7 +1955,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "Read before judging any change to how a price is computed.",
       "prose": "Read before judging any change to how a price is computed.",
-      "src": "apps/web/src/checkout/ARCHITECTURE.md"
+      "src": "apps/web/src/checkout/ARCHITECTURE.md",
+      "sources": []
     }
   ],
   "errors": [],
@@ -2030,7 +2081,8 @@ A checkout page that shows a quoted price also shows when the quote expires.
       "when": null, "checks": [], "meta": null,
       "summary": "A checkout page that shows a quoted price also shows when the quote expires.",
       "prose": "A checkout page that shows a quoted price also shows when the quote expires.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2079,7 +2131,8 @@ Displayed dates are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "Displayed dates are formatted with the shop's locale.",
       "prose": "Displayed dates are formatted with the shop's locale.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2117,7 +2170,8 @@ Display text never hard-codes a currency code.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2219,7 +2273,8 @@ Displayed dates use the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "Displayed dates are formatted with the shop's locale.",
       "prose": "Displayed dates are formatted with the shop's locale.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2246,15 +2301,16 @@ A rule's children come before its prose, in any order:
 | `<meta>` | 0 or 1 | A free-form YAML mapping, described below. |
 | `<scope>` | 0 or 1 | The rule's own scope, which narrows the file's (see [Scope and globs](#scope-and-globs)). |
 | `<when>` | 0 or 1 | Conditions on the change (see [Conditions](#conditions)). |
+| `<source>` | 0 or 1 | The files the rule was written from (see [Sources](#sources)). |
 | `<check>` | any number | A search whose hits go to the reviewer (see [Checks](#checks)). |
 
 - The order of the children carries no meaning, except among `<check>`
   elements: the document model keeps checks in the order they appear.
 - A child whose name its entry does not allow is `unknown-child`.
-- A second `<meta>`, `<scope>` or `<when>` in one entry is
+- A second `<meta>`, `<scope>`, `<when>` or `<source>` in one entry is
   `duplicate-child`.
-- `<meta>`, `<scope>` and `<when>` take no attributes: an attribute on
-  one is `unknown-attribute`. `<check>` takes the attributes
+- `<meta>`, `<scope>`, `<when>` and `<source>` take no attributes: an
+  attribute on one is `unknown-attribute`. `<check>` takes the attributes
   [Checks](#checks) defines. A child's attributes are read from left to
   right, as an entry's are.
 - A tool reads each child in this order, and reports the first problem it
@@ -2306,7 +2362,8 @@ A displayed price must come from the quote that produced it.
       },
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2391,7 +2448,8 @@ Display text never hard-codes a currency code.
       "meta": { "owner": "checkout" },
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "currency-children-reversed", "file": ".lore/checkout.lore",
@@ -2402,7 +2460,8 @@ Display text never hard-codes a currency code.
       "meta": { "owner": "checkout" },
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2435,7 +2494,8 @@ Display text never hard-codes a currency code.
       "meta": null,
       "summary": "Display text never hard-codes a currency code.",
       "prose": "Display text never hard-codes a currency code.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2486,7 +2546,8 @@ Displayed dates are formatted with the shop's locale.
       "when": null, "checks": [], "meta": null,
       "summary": "Displayed dates are formatted with the shop's locale.",
       "prose": "Displayed dates are formatted with the shop's locale.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2536,7 +2597,8 @@ discounts.
       "when": null, "checks": [], "meta": null,
       "summary": "Every price the checkout page shows comes from the quote: - each line item's price; - the order total.",
       "prose": "Every price the checkout page shows comes from the quote:\n- each line item's price;\n- the order total.\n\nA helper that recomputes a price from its inputs drops quote-level\ndiscounts.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2556,7 +2618,7 @@ them.
   as [Attributes](#attributes) describes for a rule. Any other attribute,
   `category` and `severity` included, is `unknown-attribute`.
 - Its children are `<meta>`, `<scope>` and `<when>`, as for a rule (see
-  [Children](#children)). `<check>`, or any other child, is
+  [Children](#children)). `<check>`, `<source>`, or any other child, is
   `unknown-child`.
 - Its prose is its **body**, found as [Entries](#entries) defines. With
   `src`, the body is an optional note on when or why to read the
@@ -2622,7 +2684,8 @@ Any price shown after that comes from a new quote.
       "when": null, "checks": [], "meta": null,
       "summary": "Read before judging any change to how a price is computed.",
       "prose": "Read before judging any change to how a price is computed.",
-      "src": "apps/web/src/checkout/ARCHITECTURE.md"
+      "src": "apps/web/src/checkout/ARCHITECTURE.md",
+      "sources": []
     },
     {
       "kind": "context", "id": "pricing-glossary", "file": "apps/web/src/checkout/.lore/context.lore",
@@ -2631,7 +2694,8 @@ Any price shown after that comes from a new quote.
       "when": null, "checks": [], "meta": null,
       "summary": "",
       "prose": "",
-      "src": "apps/web/src/checkout/.lore/glossary.md"
+      "src": "apps/web/src/checkout/.lore/glossary.md",
+      "sources": []
     },
     {
       "kind": "context", "id": "quote-lifecycle", "file": "apps/web/src/checkout/.lore/context.lore",
@@ -2640,7 +2704,8 @@ Any price shown after that comes from a new quote.
       "when": null, "checks": [], "meta": null,
       "summary": "A quote is created when the cart is priced and expires after 30 minutes. Any price shown after that comes from a new quote.",
       "prose": "A quote is created when the cart is priced and expires after 30 minutes.\nAny price shown after that comes from a new quote.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -2681,7 +2746,8 @@ Read the repository's top-level files.
       "when": null, "checks": [], "meta": null,
       "summary": "Read for how the shop is built and deployed.",
       "prose": "Read for how the shop is built and deployed.",
-      "src": "README.md"
+      "src": "README.md",
+      "sources": []
     }
   ],
   "errors": [
@@ -2833,7 +2899,8 @@ Every stored quote records the cart it priced.
       "when": null, "checks": [], "meta": null,
       "summary": "Every stored price records the quote it came from.",
       "prose": "Every stored price records the quote it came from.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -2867,7 +2934,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "context", "id": "checkout-architecture", "file": ".lore/checkout.lore",
@@ -2876,7 +2944,8 @@ Read before judging any change to how a price is computed.
       "when": null, "checks": [], "meta": null,
       "summary": "Read before judging any change to how a price is computed.",
       "prose": "Read before judging any change to how a price is computed.",
-      "src": "ARCHITECTURE.md"
+      "src": "ARCHITECTURE.md",
+      "sources": []
     }
   ],
   "errors": [],
@@ -2908,7 +2977,8 @@ A displayed price must come from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A displayed price must come from the quote that produced it.",
       "prose": "A displayed price must come from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -3136,7 +3206,8 @@ Cart totals come from the quote, never from summing line items.
       "when": null, "checks": [], "meta": null,
       "summary": "A documentation change links the changelog entry it describes.",
       "prose": "A documentation change links the changelog entry it describes.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "money-type-for-prices", "file": ".lore/checkout.lore",
@@ -3145,7 +3216,8 @@ Cart totals come from the quote, never from summing line items.
       "when": null, "checks": [], "meta": null,
       "summary": "Prices are typed as `Money`, never as `number`.",
       "prose": "Prices are typed as `Money`, never as `number`.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "rule", "id": "cart-total-from-quote", "file": "apps/web/src/.lore/checkout.lore",
@@ -3154,7 +3226,8 @@ Cart totals come from the quote, never from summing line items.
       "when": null, "checks": [], "meta": null,
       "summary": "Cart totals come from the quote, never from summing line items.",
       "prose": "Cart totals come from the quote, never from summing line items.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [],
@@ -3233,7 +3306,8 @@ Every price the checkout page shows comes from the quote.
       "when": null, "checks": [], "meta": null,
       "summary": "Cart totals come from the quote, never from summing line items.",
       "prose": "Cart totals come from the quote, never from summing line items.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -3402,7 +3476,8 @@ The product page shows the price from the product's current quote.
       "when": null, "checks": [], "meta": null,
       "summary": "The product page shows the price from the product's current quote.",
       "prose": "The product page shows the price from the product's current quote.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -3994,7 +4069,8 @@ New checkout requests work with the API that is deployed now.
       "when": { "changed": ["/apps/api/**"], "addedContains": ["fetch("] }, "checks": [], "meta": null,
       "summary": "New checkout requests work with the API that is deployed now.",
       "prose": "New checkout requests work with the API that is deployed now.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -4181,7 +4257,8 @@ classes.
       "meta": null,
       "summary": "Components never set inline styles; they use the design system's classes.",
       "prose": "Components never set inline styles; they use the design system's\nclasses.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -4385,7 +4462,8 @@ Cart totals come from the quote, never from summing line items.
       "meta": null,
       "summary": "Cart totals come from the quote, never from summing line items.",
       "prose": "Cart totals come from the quote, never from summing line items.",
-      "src": null
+      "src": null,
+      "sources": []
     }
   ],
   "errors": [
@@ -4621,6 +4699,659 @@ M apps/web/src/checkout/quote.graphql
   "warnings": [
     { "name": "ast-grep-no-language", "file": "apps/web/src/checkout/quote.graphql", "entry": "totals-from-quote", "line": 1 }
   ]
+}
+``````
+
+## Sources
+
+A rule's `<source>` names the files the rule was written from, such as
+a review guide, a decision record or the code that sets a convention.
+It is a structured block (see [Structured blocks](#structured-blocks))
+whose value is a mapping, or a list of one or more mappings. Each
+mapping names one source:
+
+| Key | Required | Value |
+|---|---|---|
+| `file` | yes | One file, as a non-empty string (see [File paths](#file-paths)). |
+| `heading` | no | A non-empty string: a heading in the file, given as its text or its slug. Only when `file` ends in `.md`, `.mdx` or `.markdown`, compared case-sensitively. |
+| `phrase` | no | A non-empty string that appears in the file. With `heading`, it appears inside that heading's section. |
+
+- `<source>` takes no attributes (`unknown-attribute`) and may appear
+  once in a rule (`duplicate-child`), as `<scope>` and `<when>` do (see
+  [Children](#children)). On a context it is `unknown-child`.
+- A tool checks a `<source>` for the problems of
+  [Structured blocks](#structured-blocks) first. Any other problem is
+  `invalid-source`: a value that is not a mapping or a non-empty list of
+  mappings, a key the table above does not name, a missing or empty
+  `file`, a value that is not a string, an empty `heading` or `phrase`,
+  a `heading` on a file that is not Markdown (its extension compared
+  case-sensitively, so `docs/NOTES.MD` is not Markdown), a `file` that
+  breaks the
+  rules of [File paths](#file-paths), and two items that resolve to the
+  same file with the same `heading` and `phrase`.
+- `invalid-source` is entry-level. Its line is the `<source>` opening
+  tag line.
+- The shape is also given as
+  [`source.schema.json`](schemas/source.schema.json). The path rules and
+  the rule against repeated items are not in the schema, and still give
+  `invalid-source`.
+- Parsing MUST NOT read a cited file. A `<source>` whose file does not
+  exist, or does not hold its `heading` or `phrase`, is still valid, and
+  its rule is read as usual. An audit finds whether a source resolves
+  (see [Auditing sources](#auditing-sources)).
+- In the document model, `sources` holds each item in the order written,
+  as an object with `file`, `heading` and `phrase`. `file` is resolved
+  as [File paths](#file-paths) says, and `heading` and `phrase` are as
+  written, or null when absent. A rule without `<source>`, and every
+  context, has `sources: []`.
+- A valid `<source>` does not change whether a rule is eligible.
+
+A tool written before `<source>` was defined reads it as
+`unknown-child`, which excludes only that rule. Tools are upgraded
+before rule files use it.
+
+A source given as a mapping, with a heading:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+<when>
+addedContains: ["parseFloat(", "toFixed("]
+</when>
+Amounts are integers in minor units (cents).
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "blocking", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": { "addedContains": ["parseFloat(", "toFixed("] }, "checks": [], "meta": null,
+      "summary": "Amounts are integers in minor units (cents).",
+      "prose": "Amounts are integers in minor units (cents).",
+      "src": null,
+      "sources": [
+        { "file": "docs/checkout-review.md", "heading": "Money is integer minor units", "phrase": null }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+Sources given as a list keep their order, and a plain `file` resolves
+from the base:
+
+``````example parse
+=== apps/web/.lore/web.lore
+<rule id="totals-in-minor-units" category="functional_correctness">
+<source>
+- file: src/checkout/money.ts
+  phrase: 'export function fromCents('
+- file: docs/checkout-review.md
+  heading: money-is-integer-minor-units
+  phrase: never a float
+</source>
+Cart totals are integers in minor units (cents).
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "totals-in-minor-units", "file": "apps/web/.lore/web.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Cart totals are integers in minor units (cents).",
+      "prose": "Cart totals are integers in minor units (cents).",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/src/checkout/money.ts", "heading": null, "phrase": "export function fromCents(" },
+        { "file": "apps/web/docs/checkout-review.md", "heading": "money-is-integer-minor-units", "phrase": "never a float" }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A value that is not a mapping or a non-empty list of mappings is
+`invalid-source`: a scalar, an empty list, and a list with a scalar
+item:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+docs/pricing-review.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+[]
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+- file: docs/locale-review.md
+- docs/dates.md
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 9 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 16 }
+  ],
+  "warnings": []
+}
+``````
+
+A key the table does not name is `invalid-source`, whatever it means
+to the author:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: docs/pricing-review.md
+section: Prices
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+Every item needs a `file`:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+heading: Prices
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+An empty `file`, `heading` or `phrase` is `invalid-source`:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: ""
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/currency-review.md
+heading: ""
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs/locale-review.md
+phrase: ''
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 9 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 17 }
+  ],
+  "warnings": []
+}
+``````
+
+A value that is not a string is `invalid-source`, a `null` included:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: docs/pricing-review.md
+phrase: 42
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/currency-review.md
+heading:
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: [docs/locale-review.md, docs/dates.md]
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 10 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 18 }
+  ],
+  "warnings": []
+}
+``````
+
+A `heading` is only for a Markdown file. The source file is TypeScript,
+so the first rule is excluded, while the second names a phrase instead:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: apps/web/src/checkout/price.ts
+heading: Prices
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="quote-total-shown" category="functional_correctness">
+<source>
+file: apps/web/src/checkout/price.ts
+phrase: quote.total
+</source>
+The checkout page shows the quote's total.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "quote-total-shown", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "The checkout page shows the quote's total.",
+      "prose": "The checkout page shows the quote's total.",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/src/checkout/price.ts", "heading": null, "phrase": "quote.total" }
+      ]
+    }
+  ],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+The extension is compared case-sensitively, so `docs/NOTES.MD` is not a
+Markdown file and takes no `heading`:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="round-half-to-even" category="functional_correctness">
+<source>
+file: docs/NOTES.MD
+heading: Rounding
+</source>
+Amounts are rounded half to even.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "round-half-to-even", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+Two items that resolve to the same file, with the same `heading` and
+`phrase`, are `invalid-source`, however each is written. Two items that
+name one file with different headings are not:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+- file: docs/pricing-review.md
+- file: /docs/pricing-review.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+- file: docs/currency-review.md
+  heading: Codes
+- file: docs/currency-review.md
+  heading: Symbols
+</source>
+Display text never hard-codes a currency code or symbol.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "currency-from-settings", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Display text never hard-codes a currency code or symbol.",
+      "prose": "Display text never hard-codes a currency code or symbol.",
+      "src": null,
+      "sources": [
+        { "file": "docs/currency-review.md", "heading": "Codes", "phrase": null },
+        { "file": "docs/currency-review.md", "heading": "Symbols", "phrase": null }
+      ]
+    }
+  ],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
+An attribute on `<source>`, a second `<source>`, and a `<source>` on a
+context are the errors every child has:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source kind="guide">
+file: docs/pricing-review.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/currency-review.md
+</source>
+<source>
+file: docs/settings.md
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<context id="checkout-architecture" src="ARCHITECTURE.md">
+<source>
+file: docs/checkout-review.md
+</source>
+Read before judging any change to how a price is computed.
+</context>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "unknown-attribute", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "duplicate-child", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 12 },
+    { "name": "unknown-child", "file": ".lore/checkout.lore", "entry": "checkout-architecture", "line": 19 }
+  ],
+  "warnings": []
+}
+``````
+
+### File paths
+
+`file` names one file, not a glob. A `file` that breaks these rules is
+`invalid-source`.
+
+- A path starting `./` or `../` is relative to the Lore file, exactly as
+  a context's `src` is (see [Context](#context)), and MUST stay inside
+  the Lore root.
+- A path starting `/` is from the governed repo's root. In an external
+  folder it is from the root its `repo` mapping stands for, which is
+  the governed repo's root, so it names the file it would name in the
+  governed repo. In a loose folder it is from the loose folder.
+- Any other path resolves from the base, or through the `repo` mapping
+  in an external folder, as a plain `src` does.
+- Apart from the one leading `/`, the segment rules are those of `src`:
+  no empty segments, and `.` and `..` only at the start. After a leading
+  `/`, no segment is `.` or `..`.
+- In the document model, `file` is the resolved path, with the
+  `external:` and `loose:` prefixes `src` uses: a file-relative path in
+  an external folder is `external:<path>`, from that folder's
+  repository's root, and a file-relative path or one with a leading `/`
+  in a loose folder is `loose:<path>`, from the loose folder.
+
+From a nested base, a leading `/` names a file from the governed repo's
+root instead of from the base:
+
+``````example parse
+=== apps/web/src/checkout/.lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+- file: /docs/decisions/0042-quote-prices.md
+- file: README.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": "apps/web/src/checkout/.lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null,
+      "sources": [
+        { "file": "docs/decisions/0042-quote-prices.md", "heading": null, "phrase": null },
+        { "file": "apps/web/src/checkout/README.md", "heading": null, "phrase": null }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A path starting `./` or `../` resolves from the directory that holds
+the Lore file, as a context's `src` does:
+
+``````example parse
+=== apps/web/src/checkout/.lore/money.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: ./money-review.md
+- file: ../money.ts
+  phrase: 'export function fromCents('
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "money-in-minor-units", "file": "apps/web/src/checkout/.lore/money.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/src/checkout/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "Amounts are integers in minor units (cents).",
+      "prose": "Amounts are integers in minor units (cents).",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/src/checkout/.lore/money-review.md", "heading": null, "phrase": null },
+        { "file": "apps/web/src/checkout/money.ts", "heading": null, "phrase": "export function fromCents(" }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A path that leaves the Lore root, or breaks the segment rules, is
+`invalid-source`. With no `.loreconfig`, the Lore root is the
+repository root, so the first rule climbs above it. The others have a
+`..` after a named segment, an empty segment, and a `..` after a leading
+`/`:
+
+``````example parse
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: ./../../handbook/review.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+file: docs/../currency-review.md
+</source>
+Display text never hard-codes a currency code.
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs//locale-review.md
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="quote-expiry-shown" category="functional_correctness">
+<source>
+file: /../quote-review.md
+</source>
+A checkout page that shows a quoted price also shows when the quote expires.
+</rule>
+=== expect
+{
+  "entries": [],
+  "errors": [
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "price-from-quote", "line": 2 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "currency-from-settings", "line": 9 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "dates-from-locale", "line": 16 },
+    { "name": "invalid-source", "file": ".lore/checkout.lore", "entry": "quote-expiry-shown", "line": 23 }
+  ],
+  "warnings": []
+}
+``````
+
+In an external folder, a plain path and a leading `/` resolve through
+the `repo` mapping to the governed repo, and a file-relative path stays
+in the team repository. Here the Lore root is the marked directory,
+`lore/shop/`:
+
+``````example parse
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/handbook.md
+# Review handbook
+=== external:lore/shop/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: /docs/decisions/0042-quote-prices.md
+- file: ../../../handbook.md
+  heading: Prices
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "web-prices-from-quote", "file": "external:lore/shop/apps/web/.lore/web.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A price the web app displays comes from the quote that produced it.",
+      "prose": "A price the web app displays comes from the quote that produced it.",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/docs/checkout-review.md", "heading": null, "phrase": null },
+        { "file": "docs/decisions/0042-quote-prices.md", "heading": null, "phrase": null },
+        { "file": "external:lore/shop/handbook.md", "heading": "Prices", "phrase": null }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+In a loose folder, a plain path still resolves through the `repo`
+mapping, while a leading `/` and a file-relative path name files of the
+loose folder:
+
+``````example parse
+requires: loose-given-folder
+=== loose:.loreconfig
+repo: github.com/acme/shop
+loose: true
+=== loose:apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: /handbook.md
+- file: ./notes.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "web-prices-from-quote", "file": "loose:apps/web/.lore/web.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["apps/web/**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A price the web app displays comes from the quote that produced it.",
+      "prose": "A price the web app displays comes from the quote that produced it.",
+      "src": null,
+      "sources": [
+        { "file": "apps/web/docs/checkout-review.md", "heading": null, "phrase": null },
+        { "file": "loose:handbook.md", "heading": null, "phrase": null },
+        { "file": "loose:apps/web/.lore/notes.md", "heading": null, "phrase": null }
+      ]
+    }
+  ],
+  "errors": [],
+  "warnings": []
 }
 ``````
 
@@ -4871,6 +5602,1642 @@ R apps/web/src/legacy/Price.tsx -> apps/web/src/checkout/Price.tsx
 }
 ``````
 
+## Auditing sources
+
+A tool MAY audit the sources of the rules it collects (see
+[Sources](#sources)). An **audit** reads every rule in the document
+model, disabled rules included, with no change involved. For each
+source of each rule it finds whether the source resolves in the cited
+file, and compares the source with its review record in the lock file
+(see [The lock file](#the-lock-file)). It reports what it finds as
+**findings** (see [Findings](#findings)). An entry that an error
+excludes is not audited, and an audit changes no Lore file and no lock
+file.
+
+A source's `file` names, after its prefix, a file of the governed repo,
+of an external folder's repository or of a loose folder (see
+[File paths](#file-paths)). The file exists when it is a tracked file
+there, or for a loose folder a file of that folder. A tool that cannot
+look at the files a source needs MUST report `source-unchecked` for
+that source, and MUST NOT report it as resolved or as missing.
+
+The level of each finding comes from the audit settings (see
+[Audit settings](#audit-settings)). What a tool does with a level, such
+as its exit status, any options that override the settings for one run,
+and how it prints findings are tool behavior, outside this
+specification.
+
+`money-in-minor-units` was reviewed against its section, which has not
+changed since. `dates-from-locale` cites a section that resolves but
+was never reviewed, and `price-from-quote` has no source:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "dates-from-locale", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "never-reviewed": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 1 }
+}
+``````
+
+### Matching inside the file
+
+A file is **Markdown** when its path ends in `.md`, `.mdx` or
+`.markdown`, compared case-sensitively, so `docs/NOTES.MD` is not
+Markdown.
+
+These two definitions hold throughout
+[Auditing sources](#auditing-sources), this section and the ones after
+it included. A **line ending** (or line break) is CR LF, LF or CR, and a
+cited file's lines end there and only there. **Whitespace** is a space
+(U+0020) or a tab (U+0009), and nothing else. U+00A0, U+FEFF, U+2028,
+U+2029 and every other character are ordinary characters, and a
+**blank** line is one that holds nothing, or only whitespace.
+
+**Byte order mark.** When a cited file is valid UTF-8, a tool ignores
+one U+FEFF at its start, as it does in a Lore file (see
+[Files and folders](#files-and-folders)): heading matching, phrase
+matching and fingerprints read the file without it. A U+FEFF anywhere
+else, a second one at the start included, stays an ordinary character.
+A file that is not valid UTF-8 keeps every byte (see
+[Fingerprints](#fingerprints)).
+
+**Fenced code blocks.** A Markdown file's fenced code blocks are found
+by the line rule that follows, which is their whole definition: a tool
+needs no Markdown parser, and other constructs, such as list items,
+block quotes and HTML comments, are not considered. An opening fence is a line of zero to three spaces, then
+three or more backticks or three or more tildes; after a run of
+backticks, the rest of the line holds no backtick. The fence closes at
+the next line of zero to three spaces, then a run of the same character
+at least as long as the opening run, then only whitespace. A fence that
+never closes runs to the end of the file. A line indented by four or
+more spaces, or by a tab, neither opens nor closes a fence. These are
+not the fences of a rule's prose, which ignore indentation (see Fences
+in [Entries](#entries)).
+
+**Headings.** A **heading** is a line, outside every fenced code block
+and other than a fence's opening and closing lines, that starts with
+zero to three spaces, then one to six `#`, then either the end of the
+line or whitespace. Its **level** is its number of `#`. Its **text** is
+the rest of the line after the `#` and the whitespace that follows
+them, with trailing whitespace removed, and then a closing run of `#`
+removed, with the whitespace before it, when it is the whole text or
+follows whitespace. Inline markup stays as written, so
+`## Money is *integer* minor units` has the text
+`Money is *integer* minor units`. The text can hold any character but a
+line ending, U+2028 and U+2029 included.
+
+**Slugs.** The **slug** of a string is found in three steps:
+
+1. Lower-case it with the Unicode default case mapping (`toLowercase`,
+   with its full mappings and not specific to any language).
+2. Remove every character that is not a letter (general category L), a
+   mark (general category M), a number (general category N), `_`, `-`
+   or U+0020 SPACE.
+3. Turn each remaining space into `-`.
+
+Runs are not collapsed, so two spaces become `--`. No Unicode
+normalization is applied, so a letter written with a combining mark
+differs from the same letter written as one precomposed character.
+
+A heading **matches** a `heading` value when its text equals the value,
+or when the value's slug is not empty and equals the slug of the
+heading's text. When more than one heading matches, the first in the
+file is used, and the audit reports `ambiguous-heading`.
+
+**Sections.** A heading's **section** is the lines from the heading's
+line up to, and not including, the next heading with as many `#` or
+fewer, or to the end of the file. Its text is those lines joined with
+LF.
+
+**Phrases.** A phrase matches a text when, after each run of whitespace
+and line endings in both is replaced by one U+0020 SPACE, the phrase is
+a part of the text. A phrase can therefore match across lines. A phrase
+with a `heading` is looked for in that heading's section, and one
+without a `heading` in the whole file, where its first match is the one
+used.
+
+A source **resolves** when its file exists and, for each of `heading`
+and `phrase` it has, the heading matches and the phrase matches. A
+`heading` or `phrase` never resolves in a file that is not valid UTF-8.
+Strings compare code point by code point throughout this section, so
+matching is case-sensitive apart from the slug.
+
+A heading can be given as its text or as its slug. The slug of
+`Money is *integer* minor units` is `money-is-integer-minor-units`, so
+both `money-is-integer-minor-units` and `Money is integer minor units`
+match it. Letters and numbers of every script are kept, an upper-case
+`É` included as `é`, and `_` is kept. `Display casing` matches no
+heading: it equals no heading's text, and its slug equals no heading's
+slug. The heading `Remise appliquée` writes its `é` as `e` followed by
+U+0301 COMBINING ACUTE ACCENT, which the slug keeps, so the first value
+of `discounts-before-tax`, written the same way, matches, and the
+second, which writes `é` as the one character U+00E9, does not. The
+heading `Totals and taxes` holds a U+2028 LINE SEPARATOR between
+`Totals` and `and`: it does not end the line, so the line is one
+heading, and its slug drops the character. Nothing was reviewed, so
+every source that resolves is `never-reviewed`:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: money-is-integer-minor-units
+- file: docs/checkout-review.md
+  heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="names-keep-case" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: Display casing (names, addresses)
+- file: docs/checkout-review.md
+  heading: Display casing
+</source>
+Names and addresses keep the case they were entered in.
+</rule>
+
+<rule id="subtotal-before-tax" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: étape-2-sous_total-ht
+</source>
+The subtotal is shown before tax.
+</rule>
+
+<rule id="discounts-before-tax" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: remise-appliquée
+- file: docs/checkout-review.md
+  heading: remise-appliquée
+</source>
+A discount is applied before tax.
+</rule>
+
+<rule id="totals-with-taxes" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: totalsand-taxes
+</source>
+A displayed total includes taxes.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is *integer* minor units
+
+Amounts are integers in minor units (cents).
+
+## Display casing (names, addresses)
+
+Names keep the case they were entered in.
+
+## Étape 2: sous_total (HT)
+
+Le sous-total est hors taxes.
+
+## Remise appliquée
+
+La remise est appliquée avant les taxes.
+
+## Totals and taxes
+
+A total includes taxes.
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "source-missing", "level": "error", "rule": "discounts-before-tax", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "remise-appliquée", "phrase": null }, "reason": "heading not found: \"remise-appliquée\""
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "discounts-before-tax", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "remise-appliquée", "phrase": null }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "money-is-integer-minor-units", "phrase": null }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Money is integer minor units", "phrase": null }, "reason": null
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "names-keep-case", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Display casing", "phrase": null }, "reason": "heading not found: \"Display casing\""
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "names-keep-case", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Display casing (names, addresses)", "phrase": null }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "subtotal-before-tax", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "étape-2-sous_total-ht", "phrase": null }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "totals-with-taxes", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "totalsand-taxes", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "source-missing": 2, "never-reviewed": 6 }, "rulesWithSource": 5, "rulesWithoutSource": 0 }
+}
+``````
+
+A heading inside a fenced code block is not a heading. The tilde fence
+opens indented by two spaces and is not closed by the shorter `~~~`, so
+`Money` and `Dates` are inside it. The backticks indented by four spaces
+open no fence, and neither does the line of four backticks, because a
+backtick follows the run, so `Rounding` and `Subtotal` are headings.
+The last fence never closes, so `Totals` is inside it:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: Money
+- file: docs/checkout-review.md
+  heading: Dates
+- file: docs/checkout-review.md
+  heading: Rounding
+- file: docs/checkout-review.md
+  heading: Subtotal
+- file: docs/checkout-review.md
+  heading: Totals
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+  ~~~~
+## Money
+~~~
+## Dates
+~~~~~
+
+    ```
+## Rounding
+
+```` md`fences`
+## Subtotal
+
+```
+## Totals
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Money", "phrase": null }, "reason": "heading not found: \"Money\""
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": "heading not found: \"Dates\""
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Totals", "phrase": null }, "reason": "heading not found: \"Totals\""
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Rounding", "phrase": null }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Subtotal", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "source-missing": 3, "never-reviewed": 2 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+A phrase matches across any run of spaces, tabs and line endings. In
+`money.ts`, `function` and `fromCents(` are separated by a tab, and in
+the review `minor` and `units` by a line ending. Matching is
+case-sensitive, so `Integers in minor units` is not found, and U+00A0
+NO-BREAK SPACE is not whitespace, so `rounded half to even` is not
+found where the review writes `half` and `to` with one between them:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: apps/web/src/checkout/money.ts
+  phrase: 'export function fromCents('
+- file: docs/checkout-review.md
+  phrase: integers in minor units
+- file: docs/checkout-review.md
+  phrase: Integers in minor units
+- file: docs/checkout-review.md
+  phrase: rounded half to even
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== apps/web/src/checkout/money.ts
+export  function	fromCents(cents: number): Money {
+  return { cents };
+}
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor
+units (cents). Totals are rounded half to even.
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "Integers in minor units" }, "reason": "phrase not found: \"Integers in minor units\""
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "rounded half to even" }, "reason": "phrase not found: \"rounded half to even\""
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "apps/web/src/checkout/money.ts", "heading": null, "phrase": "export function fromCents(" }, "reason": null
+    },
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "integers in minor units" }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "source-missing": 2, "never-reviewed": 2 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+`docs/checkout-review.md` starts with a byte order mark, which a tool
+ignores, so its first line is the heading `Checkout review`. Both
+sources have the fingerprint the file has without the mark, the one the
+records hold:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: docs/checkout-review.md
+  heading: Checkout review
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+﻿# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Checkout review","phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+### Fingerprints
+
+The **fingerprint** of a source that resolves is a short hash of its
+**reviewed text**:
+
+| Source has | Reviewed text |
+|---|---|
+| `file` only | The whole file. |
+| `heading`, with or without `phrase` | That heading's section. |
+| `phrase` only, Markdown file | The section of the last heading at or above the line where the first match begins, or the whole file when no heading is. |
+| `phrase` only, other file | The whole file. |
+
+A match begins on the line of its first character that is neither
+whitespace nor a line ending, so a phrase that starts with a space
+begins where the text after the space does. A phrase of nothing but
+whitespace begins where the run it matched begins: on the line of the
+run's first space or tab, or on the line that the run's first line
+ending ends.
+
+The reviewed text is normalized before it is hashed:
+
+1. It is split into lines at its line endings: CR LF, LF or CR.
+2. Trailing spaces and tabs are removed from each line, and nothing
+   else. A line left empty is blank.
+3. Blank lines at the start, blank lines that follow another blank
+   line, and blank lines at the end are removed.
+4. The lines are joined with LF, with no LF after the last.
+
+The fingerprint is the first 12 characters of the lower-case
+hexadecimal SHA-256 digest of the normalized text, encoded as UTF-8.
+Two tools MUST compute the same fingerprint for the same reviewed text.
+For a file that is not valid UTF-8, it is the digest of the file's raw
+bytes, not normalized. This document is UTF-8 text, so the rules for
+such files have no conformance examples.
+
+For example, the `Money is integer minor units` section of the first
+example in [Auditing sources](#auditing-sources) normalizes to these
+three lines, with no line feed after the last:
+
+```
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+```
+
+and its fingerprint is `9f413384c605`.
+
+Each record here holds the fingerprint of the reviewed text the table
+gives, so nothing is reported. The first phrase sits above the first
+heading, so its reviewed text is the whole file, and the second is under
+`Money is integer minor units`, so its reviewed text is that section.
+The third starts with a space, which matches the line endings at the
+end of the `Money is integer minor units` section, but its match begins
+on the `## Dates` line, so its reviewed text is the `Dates` section.
+`docs/NOTES.MD` is not Markdown, so its phrase's reviewed text is the
+whole file and not the `Rounding` section. A tool that hashed any of
+them differently would report `source-changed`:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+- file: docs/checkout-review.md
+  heading: Dates
+- file: docs/checkout-review.md
+  phrase: Owned by the checkout team.
+- file: docs/checkout-review.md
+  phrase: integers in minor units
+- file: docs/checkout-review.md
+  phrase: ' ## Dates'
+- file: apps/web/src/checkout/money.ts
+  phrase: 'export function fromCents('
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="round-half-to-even" category="functional_correctness">
+<source>
+file: docs/NOTES.MD
+phrase: Round half to even.
+</source>
+Amounts are rounded half to even.
+</rule>
+=== docs/checkout-review.md
+Owned by the checkout team.
+
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== apps/web/src/checkout/money.ts
+export function fromCents(cents: number): Money {
+  return { cents };
+}
+=== docs/NOTES.MD
+# Notes
+
+## Rounding
+
+Round half to even.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"apps/web/src/checkout/money.ts","heading":null,"phrase":"export function fromCents(","reviewed":"2026-11-02","hash":"d1252d5ef378"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"9ac9b504bba3"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":" ## Dates","reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":"Owned by the checkout team.","reviewed":"2026-11-02","hash":"9ac9b504bba3"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":null,"phrase":"integers in minor units","reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"round-half-to-even","file":"docs/NOTES.MD","heading":null,"phrase":"Round half to even.","reviewed":"2026-11-02","hash":"a9f76203dd8b"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+Normalization keeps a fingerprint through edits to whitespace alone.
+Both sections were reviewed as the first example in
+[Auditing sources](#auditing-sources) shows them. Since then the
+`Money is integer minor units` heading has gained three trailing
+spaces, and blank lines were added around its paragraph, which leaves
+its fingerprint as it was. The `Dates` section was reviewed when it read
+`Dates are shown in UTC.`, so its text has changed:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units   
+
+
+Amounts are integers in minor units (cents).
+
+
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"41954b11d131"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "source-changed", "level": "warn", "rule": "dates-from-locale", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "source-changed": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+### The lock file
+
+Review records are kept in **lock files**, each named
+`lore-reviews.lock`. The lock file of a Lore file is in the nearest
+directory, at or above the directory that holds the Lore file and no
+higher than the root of its repository (for a loose folder, the loose
+folder's top), whose `.loreconfig` has `root: true` or a `repo` key.
+When there is none, it is in that root. So a directory marked with `repo` (see
+[External folders](#external-folders)) starts a new lock file just as a
+Lore root does (see [Lore root](#lore-root)), and everything else that
+uses the Lore root, such as categories, `disable`, audit settings and
+file-relative paths, still uses it. A `.loreconfig` with a problem is
+ignored here too. A `.loreconfig` that is `repo-inside-repo` or
+`nested-repo` (see [Where repo may appear](#where-repo-may-appear))
+still counts: the Lore files below it, which no tool collects from
+there, have the lock file in its directory or below it, never one above
+it. A lock file **covers** each Lore file whose lock file it is, and
+holds the records of their rules.
+
+So adding a `repo` key to a directory moves the rules below it out of
+the scope of the lock file above it, and their records there become
+orphans. In the governed repo the key is `repo-inside-repo`, which is
+how a shared rules repository looks from its own run, so those records
+are reported as `orphan-review`, and a tool that removes orphan records
+removes them: after adding such a key, read the audit before removing
+any. A `nested-repo` key has no layout that a run collects, so it is
+taken for a stray one, and while it stands the lock files above it
+that would cover its rules without it are not judged (see
+[Findings](#findings)).
+
+A lock file's path has the prefix its Lore files have, so in the team
+repository of [External folders](#external-folders), where `lore/` has
+`root: true` and `lore/shop/` is marked, the shop's lock file is
+`external:lore/shop/lore-reviews.lock`, not
+`external:lore/lore-reviews.lock`. That path does not say which
+repository the file is in (see [Document model](#document-model)), so
+two given folders of different repositories can have lock files with
+the same path. Each covers its own Lore files, and a tool MUST NOT read
+one in place of the other: a lock file is named by its repository and
+its path.
+
+A `repo` key names one repository, and a tool collects a marked
+directory only when a given folder holds it (see
+[External folders](#external-folders)). So the Lore files a lock file
+covers are all collected by the same runs: below a marked directory,
+those of the repository it names; elsewhere, those of the repository
+itself as the governed repo. A shared rules repository keeps the records
+of each repository it serves in that repository's marked directories,
+and its own in its Lore root:
+
+```
+team-repo/lore/
+  .loreconfig          root: true
+  lore-reviews.lock    the team repository's own rules, as in own/
+  own/.lore/team.lore
+  shop/
+    .loreconfig        repo: github.com/acme/shop
+    lore-reviews.lock  the shop's rules below shop/
+  web/
+    .loreconfig        repo: github.com/acme/shop
+    lore-reviews.lock  the shop's rules below web/
+  blog/
+    .loreconfig        repo: github.com/acme/blog
+    lore-reviews.lock  the blog's rules
+```
+
+A run for the shop reads and writes the lock files of `shop/` and `web/`
+only, a run for the blog that of `blog/`, and the team repository's own
+run that of `lore/`. Ids are unique only among the
+rules one run collects (see [Trees](#trees)), so the shop and the blog
+can each have a rule with the same id. Their records are in different
+lock files and never meet.
+
+A lock file is not a Lore file. Only a tool that records reviews writes
+it; an audit only reads it.
+
+A lock file is UTF-8 JSON Lines. Its first line is the JSON object
+`{"lore-reviews":1}`. Each further line is one **record**, a JSON
+object with exactly these members:
+
+| Member | Value |
+|---|---|
+| `rule` | The id of the rule that was reviewed. |
+| `file` | The source's `file`, resolved as the document model holds it. |
+| `heading` | The source's `heading` as written, or null. |
+| `phrase` | The source's `phrase` as written, or null. |
+| `reviewed` | The date of the review, `YYYY-MM-DD`, a real calendar date. |
+| `hash` | The source's fingerprint when it was reviewed. |
+
+A tool that writes a lock file MUST write its **canonical form**, so
+that two tools write the same bytes for the same records:
+
+- Each line is compact JSON, with no whitespace between tokens and the
+  members in the order of the table. The first line is exactly
+  `{"lore-reviews":1}`.
+- A string is written as standard JSON serialization writes it
+  (`JSON.stringify` in ECMAScript), with no other escapes. A quotation
+  mark and a backslash are escaped with a backslash. U+0008, U+000C,
+  U+000A, U+000D and U+0009 are written `\b`, `\f`, `\n`, `\r` and
+  `\t`. Every other character below U+0020 is written `\u00` and two
+  lower-case hexadecimal digits, and a lone surrogate as `\u` and four
+  lower-case hexadecimal digits. Every other character is written as
+  itself, U+007F, U+2028, U+2029 and every non-ASCII character included.
+- Each line ends with LF, the last included.
+- The records are sorted by `rule`, then `file`, then `heading`, then
+  `phrase`, null before any string, comparing code points.
+
+A record is one line, so two branches that review different rules
+usually merge cleanly. The records are sorted, so two branches that add
+neighboring lines can still conflict. The conflict is plain text:
+keeping both sides' lines resolves it, and so does taking one side's
+file and reviewing the other side's rules again.
+
+A tool that reads a lock file accepts more than the canonical form. A
+line ends with LF or with CR LF, and the last line may have no line
+ending. Each line is read as any JSON text, so a record's members may
+come in any order, and whitespace between tokens and any escape are
+allowed. The first line is compared by its value: a JSON object with the
+one member `lore-reviews`, whose value is the number 1. Whenever a tool
+writes a lock file, it writes the canonical form.
+
+A lock file is **malformed** when its first line is not that object,
+when it has a blank line, when a further line is not a JSON object with
+exactly the members of the table, each a string (`heading` and
+`phrase` a string or null), when a `reviewed` is not a real date or a
+`hash` is not 12 lower-case hexadecimal characters, or when two records
+have the same `rule`, `file`, `heading` and `phrase`. A tool MUST NOT repair a malformed lock file
+silently. How it reports one is tool behavior, and no example holds one.
+
+A record **belongs** to a source when its `rule` is the rule's id, its
+`file` is the source's resolved `file`, and its `heading` and `phrase`
+equal the source's as written, null when absent. A rule's records are
+looked up only in its Lore file's lock file. Changing a
+source's `file`, `heading` or `phrase` makes it a different source,
+which has no record until it is reviewed again.
+
+Moving a rule between Lore folders that one lock file covers keeps its
+record. `money-in-minor-units` moved from `.lore/` to `apps/web/.lore/`
+and names its file from the repository root, so its source is unchanged.
+The external folder keeps its records in its marked directory's lock
+file:
+
+``````example audit
+=== apps/web/.lore/money.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: /docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/handbook.md
+# Review handbook
+
+## Prices
+
+A displayed price comes from the quote that produced it.
+=== external:lore/shop/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: ../../../handbook.md
+heading: Prices
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== external:lore/shop/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"web-prices-from-quote","file":"external:lore/shop/handbook.md","heading":"Prices","phrase":null,"reviewed":"2026-11-02","hash":"ff3bab3472a6"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+The team repository serves the shop and the blog. `lore/shop/` and
+`lore/web/` are marked for the shop and `lore/blog/` for the blog, below
+the Lore root `lore/`, and `lore/own/` holds the team repository's own
+rule. Each marked directory has its own lock file, and the team
+repository's own rule has the Lore root's. Auditing the shop reads the
+lock files of `lore/shop/` and `lore/web/` only. The record of
+`price-from-quote`, which no rule of the shop has, is an orphan there;
+the records of the blog and of the team repository are not read, so
+`post-titles-cased` and `release-notes-written` are not reported. The
+blog has a rule `dates-from-locale` too, with a different source, and
+its record in the blog's lock file does not meet the shop's:
+
+``````example audit
+=== external:lore/.loreconfig
+root: true
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/.lore/shared.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== external:lore/web/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/web/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== external:lore/blog/.loreconfig
+repo: github.com/acme/blog
+=== external:lore/blog/.lore/posts.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Post dates are formatted with the blog's locale.
+</rule>
+=== external:lore/own/.lore/team.lore
+<rule id="handbook-reviewed" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+The review handbook is read before each release.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== external:lore/shop/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/web/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/blog/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"post-titles-cased","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"handbook-reviewed","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"release-notes-written","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "orphan-review", "level": "warn", "rule": "price-from-quote", "file": "external:lore/shop/lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "orphan-review": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+Auditing the blog from the same files reads only `lore/blog/`'s lock
+file. Its `dates-from-locale` is judged against its own record, and
+`post-titles-cased` is the orphan:
+
+``````example audit
+=== remote
+https://github.com/acme/blog
+=== external:lore/.loreconfig
+root: true
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/.lore/shared.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== external:lore/web/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/web/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== external:lore/blog/.loreconfig
+repo: github.com/acme/blog
+=== external:lore/blog/.lore/posts.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Post dates are formatted with the blog's locale.
+</rule>
+=== external:lore/own/.lore/team.lore
+<rule id="handbook-reviewed" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+The review handbook is read before each release.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== external:lore/shop/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/web/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/blog/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"post-titles-cased","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"handbook-reviewed","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"release-notes-written","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "orphan-review", "level": "warn", "rule": "post-titles-cased", "file": "external:lore/blog/lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "orphan-review": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+A rule moved to a Lore folder with another lock file leaves its records
+behind, such as from one marked directory to another, or to a directory
+below a new `root: true`. In its new place it has no record and is
+`never-reviewed`, and its old record is an `orphan-review` of the old
+lock file once that lock file is judged (see [Findings](#findings)).
+`web-prices-from-quote` moved from `lore/web/` to `lore/shop/`, so it is
+reviewed again there; `web-dates-from-locale` keeps `lore/web/`'s lock
+file read:
+
+``````example audit
+=== external:lore/.loreconfig
+root: true
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== external:lore/web/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/web/.lore/dates.lore
+<rule id="web-dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Dates the web app displays are formatted with the shop's locale.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== external:lore/web/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"web-dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "web-prices-from-quote", "file": "external:lore/shop/apps/web/.lore/web.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    },
+    {
+      "name": "orphan-review", "level": "warn", "rule": "web-prices-from-quote", "file": "external:lore/web/lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "never-reviewed": 1, "orphan-review": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+A record belongs to a source by its `heading` as written, not by the
+heading it matches. Rewriting the pointer as the heading's slug makes
+it a new source, never reviewed, and leaves the old record behind:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: docs/checkout-review.md
+heading: money-is-integer-minor-units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "never-reviewed", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "money-is-integer-minor-units", "phrase": null }, "reason": null
+    },
+    {
+      "name": "orphan-review", "level": "warn", "rule": "money-in-minor-units", "file": "lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": "Money is integer minor units", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "never-reviewed": 1, "orphan-review": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+### Findings
+
+An audit reports these findings:
+
+| Finding | Meaning | Default level |
+|---|---|---|
+| `source-missing` | The file is not a tracked file, or the heading or phrase is not found. | `error` |
+| `source-unchecked` | The files this source needs were not available to look at. | `error` |
+| `ambiguous-heading` | More than one heading matched. | `warn` |
+| `source-changed` | The fingerprint differs from the record. | `warn` |
+| `never-reviewed` | A source has no record. | `warn` |
+| `review-overdue` | The record is older than the age limit. Not reported when no limit is set. | `warn` |
+| `orphan-review` | The lock file has a record for a rule or source that no longer exists. | `warn` |
+| `meta-source` | A rule has a `source` key in `<meta>` and no `<source>` block. | `off` |
+
+For each source of each audited rule, in the order written:
+
+1. When the tool could not look at the files the source needs, it
+   reports `source-unchecked`, and nothing else for that source.
+2. Otherwise, when the source does not resolve, it reports
+   `source-missing`, and nothing else for that source.
+3. Otherwise it reports `ambiguous-heading` when more than one heading
+   matched. Then, when no record belongs to the source, it reports
+   `never-reviewed`. When one does, it reports `source-changed` when the
+   record's `hash` is not the source's fingerprint, and
+   `review-overdue` when an age limit is set and the number of days
+   from the record's `reviewed` date to the date of the audit is greater
+   than the limit.
+
+A rule with no `<source>` whose `<meta>` has a member named `source`
+gets `meta-source`. The member's value does not matter, and no tool
+gives it a meaning (see [Children](#children)).
+
+The records of a lock file are audited when it covers a collected Lore
+file (see [The lock file](#the-lock-file)). A record that belongs to no
+source of a collected rule covered by that lock file gets
+`orphan-review`, with the lock file as its file, when the tool collected
+every Lore file the lock file covers, and is not reported otherwise. A
+record is never reported when an error excludes an entry with its `rule`
+as id among the Lore files that lock file covers.
+
+The Lore files a lock file covers are collected by the same runs, so a
+tool that collects one of them collects them all, unless one of these
+hides a rule without naming it. When any holds, the tool did not
+collect every Lore file the lock file covers:
+
+- an error that excludes a Lore file the lock file covers, or an entry
+  with no readable id in one;
+- a Lore file the lock file would cover, or a `.loreconfig` in a
+  directory where such a Lore file could be, that the tool could not
+  read, or that it can see but did not collect, such as an untracked
+  file in the governed repo's working tree, whose rules a tool that
+  records reviews may have recorded;
+- a `nested-repo` error below a marked directory, for that directory's
+  lock file and for the lock file of any Lore root between them that
+  would cover the Lore files below the error without its `repo` key.
+  Such a key is taken for a stray one, and a record of a rule below it
+  may be one from before the key was added.
+
+Nothing else can leave a covered rule uncollected:
+
+- A tool collects a marked directory only when a given folder holds it,
+  so a run that collects any Lore file below it reads every directory
+  below it.
+- A directory marked for another repository, and one that
+  `repo-inside-repo` excludes, has its own lock file, so the rules below
+  it are never covered by a lock file above it.
+- A Lore file of a given folder's repository in no marked directory is
+  covered by a lock file of that repository's own rules, which a run
+  for another governed repo never reads.
+- A `.loreconfig` with a problem is ignored by every run alike, so it
+  changes no lock file's Lore files.
+
+When the tool did not collect every Lore file a lock file covers, it
+does not **judge** that lock file: no record of it is reported. A real
+orphan there is reported
+again once the error is fixed, or the file read or tracked. How a tool
+shows that it did not judge a lock file, and how a tool that records
+reviews removes orphan records, are tool behavior; a tool that removes
+them MUST NOT remove any record of a lock file it did not judge.
+
+A finding about a rule takes its level from the audit settings of the
+directory that holds the rule's Lore file, and `orphan-review` from
+those of the lock file's directory (see
+[Audit settings](#audit-settings)). A finding whose level is `off` is
+not reported.
+
+An **audit result** is an object with two members, `findings` and
+`summary`, valid against
+[`audit.schema.json`](schemas/audit.schema.json). Each finding is an
+object with these members:
+
+| Member | Value |
+|---|---|
+| `name` | The finding's name, from the table above. |
+| `level` | `"error"` or `"warn"`. |
+| `rule` | The rule's id. For `orphan-review`, the record's `rule`, which can be any string: a lock file's `rule` is not checked against the id pattern. |
+| `file` | The rule's Lore file. For `orphan-review`, the lock file. |
+| `source` | The source as the document model holds it. For `orphan-review`, the record's `file`, `heading` and `phrase`. Null for `meta-source`. |
+| `reason` | For `source-missing`, which part was not found: `file not found: <file>`, `heading not found: "<heading>"` or `phrase not found: "<phrase>"`, with the value as written. A heading is looked for before its phrase. Null for every other finding. |
+
+Findings are ordered by `file`, then `rule`, then the order of the
+findings table above, comparing code points. Findings that tie keep
+the order of the rule's sources as written, or of the records in the
+lock file. `summary` holds `counts`, the number of findings reported of
+each name, leaving out the names with none; `rulesWithSource`, the
+number of audited rules with a `<source>`; and `rulesWithoutSource`,
+the number without one. Contexts are not counted.
+
+`source-unchecked` depends on which files a tool could look at, which
+an example cannot express: every file an example does not hold is
+absent. It has no conformance example.
+
+A source is `source-missing` when its file is absent, its heading is
+not found, or its phrase is not found, in its heading's section when it
+has one. A missing source gets no other finding, so these have none
+although nothing was reviewed. The rule is disabled and still audited:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" disabled>
+<source>
+- file: docs/money-review.md
+- file: docs/checkout-review.md
+  heading: Money
+- file: docs/checkout-review.md
+  phrase: 'fromCents('
+- file: docs/checkout-review.md
+  heading: Dates
+  phrase: integers in minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/money-review.md", "heading": null, "phrase": null }, "reason": "file not found: docs/money-review.md"
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Money", "phrase": null }, "reason": "heading not found: \"Money\""
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "fromCents(" }, "reason": "phrase not found: \"fromCents(\""
+    },
+    {
+      "name": "source-missing", "level": "error", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": "integers in minor units" }, "reason": "phrase not found: \"integers in minor units\""
+    }
+  ],
+  "summary": { "counts": { "source-missing": 4 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+Two headings match `Refunds`. The first is used, and the record holds
+its section's fingerprint, so `ambiguous-heading` is the only finding:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="refunds-to-original-method" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Refunds
+</source>
+A refund goes back to the payment method that paid.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Cards
+
+### Refunds
+
+A card refund goes back to the card.
+
+## Vouchers
+
+### Refunds
+
+A voucher refund becomes store credit.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"refunds-to-original-method","file":"docs/checkout-review.md","heading":"Refunds","phrase":null,"reviewed":"2026-11-02","hash":"0c8764b902fc"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "ambiguous-heading", "level": "warn", "rule": "refunds-to-original-method", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Refunds", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "ambiguous-heading": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+The root sets an age limit of 30 days, and `apps/web/` sets 400. On
+2026-11-12 a review from 2026-10-13 is 30 days old, which is not older
+than the limit, and one from 2026-10-12 is overdue. The rule under
+`apps/web/` takes the nearer limit:
+
+``````example audit
+=== .loreconfig
+audit:
+  maxAgeDays: 30
+=== apps/web/.loreconfig
+audit:
+  maxAgeDays: 400
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-10-12","hash":"d7fc8675e774"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-10-13","hash":"9f413384c605"}
+{"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-01-01","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "review-overdue", "level": "warn", "rule": "dates-from-locale", "file": ".lore/checkout.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "review-overdue": 1 }, "rulesWithSource": 3, "rulesWithoutSource": 0 }
+}
+``````
+
+The root lock file holds records for a source `money-in-minor-units`
+no longer has, for a rule that no longer exists, and for
+`totals-from-quote`, whose Lore root is `apps/api/` and whose records
+are in that root's lock file. Each is `orphan-review` at the level the
+root's directory sets, though `apps/web/` turns it off. The record of
+`dates-from-locale` is kept, because an error excludes that rule:
+
+``````example audit
+=== .loreconfig
+audit:
+  levels:
+    orphan-review: error
+=== apps/web/.loreconfig
+audit:
+  levels:
+    orphan-review: off
+=== apps/web/.lore/web.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== .lore/checkout.lore
+<rule id="dates-from-locale" category="functional_correctness" severity="fatal">
+<source>
+file: docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== apps/api/.loreconfig
+root: true
+=== apps/api/.lore/api.lore
+<rule id="totals-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+Order totals come from the quote.
+</rule>
+=== apps/api/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"totals-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":"integers in minor units","reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"totals-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "orphan-review", "level": "error", "rule": "money-in-minor-units", "file": "lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": "Dates", "phrase": null }, "reason": null
+    },
+    {
+      "name": "orphan-review", "level": "error", "rule": "price-from-quote", "file": "lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": "integers in minor units" }, "reason": null
+    },
+    {
+      "name": "orphan-review", "level": "error", "rule": "totals-from-quote", "file": "lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "orphan-review": 3 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+An error that hides rules keeps every record of the lock file that
+covers them. `.lore/refunds.lore` breaks off in its opening tag, so it
+is excluded, and no record of the root lock file is reported: not that
+of `refunds-to-original-method`, which may be the file's, and not even
+that of `price-from-quote`. In the team repository,
+`lore/shop/apps/checkout/` is marked below the shop's marked directory,
+so it is `nested-repo`. Its own lock file covers nothing collected, and
+the tool does not read it. Without the key, `lore/shop/`'s lock file
+would cover the rules below it, so that lock file is not judged either:
+the record of `checkout-refunds-logged` there, from before the
+directory was marked, is kept until the key is removed:
+
+``````example audit
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
+<source>
+file: docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+=== .lore/refunds.lore
+<rule id="refunds-to-original-method" category="functional_correctness"
+=== lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"refunds-to-original-method","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/.loreconfig
+root: true
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/.lore/shared.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== external:lore/shop/apps/checkout/.loreconfig
+repo: github.com/acme/checkout
+=== external:lore/shop/apps/checkout/.lore/refunds.lore
+<rule id="checkout-refunds-logged" category="observability">
+<source>
+file: /docs/checkout-review.md
+</source>
+Every refund is logged with the order it refunds.
+</rule>
+=== external:lore/shop/apps/checkout/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"checkout-refunds-logged","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/shop/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"checkout-refunds-logged","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+The team repository audits its own rules as the governed repo. Each
+marked directory is `repo-inside-repo` there, and holds rules this run
+does not collect, but those rules are covered by the marked
+directories' own lock files. So the Lore root's lock file covers only
+`lore/own/`, which the run collects whole, and the record of
+`release-notes-written`, which no longer exists, is an orphan:
+
+``````example audit
+=== remote
+https://github.com/acme/team
+=== lore/.loreconfig
+root: true
+=== lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== lore/shop/.lore/shared.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== lore/shop/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+=== lore/own/.lore/team.lore
+<rule id="handbook-reviewed" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+The review handbook is read before each release.
+</rule>
+=== lore/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"handbook-reviewed","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"release-notes-written","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "orphan-review", "level": "warn", "rule": "release-notes-written", "file": "lore/lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "orphan-review": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+`meta-source` is off unless a `.loreconfig` turns it on. Here the root
+turns it on and turns `never-reviewed` off. `price-from-quote` has a
+`<source>`, so its `source` key in `<meta>` is not reported:
+
+``````example audit
+=== .loreconfig
+audit:
+  levels:
+    meta-source: warn
+    never-reviewed: off
+=== .lore/checkout.lore
+<rule id="money-in-minor-units" category="functional_correctness">
+<meta>
+source: https://wiki.example.com/checkout/money
+</meta>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="price-from-quote" category="functional_correctness">
+<meta>
+source: docs/decisions/0042-quote-prices.md
+</meta>
+<source>
+file: docs/decisions/0042-quote-prices.md
+</source>
+A displayed price must come from the quote that produced it.
+</rule>
+=== docs/decisions/0042-quote-prices.md
+# 42. Prices come from quotes
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "meta-source", "level": "warn", "rule": "money-in-minor-units", "file": ".lore/checkout.lore",
+      "source": null, "reason": null
+    }
+  ],
+  "summary": { "counts": { "meta-source": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 1 }
+}
+``````
+
 ## Error reach
 
 An error reaches as far as it must and no further, and is never silent.
@@ -4907,8 +7274,9 @@ These are always entry-level:
   file block takes no attributes, so its first one is
   `unknown-attribute`);
 - `unknown-child`, `duplicate-child`, `invalid-meta`, `invalid-when`,
-  `empty-when`, `unknown-condition`, `regex-not-one-line` and
-  `regex-outside-dialect`, in an entry's children;
+  `empty-when`, `unknown-condition`, `invalid-source`,
+  `regex-not-one-line` and `regex-outside-dialect`, in an entry's
+  children;
 - `duplicate-id`, across files.
 
 These are file-level in a file block (`<defaults>` or the file's
@@ -5015,6 +7383,7 @@ a mapping whose keys are all optional:
 | `loose` | `true` or `false` | `true` in the `.loreconfig` at the root of a loose folder says the folder is meant to be loose (see [External folders](#external-folders)). Without it, `false`. |
 | `categories` | A list of categories | Categories declared for this directory and below (see [Categories](#categories)). |
 | `disable` | A list of ids | Entries switched off for changed files in this directory and below (see [Disable](#disable)). |
+| `audit` | A mapping | The age limit and finding levels that audits use for this directory and below (see [Audit settings](#audit-settings)). |
 
 An empty `.loreconfig`, or one that holds only comments, is an empty
 mapping and sets nothing. The shape is also given as
@@ -5332,6 +7701,112 @@ M apps/web/src/checkout/Price.tsx
 }
 ``````
 
+### Audit settings
+
+`audit` sets how a tool that audits sources reports its findings for a
+directory and below. It is a mapping with two optional keys:
+
+- `maxAgeDays`: a positive integer, the number of days after which a
+  review is overdue. Without it, no age limit is set.
+- `levels`: a mapping from a finding name to a level. A level is
+  `error`, `warn` or `off`. The finding names, and the level each has
+  when nothing sets it, are:
+
+| Finding | Default level |
+|---|---|
+| `source-missing` | `error` |
+| `source-unchecked` | `error` |
+| `ambiguous-heading` | `warn` |
+| `source-changed` | `warn` |
+| `never-reviewed` | `warn` |
+| `review-overdue` | `warn` |
+| `orphan-review` | `warn` |
+| `meta-source` | `off` |
+
+Anything else under `audit` is `invalid-loreconfig`: a key other than
+those two, a `maxAgeDays` that is not a positive integer, a `levels`
+that is not a mapping, a finding name not in the table, or a level not
+named above. The problem is reported at the line of the `audit` key.
+
+Each setting is looked up on its own. `maxAgeDays`, and the level of
+each finding, takes its value from the nearest `.loreconfig` that sets
+it, on the way up from a directory to its Lore root (see
+[Lore root](#lore-root)); a setting that none sets has its default. A
+`.loreconfig` above the Lore root is not consulted. A finding that
+belongs to no rule takes the settings of the directory that holds its
+lock file (see [The lock file](#the-lock-file)).
+
+The root `.loreconfig` sets an age limit and turns one finding off.
+`apps/web/` raises one finding to an error and leaves the rest as the
+root set them:
+
+``````example parse
+=== .loreconfig
+audit:
+  maxAgeDays: 180
+  levels:
+    never-reviewed: off
+=== apps/web/.loreconfig
+audit:
+  levels:
+    source-changed: error
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null,
+      "sources": []
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}
+``````
+
+A level that is not `error`, `warn` or `off` makes the whole
+`.loreconfig` invalid. It is ignored and reported at the `audit` line:
+
+``````example parse
+=== .loreconfig
+lore: 1
+audit:
+  levels:
+    source-changed: fatal
+=== .lore/checkout.lore
+<rule id="price-from-quote" category="functional_correctness">
+A displayed price must come from the quote that produced it.
+</rule>
+=== expect
+{
+  "entries": [
+    {
+      "kind": "rule", "id": "price-from-quote", "file": ".lore/checkout.lore",
+      "category": "functional_correctness", "severity": "advisory", "disabled": false,
+      "scopes": [{ "files": ["**"], "ignores": [] }],
+      "when": null, "checks": [], "meta": null,
+      "summary": "A displayed price must come from the quote that produced it.",
+      "prose": "A displayed price must come from the quote that produced it.",
+      "src": null,
+      "sources": []
+    }
+  ],
+  "errors": [
+    { "name": "invalid-loreconfig", "file": ".loreconfig", "entry": null, "line": 2 }
+  ],
+  "warnings": []
+}
+``````
+
 ## External folders
 
 A team MAY keep Lore outside the repository it governs, for example in
@@ -5604,7 +8079,8 @@ A price the checkout displays comes from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "A price the checkout displays comes from the quote that produced it.",
       "prose": "A price the checkout displays comes from the quote that produced it.",
-      "src": null
+      "src": null,
+      "sources": []
     },
     {
       "kind": "context", "id": "web-architecture", "file": "external:lore/shop/apps/web/.lore/web.lore",
@@ -5613,7 +8089,8 @@ A price the checkout displays comes from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "",
       "prose": "",
-      "src": "apps/web/docs/architecture.md"
+      "src": "apps/web/docs/architecture.md",
+      "sources": []
     },
     {
       "kind": "context", "id": "review-handbook", "file": "external:lore/shop/apps/web/.lore/web.lore",
@@ -5622,7 +8099,8 @@ A price the checkout displays comes from the quote that produced it.
       "when": null, "checks": [], "meta": null,
       "summary": "",
       "prose": "",
-      "src": "external:lore/handbook.md"
+      "src": "external:lore/handbook.md",
+      "sources": []
     }
   ],
   "errors": [],
@@ -6026,9 +8504,11 @@ folder has `loose:` before its path from that folder (see
 repository the file is in, so a tool given folders of two repositories
 can list two different files with the same `file`. This version of the
 format does not tell them apart. Every other path in either output
-(globs in `scopes`, plain `src` values and hits) names a path in the
-governed repo, apart from a file-relative `src` in an external folder
-(see [Context](#context)).
+(globs in `scopes`, plain `src` values, each `file` in `sources`, and
+hits) names a path in the governed repo, apart from a file-relative
+`src` in an external folder (see [Context](#context)) and a `sources`
+`file` that has the `external:` or `loose:` prefix (see
+[File paths](#file-paths)).
 
 ### Entry fields
 
@@ -6047,6 +8527,7 @@ governed repo, apart from a file-relative `src` in an external folder
 | `summary` | The first paragraph of the prose (see [Entries](#entries)). |
 | `prose` | The entry's prose, which for a context is its body (see [Entries](#entries)). |
 | `src` | A context's resolved `src`, or null when it has none (see [Context](#context)). Always null for a rule. |
+| `sources` | Each item of a rule's `<source>`, in the order written, as an object with `file`, `heading` and `phrase`: `file` resolved, and `heading` and `phrase` as written or null when absent (see [Sources](#sources)). `[]` for a rule without `<source>`, and always `[]` for a context. |
 
 ### Diagnostics
 
@@ -6091,6 +8572,7 @@ given as [`errors.json`](errors.json).
 | `invalid-scope` | error | A scope block fails its schema. |
 | `invalid-when` | error | A when block fails its schema. |
 | `invalid-meta` | error | A meta block is not a mapping. |
+| `invalid-source` | error | A source block fails its schema. |
 | `missing-id` | error | An entry has no id attribute. |
 | `invalid-id` | error | An id does not match the id pattern. |
 | `unknown-attribute` | error | An element carries an attribute it does not define. |
@@ -6148,6 +8630,9 @@ version of this specification it follows. It reads, in full:
 4. Report each selected `<rule>` by id as pass, fail or not applicable, with
    evidence such as a file and line. Treat a `<check>` as a hint, not a verdict.
 5. Never invent rules from prose outside `.lore` files.
+6. When you write a rule from a document, name it in a `<source>`: its `file`,
+   and a `heading` or `phrase` when it has one. CI can run `lore audit` to flag
+   a source that has moved or changed.
 ```
 
 An agent that follows these steps selects rules by reading them, so it
@@ -6176,3 +8661,9 @@ be wrapped and scoped first and classified later.
 **Agents.** Paste [`AGENT.md`](AGENT.md), heading included, into the
 instruction file your agents read: `AGENTS.md` at the repository root, or
 the file a particular agent reads instead.
+
+**Sources.** Cite the document a rule was written from in its
+`<source>`, and run `lore audit` in CI. It reports a source that no
+longer resolves, and one whose text changed since the rule was last
+reviewed (see [Sources](#sources) and
+[Auditing sources](#auditing-sources)).

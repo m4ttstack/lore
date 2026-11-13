@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { extractExamples } from "../../../tools/check/extract";
-import { collect, disabledFor } from "../src/collect";
+import { auditSettingsFor, collect, disabledFor } from "../src/collect";
+import { DEFAULT_LEVELS } from "../src/loreconfig";
 import { FIXED_CATEGORIES } from "../src/blocks";
 import { parse, parseWithContext } from "../src/model";
 import type { InputFile, LoreInput } from "../src/types";
@@ -114,7 +115,7 @@ describe("collect", () => {
   });
 
   test("an external file's base is the directory it stands for, its Lore root is in its own repository", () => {
-    const collected = collect(toInput(example(102)));
+    const collected = collect(toInput(example(139)));
     expect(collected.files).toEqual([
       expect.objectContaining({
         file: "external:lore/shop/apps/web/.lore/web.lore", base: "apps/web", loreRoot: "lore", tree: 0,
@@ -124,7 +125,7 @@ describe("collect", () => {
   });
 
   test("categories add down the tree and never come from beside or below", () => {
-    const collected = collect(toInput(example(94)));
+    const collected = collect(toInput(example(129)));
     const categories = Object.fromEntries(collected.files.map((f) => [f.file, f.categories.filter((c) => !FIXED_CATEGORIES.has(c))]));
     expect(categories).toEqual({
       ".lore/shop.lore": ["data_provenance"],
@@ -134,7 +135,7 @@ describe("collect", () => {
   });
 
   test("a root: true stops the lookup", () => {
-    const collected = collect(toInput(example(93)));
+    const collected = collect(toInput(example(128)));
     expect(collected.files.map((f) => [f.file, f.loreRoot])).toEqual([
       [".lore/shop.lore", ""],
       ["apps/web/.lore/web.lore", "apps/web"],
@@ -266,13 +267,13 @@ describe("the document model of every eligibility example", () => {
 
 describe("disabledFor", () => {
   test("a governed disable list switches an entry off below its directory only", () => {
-    const collected = collect(toInput(example(95)));
+    const collected = collect(toInput(example(130)));
     expect(disabledFor(collected, "currency-from-settings", "apps/web/src/legacy/Price.tsx", "repo")).toBe(true);
     expect(disabledFor(collected, "currency-from-settings", "apps/web/src/checkout/Total.tsx", "repo")).toBe(false);
   });
 
   test("a governed list switches off an external entry, an external list never a governed one", () => {
-    const collected = collect(toInput(example(106)));
+    const collected = collect(toInput(example(143)));
     expect(disabledFor(collected, "shared-currency-from-settings", "apps/web/src/checkout/Price.tsx", 0)).toBe(true);
     expect(disabledFor(collected, "shared-currency-from-settings", "apps/api/orders.ts", 0)).toBe(false);
     expect(disabledFor(collected, "currency-from-settings", "apps/web/src/checkout/Price.tsx", "repo")).toBe(false);
@@ -296,9 +297,57 @@ describe("disabledFor", () => {
   });
 });
 
+describe("auditSettingsFor", () => {
+  const settings = (files: InputFile[], dir: string, loreRoot = "") =>
+    auditSettingsFor(collect({ repo: files, given: [], remotes: [REMOTE] }), dir, "repo", loreRoot);
+
+  test("each setting comes from the nearest config that sets it", () => {
+    const files = [
+      { path: ".loreconfig", content: "audit:\n  maxAgeDays: 180\n  levels:\n    never-reviewed: off\n" },
+      { path: "apps/web/.loreconfig", content: "audit:\n  levels:\n    source-changed: error\n" },
+    ];
+    expect(settings(files, "apps/web")).toEqual({
+      maxAgeDays: 180,
+      levels: { ...DEFAULT_LEVELS, "never-reviewed": "off", "source-changed": "error" },
+    });
+    expect(settings(files, "apps/api")).toEqual({
+      maxAgeDays: 180,
+      levels: { ...DEFAULT_LEVELS, "never-reviewed": "off" },
+    });
+  });
+
+  test("a nearer config overrides a farther one", () => {
+    const files = [
+      { path: ".loreconfig", content: "audit:\n  maxAgeDays: 180\n  levels:\n    source-changed: error\n" },
+      { path: "apps/web/.loreconfig", content: "audit:\n  maxAgeDays: 30\n  levels:\n    source-changed: off\n" },
+    ];
+    expect(settings(files, "apps/web")).toMatchObject({ maxAgeDays: 30, levels: { "source-changed": "off" } });
+  });
+
+  test("with no config, the defaults hold and no age limit is set", () => {
+    expect(settings([], "apps/web")).toEqual({ maxAgeDays: null, levels: DEFAULT_LEVELS });
+  });
+
+  test("a config above the Lore root is not consulted", () => {
+    const files = [
+      { path: ".loreconfig", content: "audit:\n  maxAgeDays: 180\n  levels:\n    never-reviewed: off\n" },
+      { path: "apps/web/.loreconfig", content: "root: true\naudit:\n  levels:\n    source-changed: error\n" },
+    ];
+    expect(settings(files, "apps/web/src", "apps/web")).toEqual({
+      maxAgeDays: null,
+      levels: { ...DEFAULT_LEVELS, "source-changed": "error" },
+    });
+  });
+
+  test("an ignored config sets nothing", () => {
+    const files = [{ path: ".loreconfig", content: "audit:\n  maxAgeDays: 0\n" }];
+    expect(settings(files, "")).toEqual({ maxAgeDays: null, levels: DEFAULT_LEVELS });
+  });
+});
+
 describe("parseWithContext", () => {
   test("keeps each entry's base, external ones included", () => {
-    const { model, placeOf } = parseWithContext(toInput(example(102)));
+    const { model, placeOf } = parseWithContext(toInput(example(139)));
     expect(model.entries.map((e) => ({ base: placeOf.get(e)!.base, tree: placeOf.get(e)!.tree }))).toEqual([
       { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 }, { base: "apps/web", tree: 0 },
     ]);

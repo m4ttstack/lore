@@ -1,3 +1,15 @@
-<rule id="checkout-render-budget" category="web_vitals">
-The checkout page shows its first price within the page's time budget.
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: Money
+- file: docs/checkout-review.md
+  heading: Dates
+- file: docs/checkout-review.md
+  heading: Rounding
+- file: docs/checkout-review.md
+  heading: Subtotal
+- file: docs/checkout-review.md
+  heading: Totals
+</source>
+Amounts are integers in minor units (cents).
 </rule>

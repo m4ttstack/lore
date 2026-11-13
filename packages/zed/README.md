@@ -1,9 +1,9 @@
 # Lore for Zed
 
 A Zed extension for `.lore` files: highlighting from the tree-sitter grammar
-in `packages/tree-sitter-lore` (YAML inside `<defaults>`, `<scope>`, `<when>`
-and `<meta>`, Markdown in prose), and diagnostics, completion and hover from
-the Lore language server.
+in `packages/tree-sitter-lore` (YAML inside `<defaults>`, `<scope>`, `<when>`,
+`<meta>` and `<source>`, Markdown in prose), and diagnostics, completion and
+hover from the Lore language server.
 
 The server attaches only to Lore and YAML buffers in Zed, so source files do
 not get the could-apply lens that VS Code shows, and whether Zed displays the

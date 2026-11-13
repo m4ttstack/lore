@@ -6,8 +6,8 @@ A language server for Lore. It reports the parser's errors and warnings for ever
 
 ## Authoring help
 
-- Completion: tags at column 0 and inside entries, attribute names per element, the categories in effect for the file (the fixed ones plus those a `.loreconfig` adds), `blocking` and `advisory`, `regex` and `ast-grep`, `<when>` keys, and known ids inside a `.loreconfig` `disable` list.
-- Hover: the registry description of an error or warning under the cursor; a one-sentence text for each tag, attribute and `<when>` key; an entry's resolved scope on its opening tag.
+- Completion: tags at column 0 and inside entries, attribute names per element, the categories in effect for the file (the fixed ones plus those a `.loreconfig` adds), `blocking` and `advisory`, `regex` and `ast-grep`, `<when>` keys, `<source>` keys, and known ids inside a `.loreconfig` `disable` list.
+- Hover: the registry description of an error or warning under the cursor; a one-sentence text for each tag, attribute, `<when>` key and `<source>` key; an entry's resolved scope on its opening tag.
 
 ## Which rules could apply
 

@@ -1,11 +1,15 @@
-<scope>
-files: ["**/*.{ts,tsx"]
-</scope>
-
-<rule id="currency-from-settings" category="functional_correctness">
-Display text never hard-codes a currency code.
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+file: apps/web/src/checkout/price.ts
+heading: Prices
+</source>
+A displayed price must come from the quote that produced it.
 </rule>
 
-<rule id="dates-from-locale">
-Displayed dates are formatted with the shop's locale.
+<rule id="quote-total-shown" category="functional_correctness">
+<source>
+file: apps/web/src/checkout/price.ts
+phrase: quote.total
+</source>
+The checkout page shows the quote's total.
 </rule>

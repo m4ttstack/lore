@@ -1,15 +1,19 @@
 import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import { RegexLimitError, parseWithContext, selectDetailed } from "@lore/parser";
+import {
+  RegexLimitError, audit, compareDiagnostics, missingSrcTargets, parseWithContext, selectDetailed, type Diagnostic, type ParsedInput,
+} from "@lore/parser";
 import pkg from "../package.json";
-import { parseCommand, type CheckCommand, type SelectCommand, type VerdictsCommand } from "./args";
+import { parseCommand, type AuditCommand, type CheckCommand, type ReviewCommand, type SelectCommand, type VerdictsCommand } from "./args";
+import { loadLocks, renderAudit, unjudgedLines, withheldLocks } from "./audit";
 import { changeDiff, type ChangeSource } from "./change";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
 import { GitMissingError } from "./git";
-import { buildInput, findRepoRoot, unreadWarnings } from "./input";
+import { buildInput, findRepoRoot, unreadWarnings, type BuiltInput } from "./input";
+import { review } from "./review";
 import { entrySources, toSelection } from "./selection";
-import { excludedLines, renderText } from "./text";
+import { excludedLines, renderText, warningLines } from "./text";
 import { checkVerdicts, readSelection } from "./verdicts";
 
 export interface IO {
@@ -17,42 +21,58 @@ export interface IO {
   stdout: (text: string) => void;
   stderr: (text: string) => void;
   isTTY: boolean;
+  // The local date, YYYY-MM-DD.
+  today: () => string;
 }
 
 const HELP = `Usage:
   lore select [rules] --diff <file|-> [options]
   lore check [<commit> | --base <ref>] [rules] [options]
   lore verdicts --selection <file> [<verdicts-file> | -]
+  lore audit [rules] [options]
+  lore review (<id>... | --file <lore-file>... | --prune) [--date <YYYY-MM-DD>] [--repo <dir>] [--given <dir>]...
   lore --help
   lore --version
 
 Rules:
-  --repo <dir>           The governed repo's working tree (default: the git root above the current directory)
-  --no-repo              Take the governed repo to hold no Lore files; needs --remote
-  --remote <url>         The governed repo's remote, for matching "repo" (repeatable; default: read from git)
-  --rules-ref <ref>      Read the repo's Lore files at this git ref instead of the working tree
-  --given <dir>          A given folder (repeatable)
+  --repo <dir>               The governed repo's working tree (default: the git root above the current directory)
+  --no-repo                  Take the governed repo to hold no Lore files; needs --remote
+  --remote <url>             The governed repo's remote, for matching "repo" (repeatable; default: read from git)
+  --rules-ref <ref>          Read the repo's Lore files at this git ref instead of the working tree; lore audit also reads lock files and cited files there
+  --given <dir>              A given folder (repeatable)
 
 Change:
-  --diff <file|->        A unified diff, or - for stdin (lore select)
-  <commit>               The commit lore check reads the change from (default: uncommitted work, untracked files included)
-  --base <ref>           lore check: compare with the merge base of <ref> and HEAD (the branch so far)
+  --diff <file|->            A unified diff, or - for stdin (lore select)
+  <commit>                   The commit lore check reads the change from (default: uncommitted work, untracked files included)
+  --base <ref>               lore check: compare with the merge base of <ref> and HEAD (the branch so far)
 
 Output:
-  --format text|json     Default: text for lore check; for lore select, text on a terminal, json otherwise
-  --capabilities <list>  Checks to run, default regex,ast-grep
-  --strict               Exit 1 when the rules have errors that excluded entries
-  --also-in-scope        List rules whose scope covers a changed file but whose conditions did not hold
-  --expand <id>          Print one of those rules in full (repeatable; it then needs a verdict)
+  --format text|json         Default: text for lore check and lore audit; for lore select, text on a terminal, json otherwise
+  --capabilities <list>      Checks to run, default regex,ast-grep
+  --strict                   Exit 1 when the rules have errors that excluded entries
+  --also-in-scope            List rules whose scope covers a changed file but whose conditions did not hold
+  --expand <id>              Print one of those rules in full (repeatable; it then needs a verdict)
 
 Verdicts:
-  --selection <file>     The JSON from lore select
-  <verdicts-file>        A verdict set, or - for stdin (default)
+  --selection <file>         The JSON from lore select
+  <verdicts-file>            A verdict set, or - for stdin (default)
+
+Audit:
+  --max-age <days>           Report a review older than this many days (overrides .loreconfig)
+  --level <finding>=<level>  Set a finding's level: error, warn or off (repeatable; overrides .loreconfig)
+
+Review:
+  <id>                       A rule you compared with its sources; its records are written (repeatable)
+  --file <lore-file>         Every rule with a source in this Lore file, named as lore audit prints it (repeatable)
+  --prune                    Remove records whose rule or source no longer exists; no other run removes another rule's records
+  --date <YYYY-MM-DD>        The date to record (default: today)
 
 Exit codes:
   lore select    0 the selection ran, 1 --strict was given and entries were excluded
   lore check     0 the check ran, 1 --strict was given and entries were excluded
   lore verdicts  0 the verdicts have no problems, 1 the verdicts have problems
+  lore audit     0 no finding at level error, 1 a finding at level error, or --strict and entries were excluded
+  lore review    0 every named rule was written, 1 a rule was refused because a source does not resolve
   all            2 usage or input error, 70 internal error
 `;
 
@@ -72,6 +92,10 @@ export async function run(argv: string[], io: IO): Promise<number> {
         return await runSelect(command, io);
       case "check":
         return await runCheck(command, io);
+      case "audit":
+        return await runAudit(command, io);
+      case "review":
+        return await runReview(command, io);
     }
   } catch (error) {
     if (error instanceof UsageError || error instanceof InputError || error instanceof RegexLimitError) {
@@ -135,6 +159,44 @@ async function selectChange(command: SelectCommand | CheckCommand, io: IO, sourc
   return command.strict && selection.excluded.length > 0 ? 1 : 0;
 }
 
+async function runAudit(command: AuditCommand, io: IO): Promise<number> {
+  const built = await buildInput({ repo: governedRepo(command), rulesRef: command.rulesRef, given: command.given, remotes: command.remotes });
+  const parsed = parseWithContext(built.input);
+  const result = audit(parsed, {
+    today: io.today(),
+    readSource: (place, file) => built.readSourceContent(place, file, parsed.collected),
+    locks: loadLocks(parsed, (ref) => built.readLock(ref, parsed.collected)),
+    ...(command.maxAge === null ? {} : { maxAgeDays: command.maxAge }),
+    levels: command.levels,
+    withheld: withheldLocks(parsed, built),
+  });
+  const warnings = rulesWarnings(built, parsed);
+  if (command.format === "json") io.stdout(`${JSON.stringify({ ...result, warnings }, null, 2)}\n`);
+  else {
+    io.stderr(excludedLines(result) + warningLines(warnings) + unjudgedLines(result));
+    io.stdout(renderAudit(result));
+  }
+  const failed = result.findings.some((finding) => finding.level === "error") || (command.strict && result.excluded.length > 0);
+  return failed ? 1 : 0;
+}
+
+async function runReview(command: ReviewCommand, io: IO): Promise<number> {
+  const repo = governedRepo({ repo: command.repo, noRepo: false });
+  const built = await buildInput({ repo, rulesRef: null, given: command.given, remotes: [], untrackedLore: true });
+  const parsed = parseWithContext(built.input);
+  const result = review(parsed, built, command, command.date ?? io.today());
+  io.stderr(excludedLines({ excluded: parsed.model.errors }) + warningLines(rulesWarnings(built, parsed)) + result.err);
+  io.stdout(result.out);
+  return result.refused ? 1 : 0;
+}
+
+// The warnings lore select gives for the same rules that do not depend on a change.
+function rulesWarnings(built: BuiltInput, parsed: ParsedInput): Diagnostic[] {
+  return [
+    ...parsed.model.warnings, ...missingSrcTargets(built.input, parsed.model), ...unreadWarnings(built.unread, parsed.collected),
+  ].sort(compareDiagnostics);
+}
+
 async function runVerdicts(command: VerdictsCommand, io: IO): Promise<number> {
   const selection = readSelection(await readJson(command.selection, "selection", io));
   const problems = checkVerdicts(selection, await readJson(command.verdicts, "verdicts", io));
@@ -159,7 +221,7 @@ async function readJson(source: string, what: string, io: IO): Promise<unknown> 
   }
 }
 
-function governedRepo(command: SelectCommand): string | null {
+function governedRepo(command: Pick<SelectCommand, "repo" | "noRepo">): string | null {
   if (command.noRepo) return null;
   if (command.repo !== null) {
     const root = findRepoRoot(resolve(command.repo));
@@ -216,6 +278,12 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+function localDate(): string {
+  const now = new Date();
+  const two = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+}
+
 export async function main(argv: string[], io: IO): Promise<number> {
   try {
     return await run(argv, io);
@@ -231,6 +299,7 @@ if (require.main === module) {
     stdout: (text) => void process.stdout.write(text),
     stderr: (text) => void process.stderr.write(text),
     isTTY: process.stdout.isTTY === true,
+    today: localDate,
   }).then((code) => {
     process.exitCode = code;
   });

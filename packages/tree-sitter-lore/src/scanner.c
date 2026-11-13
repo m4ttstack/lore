@@ -276,7 +276,9 @@ static bool scan_top(Scanner *s, TSLexer *lexer, const bool *valid, Line *line) 
 }
 
 static enum TokenType child_body(const Name *child) {
-  if (name_is(child, "when") || name_is(child, "scope") || name_is(child, "meta")) return YAML_BODY;
+  if (name_is(child, "when") || name_is(child, "scope") || name_is(child, "meta") || name_is(child, "source")) {
+    return YAML_BODY;
+  }
   if (name_is(child, "check")) return CHECK_BODY;
   return TEXT;
 }

@@ -60,6 +60,11 @@
     "description": "A meta block is not a mapping."
   },
   {
+    "name": "invalid-source",
+    "kind": "error",
+    "description": "A source block fails its schema."
+  },
+  {
     "name": "missing-id",
     "kind": "error",
     "description": "An entry has no id attribute."

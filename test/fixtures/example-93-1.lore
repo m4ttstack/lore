@@ -1,7 +1,17 @@
-<rule id="price-source-recorded" category="data_provenance">
-Every stored price records the quote it came from.
+<rule id="price-from-quote" category="functional_correctness">
+<source>
+- file: docs/pricing-review.md
+- file: /docs/pricing-review.md
+</source>
+A displayed price must come from the quote that produced it.
 </rule>
 
-<context id="org-handbook" src="./../../handbook/review.md">
-Read for the organization's review conventions.
-</context>
+<rule id="currency-from-settings" category="functional_correctness">
+<source>
+- file: docs/currency-review.md
+  heading: Codes
+- file: docs/currency-review.md
+  heading: Symbols
+</source>
+Display text never hard-codes a currency code or symbol.
+</rule>

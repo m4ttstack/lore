@@ -33,6 +33,16 @@ test("when rejects an unknown key", () => invalid("when", 'diffContains: ["a"]')
 test("when rejects an empty mapping", () => invalid("when", "{}"));
 test("meta accepts any mapping", () => valid("meta", "source: x\nowner: y\nrefs: [1, 2]"));
 test("meta rejects a scalar", () => invalid("meta", "hello"));
+test("source accepts a mapping and a list of mappings", () => {
+  valid("source", "file: docs/review.md\nheading: Money\nphrase: minor units");
+  valid("source", "- file: /docs/review.md\n- file: ./money.ts\n  phrase: fromCents(");
+});
+test("source rejects an empty list, an unknown key and a missing file", () => {
+  invalid("source", "[]");
+  invalid("source", "file: docs/review.md\nsection: Money");
+  invalid("source", "heading: Money");
+});
+test("source rejects a heading on a file that is not Markdown", () => invalid("source", "file: src/money.ts\nheading: Money"));
 test("loreconfig accepts every key", () => valid("loreconfig", "lore: 1\nroot: true\nloose: true\nrepo: github.com/acme/shop\ncategories: [data_provenance]\ndisable: [currency-from-settings]"));
 test("loreconfig rejects loose: yes", () => invalid("loreconfig", "loose: yes"));
 test("loreconfig rejects lore: 2", () => invalid("loreconfig", "lore: 2"));
@@ -62,7 +72,7 @@ test("every registry entry has a unique kebab name", () => {
 const ruleEntry = {
   kind: "rule", id: "currency-from-settings", file: "lore/pricing.lore", category: "functional_correctness",
   severity: "blocking", disabled: false, scopes: [{ files: ["apps/web/**"], ignores: [] }], when: null,
-  checks: [], meta: null, summary: "Read currency from settings.", prose: "Read currency from settings.", src: null,
+  checks: [], meta: null, summary: "Read currency from settings.", prose: "Read currency from settings.", src: null, sources: [],
 };
 const model = (entry: object) => ({ entries: [entry], errors: [], warnings: [] });
 
@@ -107,3 +117,28 @@ test("eligibility hit takes side new or old", () => {
   expect(hit({ side: "new" })).toBe(true);
   expect(hit({ side: "removed" })).toBe(false);
 });
+
+const finding = {
+  name: "source-missing", level: "error", rule: "money-in-minor-units", file: ".lore/checkout.lore",
+  source: { file: "docs/review.md", heading: null, phrase: null }, reason: "file not found: docs/review.md",
+};
+const auditResult = (findings: object[], counts: object = {}) => ({ findings, summary: { counts, rulesWithSource: 1, rulesWithoutSource: 0 } });
+test("audit accepts findings and a summary", () =>
+  expect(checkJson("audit", auditResult([finding], { "source-missing": 1 }))).toBe(true));
+test("audit accepts a finding with no source", () =>
+  expect(checkJson("audit", auditResult([{ ...finding, name: "meta-source", level: "warn", source: null, reason: null }]))).toBe(true));
+test("audit accepts an orphan-review for any rule a lock file can hold", () => {
+  for (const rule of ["Money In Cents", "", "räkna_öre"]) {
+    const orphan = { ...finding, name: "orphan-review", level: "warn", rule, file: "lore-reviews.lock", reason: null };
+    expect(checkJson("audit", auditResult([orphan], { "orphan-review": 1 }))).toBe(true);
+  }
+});
+test("source rejects a heading on a file whose extension is Markdown only when lower-cased", () =>
+  invalid("source", "file: docs/NOTES.MD\nheading: Rounding"));
+test("audit rejects the off level, an unknown finding and a zero count", () => {
+  expect(checkJson("audit", auditResult([{ ...finding, level: "off" }]))).toBe(false);
+  expect(checkJson("audit", auditResult([{ ...finding, name: "source-gone" }]))).toBe(false);
+  expect(checkJson("audit", auditResult([], { "source-missing": 0 }))).toBe(false);
+});
+test("audit rejects members a tool adds to its own output", () =>
+  expect(checkJson("audit", { ...auditResult([]), excluded: [] })).toBe(false));

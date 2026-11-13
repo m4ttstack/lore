@@ -1,3 +1,45 @@
-<rule id="price-from-quote" category="functional_correctness" severity="blocking">
-The checkout page shows the price from the quote, never a recomputed one.
+<rule id="money-in-minor-units" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: money-is-integer-minor-units
+- file: docs/checkout-review.md
+  heading: Money is integer minor units
+</source>
+Amounts are integers in minor units (cents).
+</rule>
+
+<rule id="names-keep-case" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: Display casing (names, addresses)
+- file: docs/checkout-review.md
+  heading: Display casing
+</source>
+Names and addresses keep the case they were entered in.
+</rule>
+
+<rule id="subtotal-before-tax" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: étape-2-sous_total-ht
+</source>
+The subtotal is shown before tax.
+</rule>
+
+<rule id="discounts-before-tax" category="functional_correctness">
+<source>
+- file: docs/checkout-review.md
+  heading: remise-appliquée
+- file: docs/checkout-review.md
+  heading: remise-appliquée
+</source>
+A discount is applied before tax.
+</rule>
+
+<rule id="totals-with-taxes" category="functional_correctness">
+<source>
+file: docs/checkout-review.md
+heading: totalsand-taxes
+</source>
+A displayed total includes taxes.
 </rule>

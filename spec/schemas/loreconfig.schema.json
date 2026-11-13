@@ -20,6 +20,30 @@
     "disable": {
       "type": "array",
       "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxAgeDays": { "type": "integer", "minimum": 1 },
+        "levels": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "source-missing": { "$ref": "#/$defs/level" },
+            "source-unchecked": { "$ref": "#/$defs/level" },
+            "ambiguous-heading": { "$ref": "#/$defs/level" },
+            "source-changed": { "$ref": "#/$defs/level" },
+            "never-reviewed": { "$ref": "#/$defs/level" },
+            "review-overdue": { "$ref": "#/$defs/level" },
+            "orphan-review": { "$ref": "#/$defs/level" },
+            "meta-source": { "$ref": "#/$defs/level" }
+          }
+        }
+      }
     }
+  },
+  "$defs": {
+    "level": { "enum": ["error", "warn", "off"] }
   }
 }
