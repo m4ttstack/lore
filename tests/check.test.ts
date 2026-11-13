@@ -429,6 +429,27 @@ test("unknown-source: a finding's source is one its rule has, or for orphan-revi
   expect(rules(withAudit(auditExpect([orphan("gone-rule")], { "orphan-review": 1 }), spaced))).toEqual([]);
 });
 
+test("unknown-entry and unknown-source: rules and sources are read as the parser reads them", () => {
+  const fence = "```";
+  const fenced = [
+    citing("c-rule"),
+    `<rule id="d-rule">\n<source>\nfile: docs/review.md\n</source>\nAn example:\n\n${fence}\n</rule>\n<rule id="e-rule">\n<source>\nfile: docs/review.md\n</source>\n${fence}\n</rule>`,
+  ].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule"), missing("d-rule")]), undefined, fenced))).toEqual([]);
+  expect(rules(withAudit(auditExpect([missing("c-rule"), missing("e-rule")]), undefined, fenced))).toEqual(["unknown-entry"]);
+  const indented = ['<rule id="c-rule">\n  <source>\n  file: docs/review.md\n  </source>\nProse.\n</rule>', citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), undefined, indented))).toEqual([]);
+  const commented = [citing("c-rule", "file: docs/review.md # the handbook"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), undefined, commented))).toEqual([]);
+  const headed = { ...missing("c-rule"), source: { file: "docs/review.md", heading: "Dates", phrase: null } };
+  const flow = [citing("c-rule", "[{ file: docs/notes.md }, { file: docs/review.md, heading: Dates }]"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([headed]), undefined, flow))).toEqual([]);
+  const json = [citing("c-rule", '{"file": "docs/review.md", "heading": "Dates"}'), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([headed]), undefined, json))).toEqual([]);
+  const block = [citing("c-rule", "file: docs/review.md\nheading: >-\n  Dates"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([headed]), undefined, block))).toEqual([]);
+});
+
 test("lock-file: every lock file of an audit example is well-formed", () => {
   expect(rules(withAudit(auditExpect([missing("c-rule")]), lockSection('{"rule":"gone-rule"}')))).toEqual(["lock-file"]);
   expect(rules(withAudit(auditExpect([missing("c-rule")]), lockSection(`{"rule":"gone-rule",${RECORD}}`)))).toEqual([]);

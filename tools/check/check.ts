@@ -1,5 +1,8 @@
 import Ajv from "ajv/dist/2020";
+import { dedentEntry } from "../../packages/parser/src/indent";
 import { LOCK_NAME, isRealDate, readReviews, type ReviewRecord } from "../../packages/parser/src/reviews";
+import { parseFile, readAttributes, type EntryNode } from "../../packages/parser/src/scan";
+import { readBlock } from "../../packages/parser/src/yaml";
 import { extractExamples, type Example } from "./extract";
 
 export interface Problem { rule: string; line: number; message: string }
@@ -225,7 +228,7 @@ function checkAudit(ex: Example, value: AuditExpected, names: string[], report: 
     if ("problem" in read) report("lock-file", `"${path}" is malformed at line ${read.line}: ${read.problem}`);
     else locks.set(path, read.records);
   }
-  const written = ex.files.filter((f) => f.path.endsWith(".lore")).map((f) => ({ path: f.path, rules: writtenRules(f.content) }));
+  const written = ex.files.filter((f) => f.path.endsWith(".lore")).map((f) => ({ path: f.path, rules: writtenRules(f.path, f.content) }));
   for (const { name, rule, file, source } of value.findings) {
     const own = ex.files.find((f) => f.path === file);
     if (own === undefined) {
@@ -267,56 +270,27 @@ function checkAudit(ex: Example, value: AuditExpected, names: string[], report: 
   }
 }
 
-// Each <rule> of a Lore file as written, ending at its </rule> or at the next entry, with the keys of its sources.
-function writtenRules(content: string): WrittenRule[] {
-  const rules: WrittenRule[] = [];
-  let tag: string[] | null = null;
-  let body: string[] | null = null;
-  const close = () => {
-    if (tag !== null && body !== null) rules.push({ id: /\bid="([^"]*)"/.exec(tag.join(" "))?.[1] ?? null, ...writtenSources(body) });
-    tag = body = null;
-  };
-  for (const line of content.split("\n")) {
-    if (/^<(rule|context)([ \t>]|$)/.test(line) || line.startsWith("</rule>")) {
-      close();
-      if (line.startsWith("<rule")) [tag, body] = [[line], line.includes(">") ? [] : null];
-    } else if (tag !== null && body === null) {
-      tag.push(line);
-      if (line.includes(">")) body = [];
-    } else body?.push(line);
-  }
-  close();
-  return rules;
+// Each rule of a Lore file as the parser scans it, with the keys of its sources as their blocks decode, before any
+// check or path resolution.
+function writtenRules(path: string, content: string): WrittenRule[] {
+  const lore = parseFile(path, content);
+  return lore.nodes
+    .filter((node): node is EntryNode => node.kind === "entry" && node.name === "rule")
+    .map((node) => {
+      const contents = dedentEntry(lore.text.lines, node);
+      const sources = node.children.flatMap((child, n) =>
+        child.name === "source" ? writtenSources(readBlock(contents.children[n]!.lines, child.openLine + 1, child.closeLine).value) : []);
+      const id = readAttributes(node.attributes.text).attributes.find((attribute) => attribute.name === "id")?.value ?? null;
+      return { id, sources, hasSource: node.children.some((child) => child.name === "source") };
+    });
 }
 
-function writtenSources(body: string[]): { sources: Partial<Cited>[]; hasSource: boolean } {
-  const sources: Partial<Cited>[] = [];
-  let open = false;
-  let hasSource = false;
-  for (const line of body) {
-    if (line.trimEnd() === "<source>") [open, hasSource] = [true, true];
-    else if (line.trimEnd() === "</source>") open = false;
-    else if (open) {
-      const pair = /^(- +)?[ \t]*(file|heading|phrase):[ \t]*(.*?)[ \t]*$/.exec(line);
-      if (pair === null) continue;
-      const [, item, key, text] = pair as unknown as [string, string | undefined, keyof Cited, string];
-      if (item !== undefined || sources.length === 0 || sources.at(-1)![key] !== undefined) sources.push({});
-      sources.at(-1)![key] = scalar(text);
-    }
-  }
-  return { sources, hasSource };
-}
-
-function scalar(text: string): string {
-  if (text.startsWith("'") && text.endsWith("'") && text.length > 1) return text.slice(1, -1).replaceAll("''", "'");
-  if (text.startsWith('"')) {
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
-  }
-  return text;
+function writtenSources(value: unknown): Partial<Cited>[] {
+  const text = (field: unknown) => (typeof field === "string" ? field : undefined);
+  return (Array.isArray(value) ? value : [value]).flatMap((item) => {
+    if (typeof item !== "object" || item === null || typeof item.file !== "string") return [];
+    return [{ file: item.file, heading: text(item.heading), phrase: text(item.phrase) }];
+  });
 }
 
 function sameWritten(cited: Partial<Cited>, source: Cited | null): boolean {
