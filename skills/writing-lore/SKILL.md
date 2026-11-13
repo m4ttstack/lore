@@ -102,9 +102,10 @@ Fill every slot of this shape:
 
 ```html
 <rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
-  <meta>
-    source: checkout-review#2-money-is-integer-minor-units
-  </meta>
+  <source>
+    file: ./checkout-review.md
+    heading: 2-money-is-integer-minor-units-blocking
+  </source>
   <when>
     addedContains: ["parseFloat(", "toFixed(", "Number("]
   </when>
@@ -123,10 +124,30 @@ Fill every slot of this shape:
 - **severity:** `blocking` or `advisory`. `[BLOCKING]` maps to blocking,
   `[NON-BLOCKING]` to advisory. A conditional source ("usually blocking")
   gets one value, and the choice goes in the conversion notes.
-- **meta `source`:** when converting, `<source document>#<heading slug>`,
-  so every rule traces to the prose it came from. When writing a rule
-  fresh, name the decision record or incident write-up that motivates it,
-  if there is one a reader can open.
+- **`<source>`:** the file the rule was written from, so `lore audit` can
+  tell when that text moves or changes. Never `source:` in `<meta>`: no
+  tool checks it.
+  - `file` (required) names one file. Add `heading` (only for a file
+    ending `.md`, `.mdx` or `.markdown`) or `phrase` (text in the file;
+    with a heading, inside its section). Several sources are a list of
+    such mappings in the one block. Rules only, never a context.
+  - `heading` is copied from the file as written, number, punctuation and
+    tags included, or given as that whole heading's slug. A shortened or
+    reworded heading does not resolve.
+  - `file` is a file every reader of the rules can open, never a path on
+    your machine or a URL. It resolves as a context's `src` does: `./` or
+    `../` from the folder holding the `.lore` file, a plain path from the
+    base, a leading `/` from the governed repo's root. In an external
+    folder, cite files of that folder with `./` or `../`: a leading `/`
+    names the loose folder while it is loose and the governed repo once it
+    is committed.
+  - The cited text must stay. When converting, the source loses its rules
+    (section 8), so keep one copy of it as converted in the rules folder
+    and cite that copy from every rule, with `../` from `.lore` folders
+    in other trees. Copies per folder drift apart. When writing a rule fresh, cite the decision record,
+    incident write-up or code that motivates it, if a reader can open one.
+  - Every tool that reads the rules needs lore 0.6.0 or later before a
+    rule uses `<source>`: an older one excludes the rule.
 - **First paragraph:** the requirement, as what the change must do, in one
   or two sentences. Tools show it as the rule's summary.
 - **The rest:** the stakes and the specifics a reviewer needs. Someone who
@@ -135,7 +156,8 @@ Fill every slot of this shape:
 - **Converting:** keep the source's wording. Change it only to drop what
   the reviewer cannot open (ticket and MR numbers, internal links), to turn
   a question heading into a requirement, or where the format forces it.
-  Every change goes in the conversion notes.
+  Every change goes in the conversion notes. The `<source>` `heading`
+  still names the heading as the source writes it, question and all.
 
 ## 5. Context entries
 
@@ -162,6 +184,10 @@ Then:
 - `--strict` exits 0: no entry was excluded for an error.
 - Read `--format text` once. It is exactly what the reviewer receives.
 - A verdict set answering every selected rule passes `lore verdicts`.
+- `lore audit` with the same rules flags reports no `invalid-source`, no
+  `source-missing` and no `source-unchecked`. `select` never reads a cited
+  file, so only `audit` finds a wrong path or heading, or a source it could
+  not read at all. `never-reviewed` on a new rule is expected.
 
 ## 7. Conversion notes
 
@@ -169,6 +195,13 @@ Keep a notes file beside the rules. For each batch: each rule id with its
 source heading; each instruction not converted and why (a step, a lint
 rule, a hand-off, a format gap); every wording and severity decision. Whoever
 reviews the batch reads it next to the rules.
+
+That reviewer records the review: after reading each rule against its
+source, they run `lore review --file <lore file>` and commit
+`lore-reviews.lock`. The command writes down a person's statement that
+they compared the two, so never run it yourself for rules you wrote;
+the notes say it is theirs to run. CI can then run `lore audit` to flag a
+source that has moved or changed.
 
 ## 8. After converting
 
@@ -186,7 +219,11 @@ Lore now holds: two copies drift apart.
 | A rule with no `<when>` at the repo root | scope it to where the slip happens, or record a gap |
 | `addedContains` and `addedMatches` in one `<when>` as alternatives | all alternatives in one `addedMatches` list (both conditions must hold) |
 | `removedContains` on a common construct, selected by every edit of such a line | `droppedContains`, when an edited line that keeps the construct is never the slip |
-| A rule with no `source` in `<meta>` | `source: <document>#<heading slug>` |
+| `source:` in `<meta>`, or a converted rule with no source | a `<source>` block with `file` and `heading` |
+| A `heading` shortened or reworded (`Money is integer minor units`) | the heading as written, number and tags included, or its slug; `lore audit` shows `source-missing` |
+| A source `file` on your machine, or a leading `/` in an external folder | a copy beside the rules, cited `./` |
+| Citing sections the conversion then deletes from the source | cite a copy of the source as converted |
+| Running `lore review` on rules you just wrote | the person who reads them against their sources runs it |
 | "This shipped once (!4120)" in the prose | the stakes without the reference the reviewer cannot open |
 | A procedure step written as a rule | leave it in the skill; convert only the end state |
 | A formatting or import rule a linter can decide | a lint rule |

@@ -46,3 +46,11 @@ No unrelated formatting changes; prettier runs in CI, so formatting is enforced 
 ## 8. Optional amounts keep their fallback `[BLOCKING]`
 
 A read of an optional amount (`quote.tax ?? 0`, `line.discount ?? 0`) keeps its `?? 0`. The slip is a cleanup that deletes the fallback, so a missing amount reaches the total as `undefined`. A line that is edited and still has its `?? 0` is fine.
+
+## 9. Does the page say when the quote expires? `[NON-BLOCKING]`
+
+A checkout page that shows a quoted price also shows when the quote expires (`quote.expiresAt`). Without it, a customer who comes back later is surprised by a new price at payment.
+
+---
+
+This skill is kept in the checkout team's skills repository, not in the storefront repo. Reviewers of the storefront do not all have a checkout of it.

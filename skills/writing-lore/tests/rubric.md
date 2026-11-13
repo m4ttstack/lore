@@ -15,7 +15,7 @@ Lore mechanics
 - C10 .loreconfig with repo: github.com/acme/storefront at the rules root.
 
 Fidelity
-- C11 meta records source: <skill>#<heading> (or equivalent traceability).
+- C11 Each rule traces to the section it came from, in a `<source>` block (see C21), and the conversion notes list each rule id with its source heading.
 - C12 [BLOCKING] -> blocking, [NON-BLOCKING] -> advisory; "usually BLOCKING" decided and flagged.
 - C13 Rule prose keeps the source's wording; stakes kept; references the reviewer cannot open (!4120) dropped or flagged.
 - C14 Each rule's prose is complete on its own (a reader without the skill can apply it).
@@ -33,3 +33,6 @@ Refactor round 1 (from GREEN runs)
 
 Refactor round 2 (dropped-line conditions)
 - C20 Item 8: the deleted fallback is a rule scoped inside what the source governs, with `droppedContains` (or `droppedMatches`) on the fallback, because an edited line that keeps its fallback is not the slip; not `removedContains`, which selects the rule on every such edit, and not an always-on rule.
+
+Refactor round 3 (sources)
+- C21 Every converted rule names where it came from in a `<source>` block, not `source:` in `<meta>`. Its `file` is a file every reader of the rules can open: the skill lives outside the storefront repo and keeps only its steps after the conversion, so a copy of it as converted is kept in the rules folder and cited file-relative (`./` or `../`), never a local path, a guessed storefront path or a leading `/` (which names the storefront root once the folder is in git). Its `heading` is the skill's heading as written, or that heading's slug, number and tag included (``2. Money is integer minor units `[BLOCKING]` ``, item 9 as the question it asks), so `LORE audit` on the folder reports no `invalid-source` or `source-missing`. The agent does not run `lore review`; the report leaves recording the review to the person who reads the rules against the copy.
