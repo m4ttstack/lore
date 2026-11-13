@@ -5,7 +5,7 @@ import {
 } from "@lore/parser";
 import pkg from "../package.json";
 import { parseCommand, type AuditCommand, type CheckCommand, type ReviewCommand, type SelectCommand, type VerdictsCommand } from "./args";
-import { loadLocks, renderAudit, withheldLocks } from "./audit";
+import { loadLocks, renderAudit, unjudgedLines, withheldLocks } from "./audit";
 import { changeDiff, type ChangeSource } from "./change";
 import { parseUnifiedDiff } from "./diff";
 import { InputError, UsageError } from "./errors";
@@ -64,7 +64,7 @@ Audit:
 Review:
   <id>                       A rule you compared with its sources; its records are written (repeatable)
   --file <lore-file>         Every rule with a source in this Lore file, named as lore audit prints it (repeatable)
-  --prune                    Only remove records whose rule or source no longer exists
+  --prune                    Remove records whose rule or source no longer exists; no other run removes any
   --date <YYYY-MM-DD>        The date to record (default: today)
 
 Exit codes:
@@ -173,7 +173,7 @@ async function runAudit(command: AuditCommand, io: IO): Promise<number> {
   const warnings = rulesWarnings(built, parsed);
   if (command.format === "json") io.stdout(`${JSON.stringify({ ...result, warnings }, null, 2)}\n`);
   else {
-    io.stderr(excludedLines(result) + warningLines(warnings));
+    io.stderr(excludedLines(result) + warningLines(warnings) + unjudgedLines(result));
     io.stdout(renderAudit(result));
   }
   const failed = result.findings.some((finding) => finding.level === "error") || (command.strict && result.excluded.length > 0);

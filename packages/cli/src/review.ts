@@ -12,7 +12,8 @@ import type { BuiltInput } from "./input";
 
 export interface Reviewed { out: string; err: string; refused: boolean }
 
-// Every usage error and every lock file is checked before anything is written.
+// Every usage error and every lock file is checked before anything is written. Only --prune deletes another rule's
+// record, and only where the run collected the lock file's whole Lore root.
 export function review(parsed: ParsedInput, built: BuiltInput, command: ReviewCommand, date: string): Reviewed {
   const { collected, placeOf } = parsed;
   const rules = namedRules(parsed, command);
@@ -57,17 +58,20 @@ export function review(parsed: ParsedInput, built: BuiltInput, command: ReviewCo
     out.push(`reviewed ${rule.id} (${count(records.length, "source", "sources")})\n`);
   }
 
-  const orphans = new Map(
-    orphanRecords(parsed, [...locks.values()], withheldLocks(parsed, built.unread))
-      .map(({ lock, records }) => [lockKey(lock), new Set(records.filter((record) => !refused.has(record.rule)))]),
-  );
+  const orphans = new Map<string, Set<ReviewRecord>>();
+  if (command.prune) {
+    for (const { lock, records, partial } of orphanRecords(parsed, [...locks.values()], withheldLocks(parsed, built.unread))) {
+      if (partial === null) orphans.set(lockKey(lock), new Set(records));
+      else err.push(`lore: not pruning ${lock.path}: its Lore root is not wholly collected (${partial})\n`);
+    }
+  }
   const writes: { ref: LockRef; text: string }[] = [];
   for (const key of new Set([...locks.keys(), ...fresh.keys()])) {
     const lock: LockFile | undefined = locks.get(key);
     const written = fresh.get(key);
     const ref = lock ?? written!.ref;
     const current = lock?.records ?? [];
-    const pruned = current.filter((record) => orphans.get(key)?.has(record) && !written?.rules.has(record.rule));
+    const pruned = current.filter((record) => orphans.get(key)?.has(record));
     const next = [...current.filter((record) => !orphans.get(key)?.has(record) && !written?.rules.has(record.rule)), ...(written?.records ?? [])];
     const text = writeReviews(next);
     if (lock === undefined ? next.length === 0 : text === writeReviews(current)) continue;

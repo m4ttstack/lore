@@ -130,7 +130,7 @@ It reads every rule collected for the governed repo and the given folders, disab
 
 - Cited files, Lore files and lock files are read as `lore select` reads its rules: tracked files only, from the working tree. An untracked or ignored cited file is `source-missing`. A tracked file the command cannot read safely (a symlink out of its place, a file outside a sparse-checkout cone) is `source-unchecked`.
 - A lock file is read only once git tracks it, so `git add` the file `lore review` writes before auditing.
-- A Lore or `.loreconfig` file the command could not read is warned `lore-file-not-read`, as in `lore select`, and the records in the lock file of its Lore root are not reported as `orphan-review`, since the rules they belong to may only be unread.
+- A Lore or `.loreconfig` file the command could not read is warned `lore-file-not-read`, as in `lore select`, and the records in the lock file of its Lore root are not reported as `orphan-review`, since the rules they belong to may only be unread (see [When a record is an orphan](#when-a-record-is-an-orphan)).
 - With `--rules-ref <ref>`, the rules, the lock files and the cited files are all read at that revision.
 - A file that is not valid UTF-8 is fingerprinted as its bytes; a `heading` or `phrase` in it is never found.
 
@@ -148,6 +148,22 @@ It reads every rule collected for the governed repo and the given folders, disab
 | `meta-source` | A rule has a `source` key in `<meta>` and no `<source>` block. | off |
 
 A level is `error`, `warn` or `off`. A finding at `off` is not reported.
+
+### When a record is an orphan
+
+A lock file belongs to a Lore root, and a Lore root can hold rules the run does not collect. So `orphan-review` is reported only for a lock file whose whole Lore root the run collected:
+
+- the Lore root's directory is inside a given folder (always true in the governed repo), so the run read everything below it;
+- no `.loreconfig` at or below it has a `repo:` naming another repository, valid or in error;
+- no error or unread file at or below it may hide a rule: an excluded Lore file, an entry with no readable id, a directory `repo-inside-repo` or `nested-repo` excludes, an `invalid-loreconfig` in a given folder outside every marked directory, or a file warned `lore-file-not-read`.
+
+Otherwise none of that lock file's records is reported. When it holds a record that no collected rule has, stderr says so in one line, so the silence is not taken for a clean lock file:
+
+```
+lore: orphan-review not checked in external:lore/lore-reviews.lock: its Lore root is not wholly collected (external:lore/blog/.loreconfig names another repository)
+```
+
+A record of an excluded entry that has a readable id is never reported.
 
 A source with only `file` is flagged by any edit to that file, and every rule citing that file comes due together. Give a `heading` or a `phrase` wherever the file has one.
 
@@ -197,7 +213,7 @@ never-reviewed: 1
 rules with a source: 2, without: 1
 ```
 
-JSON output is `{ "findings": [...], "summary": {...}, "excluded": [...], "warnings": [...] }`. `findings` and `summary` follow `spec/schemas/audit.schema.json`; `excluded` and `warnings` list the excluded entries and the warnings `lore select` would give for the same rules. In text, both go to stderr, one line each (`lore: excluded ...`, `lore: warning ...`). An excluded entry is not audited. Warnings never change the exit code, `--strict` included, as in `lore select`.
+JSON output is `{ "findings": [...], "summary": {...}, "excluded": [...], "unjudged": [...], "warnings": [...] }`. `findings` and `summary` follow `spec/schemas/audit.schema.json`; `excluded` and `warnings` list the excluded entries and the warnings `lore select` would give for the same rules, and `unjudged` lists `{ "file", "reason" }` for each lock file whose records were not checked for `orphan-review`. In text, all three go to stderr, one line each (`lore: excluded ...`, `lore: warning ...`, `lore: orphan-review not checked ...`). An excluded entry is not audited. Warnings never change the exit code, `--strict` included, as in `lore select`.
 
 A lock file that is not in the format (a bad header, a line that is not a record, two records for one source) is an input error, exit 2, naming the file and the line. It is never repaired.
 
@@ -231,11 +247,12 @@ reviewed money-in-minor-units (1 source)
 - For each named rule it resolves every source, fingerprints the text and replaces the rule's records with one per source, dated today (or `--date`). Records for sources the rule no longer has go with them.
 - `--file <lore-file>` names every rule in that Lore file that has a source, and skips those without. Name the file as `lore audit` prints it (`.lore/checkout.lore`, or `external:` or `loose:` and the path for a given folder).
 - A rule with a source that does not resolve is refused: its records stay as they were, the problem is printed on stderr as `lore audit` prints it, and the exit code is 1. The other rules in the run are still written. A rule with an `ambiguous-heading` is written, with the warning.
-- Every run also removes records whose rule or source no longer exists, and prints how many. `--prune` does only that. A record is never removed while its rule may only be excluded (an entry with errors, or a directory that `repo-inside-repo` or `nested-repo` excludes), unmarked (a `.loreconfig` with a problem in a given folder) or unread (a Lore file warned `lore-file-not-read`); a refused rule's records are not removed either.
+- A run that names rules changes only those rules' records. Every other line of the lock file stays as it was, records of rules that no longer exist included.
+- `--prune` is the only way to remove records. It removes those whose rule or source no longer exists, prints how many, and writes nothing else. It prunes only a lock file whose whole Lore root the run collected, as `lore audit` decides for `orphan-review` (see [When a record is an orphan](#when-a-record-is-an-orphan)). For any other lock file with such records it removes nothing, prints one line on stderr, `lore: not pruning <lock file>: its Lore root is not wholly collected (<reason>)`, and still exits 0. Give every folder of a shared Lore root to prune it. A Lore root that holds folders marked for different repositories is never pruned: remove those records by hand. A record of an excluded entry with a readable id is never removed.
 - A lock file that is not in the format is an input error, exit 2, and is left as it is. When the records do not change, the file is not rewritten. A changed file is written whole to a temporary file and renamed into place.
 - It writes the working tree, so it reads Lore files from disk, untracked ones included, and reads the lock file whether git tracks it yet or not. Cited files are read as `lore audit` reads them: tracked files only, so `git add` a new cited file before reviewing against it. `git add` the lock file before auditing: `lore audit` reads only a tracked lock file, so when the run writes one git does not track, it says so on stderr.
 - An id that names no rule, a rule with no `<source>`, a `--file` that is not a collected Lore file, a `--date` that is not a real date, more than one of ids, `--file` and `--prune`, and `--rules-ref`, `--remote` or `--no-repo` are usage errors. Nothing is written.
-- Excluded entries and warnings go to stderr as in `lore audit`. Stdout has one line per rule written or refused, and one per lock file pruned.
+- Excluded entries and warnings go to stderr as in `lore audit`. Stdout has one line per rule written or refused, and with `--prune` one per lock file pruned.
 
 ### Why there is no flag for every rule
 
