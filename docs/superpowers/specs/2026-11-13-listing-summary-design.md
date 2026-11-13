@@ -16,7 +16,7 @@ Measured on one rule set of 224 rules:
 | Cut | Shown whole | Cut at a sentence end | Cut mid-sentence |
 |---|---|---|---|
 | 160 code points (today) | 72 | 47 | 105 |
-| whole paragraph, cap 600 | 223 | 0 | 1 |
+| whole paragraph, cap 600 | 222 | 0 | 2 |
 
 In a reader check, one rule was wrongly failed in 12 of 12 reads from its
 160 code point fragment, and in 2 of 12 once its scope fit inside the
