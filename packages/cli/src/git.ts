@@ -101,6 +101,55 @@ export function readTrackedBytes(root: string, path: string, tracked: ReadonlySe
   }
 }
 
+// Each path a tree lists, with its mode.
+export type RefTree = ReadonlyMap<string, string>;
+
+const SYMLINK = "120000";
+const REGULAR = new Set(["100644", "100755"]);
+const MAX_LINKS = 40;
+
+export function refTree(root: string, ref: string): RefTree {
+  if (ref.startsWith("-")) throw new InputError(`not a git ref: ${ref}`);
+  const tree = new Map<string, string>();
+  for (const line of git(root, ["ls-tree", "-r", "-z", ref]).split("\0")) {
+    const tab = line.indexOf("\t");
+    if (tab !== -1) tree.set(line.slice(tab + 1), line.slice(0, line.indexOf(" ")));
+  }
+  return tree;
+}
+
+// readTrackedBytes at a ref: the path and the file it resolves to through any symlinks of the tree must both be listed
+// in tracked, and the file a regular one. A link that leaves the repository, or names an absolute path, is not followed.
+export function readTrackedBytesAt(root: string, ref: string, path: string, tracked: ReadonlySet<string>, tree: RefTree): Buffer | null {
+  if (!tracked.has(path)) return null;
+  const real = realPathAt(root, ref, path, tree);
+  if (real === null || !tracked.has(real) || !REGULAR.has(tree.get(real) ?? "")) return null;
+  return readBytesAt(root, ref, real);
+}
+
+function realPathAt(root: string, ref: string, path: string, tree: RefTree): string | null {
+  const resolved: string[] = [];
+  const pending = path.split("/");
+  let links = 0;
+  while (pending.length > 0) {
+    const name = pending.shift()!;
+    if (name === "" || name === ".") continue;
+    if (name === "..") {
+      if (resolved.pop() === undefined) return null;
+      continue;
+    }
+    const at = [...resolved, name].join("/");
+    if (tree.get(at) !== SYMLINK) {
+      resolved.push(name);
+      continue;
+    }
+    const target = readBytesAt(root, ref, at).toString("utf8");
+    if (++links > MAX_LINKS || target.startsWith("/")) return null;
+    pending.unshift(...target.split("/"));
+  }
+  return resolved.join("/");
+}
+
 export function readFileAt(root: string, ref: string | null, path: string): string {
   if (ref !== null) return readBytesAt(root, ref, path).toString("utf8");
   const content = readContained(root, path);

@@ -132,7 +132,7 @@ It reads every rule collected for the governed repo and the given folders, disab
 - A lock file is read only once git tracks it, so `git add` the file `lore review` writes before auditing.
 - An untracked Lore or `.loreconfig` file in the governed working tree is not audited, even when `lore review` recorded its rules, and the lock file that would cover it gets no `orphan-review` until git tracks the file.
 - A Lore or `.loreconfig` file the command could not read is warned `lore-file-not-read`, as in `lore select`, and the records in the lock file that would cover it are not reported as `orphan-review`, since the rules they belong to may only be unread (see [When a record is an orphan](#when-a-record-is-an-orphan)).
-- With `--rules-ref <ref>`, the rules, the lock files and the cited files are all read at that revision.
+- With `--rules-ref <ref>`, the rules, the lock files and the cited files are all read at that revision. A symlink there among the lock files and cited files is followed as in the working tree: only to a regular file that revision tracks inside the repository.
 - A file that is not valid UTF-8 is fingerprinted as its bytes; a `heading` or `phrase` in it is never found.
 
 ### Findings

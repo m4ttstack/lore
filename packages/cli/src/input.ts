@@ -4,7 +4,9 @@ import {
   EXTERNAL, LOOSE, RULES, type Collected, type Diagnostic, type InputFile, type LockRef, type LoreInput, type Repository, type SourceContent, type Tree,
 } from "@lore/parser";
 import { InputError } from "./errors";
-import { GitMissingError, gitRoot, readBytesAt, readFileAt, readTracked, readTrackedBytes, remoteUrls, trackedPaths, untrackedPaths } from "./git";
+import {
+  GitMissingError, gitRoot, readFileAt, readTracked, readTrackedBytes, readTrackedBytesAt, refTree, remoteUrls, trackedPaths, untrackedPaths, type RefTree,
+} from "./git";
 
 export interface RuleSources {
   repo: string | null;
@@ -117,9 +119,12 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     if (repo === null) return undefined;
     return { root: repo, ref: rulesRef, path: file.startsWith(RULES) ? file.slice(RULES.length) : file, listed: governedTracked };
   };
+  let governedTree: RefTree | undefined;
   const readBytes = (repository: Repository, file: string, collected: Collected): Buffer | null | undefined => {
     const at = located(repository, file, collected);
-    return at === undefined ? undefined : readListed(at.root, at.ref, at.path, at.listed);
+    if (at === undefined) return undefined;
+    const tree = at.ref === null ? null : (governedTree ??= refTree(at.root, at.ref));
+    return readListed(at.root, at.ref, at.path, at.listed, tree);
   };
   const onDisk = (ref: LockRef, collected: Collected): { root: string; path: string } | undefined => {
     const at = located(ref.repository, ref.path, collected);
@@ -160,11 +165,11 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
 }
 
 // A listed path whose file cannot be read safely (a symlink out of the place, a skipped sparse-checkout file) could not be looked at.
-function readListed(root: string, ref: string | null, path: string, listed: ReadonlySet<string>): Buffer | null | undefined {
+function readListed(root: string, ref: string | null, path: string, listed: ReadonlySet<string>, tree: RefTree | null): Buffer | null | undefined {
   if (!listed.has(path)) return null;
   if (ref === null) return readTrackedBytes(root, path, listed) ?? undefined;
   try {
-    return readBytesAt(root, ref, path);
+    return readTrackedBytesAt(root, ref, path, listed, tree!) ?? undefined;
   } catch {
     return undefined;
   }

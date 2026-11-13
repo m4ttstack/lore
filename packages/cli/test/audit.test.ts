@@ -317,6 +317,36 @@ describe("lore audit", () => {
     const head = await lore(["audit", "--repo", root]);
     expect(head.out).toContain(".lore/a.lore\n  warn  never-reviewed  money-in-cents  docs/checkout-review.md#");
   });
+
+  test("--rules-ref follows a tracked symlink to a tracked file as the working tree does, and not one out of the repository", async () => {
+    const alias: Source = { ...SOURCE, file: "docs/alias.md" };
+    const viaDir: Source = { ...SOURCE, file: "docs/deep.md" };
+    const root = repoWith({
+      "docs/checkout-review.md": DOC,
+      ".lore/a.lore": `${ruleCiting("by-alias", alias.file)}\n${ruleCiting("by-dir", viaDir.file)}\n${ruleCiting("out-of-repo", "docs/out.md")}`,
+      "locks/shop.lock": lockFor("by-alias", alias, DOC) + lockFor("by-dir", viaDir, DOC).split("\n")[1] + "\n",
+      "lore-reviews.lock": lockFor("by-alias", alias, DOC) + lockFor("by-dir", viaDir, DOC).split("\n")[1] + "\n",
+    });
+    const outside = tempDir();
+    write(outside, { "out.md": DOC });
+    symlinkSync("checkout-review.md", join(root, "docs/alias.md"));
+    symlinkSync("docs", join(root, "linked"));
+    symlinkSync("../linked/checkout-review.md", join(root, "docs/deep.md"));
+    symlinkSync(join(outside, "out.md"), join(root, "docs/out.md"));
+    commit(root, {});
+    const expected = {
+      code: 1,
+      out: `.lore/a.lore\n  error  source-unchecked  out-of-repo  docs/out.md#${HEADING}\n\nsource-unchecked: 1\nrules with a source: 3, without: 0\n`,
+      err: "",
+    };
+    expect(await lore(["audit", "--repo", root])).toEqual(expected);
+    expect(await lore(["audit", "--repo", root, "--rules-ref", "HEAD"])).toEqual({ ...expected, out: `rules:${expected.out}` });
+    rmSync(join(root, "lore-reviews.lock"));
+    symlinkSync("locks/shop.lock", join(root, "lore-reviews.lock"));
+    commit(root, {});
+    expect(await lore(["audit", "--repo", root])).toEqual(expected);
+    expect(await lore(["audit", "--repo", root, "--rules-ref", "HEAD"])).toEqual({ ...expected, out: `rules:${expected.out}` });
+  });
 });
 
 describe("files the command could not read", () => {
