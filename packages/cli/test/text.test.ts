@@ -245,6 +245,24 @@ A flagged line is a place to look, not a verdict. A flagged line marked (removed
       expect(text).toContain("- and 5 more; `--format json` lists them all\n");
     });
 
+    test("exactly 40 blocking rules fill the section and the count names the advisory ones", () => {
+      const text = renderText(withListing(base, mixed(40, 5)));
+      const lines = ruleLines(text);
+      expect(lines).toHaveLength(40);
+      expect(lines.every((line) => line.includes("(blocking,"))).toBe(true);
+      expect(text).toContain("- `b-39` (blocking, no category): Summary of b-39.\n- and 5 more; `--format json` lists them all\n");
+    });
+
+    test("blocking rules listed after more than 40 advisory ones all print", () => {
+      const unsorted = [...mixed(0, 45), ...mixed(3, 0)];
+      const text = renderText(withListing(base, unsorted));
+      const lines = ruleLines(text);
+      expect(lines).toHaveLength(40);
+      for (const id of ["b-00", "b-01", "b-02"]) expect(text).toContain(`- \`${id}\` (blocking, no category)`);
+      expect(lines.filter((line) => line.includes("(advisory,"))).toHaveLength(37);
+      expect(text).toContain("- and 8 more; `--format json` lists them all\n");
+    });
+
     test("12 blocking and 5 advisory rules print 17 lines and no count line", () => {
       const text = renderText(withListing(base, mixed(12, 5)));
       expect(ruleLines(text)).toHaveLength(17);

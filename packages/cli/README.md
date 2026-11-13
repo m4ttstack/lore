@@ -95,7 +95,7 @@ In text a section `## Also in scope, not triggered` follows the rules and contex
 - `no-eur` (advisory, code_style): Do not hardcode EUR.
 ```
 
-It lists every blocking rule and fills up to 40 lines with advisory rules, then `` - and N more; `--format json` lists them all ``. When nothing is selected, the output says so and then prints the section; for `lore select` the verdict format follows it. When the listing is empty, the text output is the same as without the option; JSON carries an empty `alsoInScope`.
+It lists every blocking rule, then advisory rules until the section holds 40 rule lines; a last line, `` - and N more; `--format json` lists them all ``, counts any left out. When nothing is selected, the output says so and then prints the section; for `lore select` the verdict format follows it. When the listing is empty, the text output is the same as without the option; JSON carries an empty `alsoInScope`.
 
 `--expand <id>` moves a listed rule into `rules`. It is printed in full like a selected rule, with no flagged lines, marked `"expanded": true` in JSON and `expanded` in its text heading, and it needs a verdict. An id that is not in the listing (already selected, disabled, unknown or out of scope) is a usage error, exit 2.
 
@@ -104,6 +104,8 @@ A listed rule needs no verdict. `lore verdicts` accepts one for it and checks it
 ### Cost, and when to turn it on
 
 `packages/cli/test/listing-cost.test.ts` measures a set of 200 rules, each with a summary of about 80 characters, on a change that puts all 200 in scope and triggers 10. The text section is 45 lines and 5,379 bytes, because the cap holds it at 40 rules. The `alsoInScope` key adds 58,543 bytes to the JSON, because it lists all 190. The change is one file; each entry's `paths` grows with the changed files the rule covers, so the JSON cost grows with rules times covered files.
+
+The cap bounds advisory lines only: every blocking rule prints, and a line can reach 600 code points.
 
 Turn the option on where a missed rule costs more than a few dozen extra lines of reading, and for rule sets whose triggers are literal strings. Leave it off for small sets with no triggers, where it prints nothing.
 

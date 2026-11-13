@@ -71,8 +71,8 @@ This is a skill edit: the implementer loads `superpowers:writing-skills` first a
 ## After the tasks
 
 - Whole-branch review on the most capable model.
-- Open the pull request, wait for CodeRabbit and CI, answer findings, then stop for Matt's go before merging.
-- After the merge (separate, on Matt's word): tag `cli-v0.6.1` so the release workflow publishes `lore.js`, then a small docs change for the README download link.
+- Open the pull request, wait for CodeRabbit and CI, answer findings, then stop for the user's go before merging.
+- After the merge (separate, on the user's word): tag `cli-v0.6.1` so the release workflow publishes `lore.js`, then a small docs change for the README download link.
 
 ## Not in this plan
 
