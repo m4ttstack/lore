@@ -767,3 +767,18 @@ describe("readSourceContent and readLock", () => {
     expect(built.readLock({ repository: 0, path: "loose:lore-reviews.lock" }, collected)).toBe("loose lock\n");
   });
 });
+
+describe("a loose folder's cited files", () => {
+  test("each directory on a cited path is listed once per built input", async () => {
+    const loose = tempDir();
+    write(loose, { ".loreconfig": `${MARKED}loose: true\n`, ".lore/x.lore": rule("x"), "docs/a.md": "# A\n" });
+    const options = { repo: null, rulesRef: null, given: [loose], remotes: ["github.com/acme/shop"] };
+    const built = await buildInput(options);
+    const { collected } = parseWithContext(built.input);
+    expect(built.readSourceContent({ tree: 0 }, "loose:docs/a.md", collected)).toBe("# A\n");
+    write(loose, { "docs/b.md": "# B\n" });
+    expect(built.readSourceContent({ tree: 0 }, "loose:docs/b.md", collected)).toBeNull();
+    const again = await buildInput(options);
+    expect(again.readSourceContent({ tree: 0 }, "loose:docs/b.md", parseWithContext(again.input).collected)).toBe("# B\n");
+  });
+});

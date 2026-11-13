@@ -117,9 +117,11 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     return { root: repo, ref: rulesRef, path: file.startsWith(RULES) ? file.slice(RULES.length) : file, listed: governedTracked };
   };
   let governedTree: RefTree | undefined;
+  const listings: Listings = new Map();
   const readBytes = (repository: Repository, file: string, collected: Collected): Buffer | null | undefined => {
     const at = located(repository, file, collected);
     if (at === undefined) return undefined;
+    if (at.listed === null) return readLoose(at.root, at.path, listings);
     const tree = at.ref === null ? null : (governedTree ??= refTree(at.root, at.ref));
     return readListed(at.root, at.ref, at.path, at.listed, tree);
   };
@@ -162,9 +164,7 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
 }
 
 // A listed path whose file cannot be read safely (a symlink out of the place, a skipped sparse-checkout file) could not be looked at.
-// listed is null for a loose folder, whose cited files may lie in hidden directories its listing leaves out.
-function readListed(root: string, ref: string | null, path: string, listed: ReadonlySet<string> | null, tree: RefTree | null): Buffer | null | undefined {
-  if (listed === null) return readLoose(root, path);
+function readListed(root: string, ref: string | null, path: string, listed: ReadonlySet<string>, tree: RefTree | null): Buffer | null | undefined {
   if (!listed.has(path)) return null;
   if (ref === null) return readTrackedBytes(root, path, listed) ?? undefined;
   try {
@@ -294,23 +294,31 @@ function walkLoose(dir: string): string[] {
 // One file of a loose folder, found by listing only the directories on its path: as in the folder's listing, each
 // name must be an entry's exact name, whatever case the filesystem folds, no symlink is followed, and no .git in any
 // case is read. Null when there is no such file; undefined when it, or a directory on the way, cannot be read.
-function readLoose(root: string, path: string): Buffer | null | undefined {
+// listings: each directory's entries as first listed in this run, or undefined when it could not be listed.
+type Listings = Map<string, Map<string, Dirent> | undefined>;
+
+function readLoose(root: string, path: string, listings: Listings): Buffer | null | undefined {
   const names = path.split("/");
   if (names.some((name) => name === "" || name === "." || name === ".." || name.toLowerCase() === GIT_FOLDER)) return null;
   let at = root;
   for (const [n, name] of names.entries()) {
-    let entries: Dirent[];
-    try {
-      entries = readdirSync(at, { withFileTypes: true });
-    } catch {
-      return undefined;
-    }
-    const entry = entries.find((candidate) => candidate.name === name);
+    if (!listings.has(at)) listings.set(at, listing(at));
+    const entries = listings.get(at);
+    if (entries === undefined) return undefined;
+    const entry = entries.get(name);
     if (entry === undefined || (n === names.length - 1 ? !entry.isFile() : !entry.isDirectory())) return null;
     at = join(at, name);
   }
   try {
     return readFileSync(at);
+  } catch {
+    return undefined;
+  }
+}
+
+function listing(dir: string): Map<string, Dirent> | undefined {
+  try {
+    return new Map(readdirSync(dir, { withFileTypes: true }).map((entry) => [entry.name, entry]));
   } catch {
     return undefined;
   }
