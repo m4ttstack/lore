@@ -24,10 +24,12 @@ export interface ParsedInput {
   model: DocumentModel;
   collected: Collected;
   placeOf: WeakMap<Entry, EntryPlace>;
+  // The Lore file of each error found in one, since two given repositories can hold a file at the same path.
+  errorPlaceOf: WeakMap<Diagnostic, FilePlace>;
 }
 
 interface ReadEntry { result: EntryResult; fileFiles: readonly string[]; place: FilePlace }
-type FilePlace = Pick<EntryPlace, "base" | "tree" | "loreRoot" | "prefix">;
+export type FilePlace = Pick<EntryPlace, "base" | "tree" | "loreRoot" | "prefix">;
 
 const parsedModels = new WeakMap<DocumentModel, ParsedInput>();
 
@@ -43,13 +45,16 @@ export function parsedContextOf(model: DocumentModel): ParsedInput | undefined {
 export function parseWithContext(input: LoreInput): ParsedInput {
   const collected = collect(input);
   const errors: Diagnostic[] = [...collected.diagnostics];
+  const errorPlaceOf = new WeakMap<Diagnostic, FilePlace>();
   const read: ReadEntry[] = [];
   for (const file of collected.files) {
     const lore = parseFile(file.file, file.content);
     const categories = new Set(file.categories);
     const blocks = readFileBlocks(lore, categories);
     if ("error" in blocks || lore.diagnostics.length > 0) {
-      errors.push("error" in blocks ? blocks.error : lore.diagnostics[0]!);
+      const error = "error" in blocks ? blocks.error : lore.diagnostics[0]!;
+      errors.push(error);
+      errorPlaceOf.set(error, { base: file.base, tree: file.tree, loreRoot: file.loreRoot, prefix: file.prefix });
       continue;
     }
     const context: FileContext = {
@@ -68,20 +73,22 @@ export function parseWithContext(input: LoreInput): ParsedInput {
   const warnings: Diagnostic[] = [...collected.warnings];
   const placeOf = new WeakMap<Entry, EntryPlace>();
   for (const { result, fileFiles, place } of read) {
-    if ("error" in result) errors.push(result.error);
-    else if (uses.get(result.id)! > 1) errors.push(result.diagnostic("duplicate-id"));
-    else {
-      entries.push(result.entry);
-      if (result.entry.kind === "rule" && result.entry.category === null) warnings.push(result.diagnostic("missing-category"));
-      const own = result.ownScope;
-      const emptyScope = own !== null && own.files.every((glob) => fileFiles.every((outer) => disjoint(glob, outer)));
-      if (emptyScope) warnings.push(result.diagnostic("empty-scope", own.line));
-      placeOf.set(result.entry, { ...place, emptyScope, checkLines: result.checkLines, diagnostic: result.diagnostic });
+    if ("error" in result || uses.get(result.id)! > 1) {
+      const error = "error" in result ? result.error : result.diagnostic("duplicate-id");
+      errors.push(error);
+      errorPlaceOf.set(error, place);
+      continue;
     }
+    entries.push(result.entry);
+    if (result.entry.kind === "rule" && result.entry.category === null) warnings.push(result.diagnostic("missing-category"));
+    const own = result.ownScope;
+    const emptyScope = own !== null && own.files.every((glob) => fileFiles.every((outer) => disjoint(glob, outer)));
+    if (emptyScope) warnings.push(result.diagnostic("empty-scope", own.line));
+    placeOf.set(result.entry, { ...place, emptyScope, checkLines: result.checkLines, diagnostic: result.diagnostic });
   }
   warnings.push(...unknownDisabledIds(collected, read));
   const model = { entries, errors: errors.sort(compareDiagnostics), warnings: warnings.sort(compareDiagnostics) };
-  const parsed = { model, collected, placeOf };
+  const parsed = { model, collected, placeOf, errorPlaceOf };
   parsedModels.set(model, parsed);
   return parsed;
 }

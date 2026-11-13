@@ -48,7 +48,7 @@ type Found = Omit<Finding, "level">;
 
 const DAY_MS = 86_400_000;
 
-export function lockPathFor(collected: Collected, place: EntryPlace): LockRef {
+export function lockPathFor(collected: Collected, place: Pick<EntryPlace, "tree" | "prefix" | "loreRoot">): LockRef {
   return lockOf(collected, place.tree, place.prefix, place.loreRoot);
 }
 
@@ -155,7 +155,7 @@ function orphans(parsed: ParsedInput, options: AuditOptions, judged: readonly Lo
 // with whether the run collected every Lore file the lock file covers. Only then are they orphans: a rule the run did
 // not collect may still exist. A lock file that covers no collected Lore file is left out.
 export function orphanRecords(parsed: ParsedInput, locks: readonly LockFile[], withheld: readonly Withheld[] = []): LockRecords[] {
-  const { model, collected, placeOf } = parsed;
+  const { model, collected, placeOf, errorPlaceOf } = parsed;
   const scopes = lockScopes(collected);
   const live = new Map<string, Set<string>>();
   for (const entry of model.entries) {
@@ -166,9 +166,9 @@ export function orphanRecords(parsed: ParsedInput, locks: readonly LockFile[], w
   const named = new Map<string, Set<string>>();
   const errors = new Map<string, Set<string>>();
   for (const error of model.errors) {
-    const file = collected.files.find((candidate) => candidate.file === error.file);
-    if (file === undefined) continue;
-    const key = lockKey(lockOf(collected, file.tree, file.prefix, file.loreRoot));
+    const place = errorPlaceOf.get(error);
+    if (place === undefined) continue;
+    const key = lockKey(lockPathFor(collected, place));
     if (error.entry === null) setIn(errors, key).add(error.file);
     else setIn(named, key).add(error.entry);
   }

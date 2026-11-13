@@ -545,4 +545,35 @@ describe("lock files of different repositories", () => {
     expect(result.findings).toEqual([]);
     expect(result.summary).toEqual({ counts: {}, rulesWithSource: 2, rulesWithoutSource: 0 });
   });
+
+  test("an error in a Lore file at the same path in two repositories counts against its own repository's lock file only", () => {
+    const broken = `<rule id="b-rule" category="functional_correctness" severity="fatal">\n<source>\nfile: /docs/review.md\n</source>\nB.\n</rule>\n`;
+    const folder = (repository: string, lore: string) => ({
+      folder: "", repository,
+      files: [{ path: ".loreconfig", content: "repo: github.com/acme/shop\n" }, { path: ".lore/r.lore", content: lore }],
+    });
+    const at = "external:lore-reviews.lock";
+    const shown = (result: ReturnType<typeof audit>) => result.findings.map((f) => [f.name, f.rule, f.source?.heading ?? null]);
+    const auditOf = (second: string) => {
+      const parsed = parseWithContext({
+        repo: [{ path: "docs/review.md", content: DOC }],
+        given: [folder("/work/a", rule("file: /docs/review.md", "a-rule")), folder("/work/b", second)],
+        remotes: ["https://github.com/acme/shop"],
+      });
+      const locks = [
+        { repository: 0, path: at, records: [record(source(), { rule: "a-rule" }), record(source(), { rule: "b-rule" }), record(source(), { rule: "gone-rule" })] },
+        { repository: 1, path: at, records: [record(AT_HEADING, { rule: "b-rule" }), record(AT_HEADING, { rule: "gone-rule" })] },
+      ];
+      return audit(parsed, { today: "2026-11-12", readSource: (_place, file) => (file === "docs/review.md" ? DOC : null), locks });
+    };
+
+    const excluded = auditOf(broken);
+    expect(excluded.excluded.map((d) => [d.name, d.file, d.entry])).toEqual([["invalid-attribute-value", "external:.lore/r.lore", "b-rule"]]);
+    expect(shown(excluded)).toEqual([["orphan-review", "b-rule", null], ["orphan-review", "gone-rule", null], ["orphan-review", "gone-rule", AT_HEADING.heading]]);
+    expect(excluded.unjudged).toEqual([]);
+
+    const unreadable = auditOf("<rule id=\"x\">\n");
+    expect(shown(unreadable)).toEqual([["orphan-review", "b-rule", null], ["orphan-review", "gone-rule", null]]);
+    expect(unreadable.unjudged).toEqual([{ file: at, reason: "an error in external:.lore/r.lore may hide rules" }]);
+  });
 });
