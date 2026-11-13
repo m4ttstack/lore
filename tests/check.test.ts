@@ -450,6 +450,21 @@ test("unknown-entry and unknown-source: rules and sources are read as the parser
   expect(rules(withAudit(auditExpect([headed]), undefined, block))).toEqual([]);
 });
 
+test("unknown-source: a source block the parser would reject gives no source", () => {
+  const numbered = [citing("c-rule", "file: docs/review.md\nheading: 2024"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), undefined, numbered))).toEqual(["unknown-source"]);
+  const twice = ['<rule id="c-rule">\n<source>\nfile: docs/review.md\n</source>\n<source>\nfile: docs/notes.md\n</source>\nProse.\n</rule>', citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), undefined, twice))).toEqual(["unknown-source"]);
+});
+
+test("unknown-entry: a rule missing because its file's scan stopped names the scan's error", () => {
+  const stray = `stray text\n${LORE}`;
+  const problems = check(withAudit(auditExpect([missing("c-rule")], undefined, summary(0, 0)), undefined, stray));
+  expect(problems.map((p) => p.rule)).toEqual(["unknown-entry", "counts"]);
+  expect(problems[0]!.message).toEndWith('"c-rule" does not appear in lore/c.lore: its scan stops at line 1 with top-level-text');
+  expect(check(withAudit(auditExpect([missing("e-rule")])))[0]!.message).toEndWith('"e-rule" does not appear in lore/c.lore');
+});
+
 test("lock-file: every lock file of an audit example is well-formed", () => {
   expect(rules(withAudit(auditExpect([missing("c-rule")]), lockSection('{"rule":"gone-rule"}')))).toEqual(["lock-file"]);
   expect(rules(withAudit(auditExpect([missing("c-rule")]), lockSection(`{"rule":"gone-rule",${RECORD}}`)))).toEqual([]);

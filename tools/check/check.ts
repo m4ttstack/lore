@@ -1,4 +1,5 @@
 import Ajv from "ajv/dist/2020";
+import { checkSource } from "../../packages/parser/src/blocks";
 import { dedentEntry } from "../../packages/parser/src/indent";
 import { LOCK_NAME, isRealDate, readReviews, type ReviewRecord } from "../../packages/parser/src/reviews";
 import { parseFile, readAttributes, type EntryNode } from "../../packages/parser/src/scan";
@@ -48,6 +49,7 @@ interface Cited { file: string; heading: string | null; phrase: string | null }
 interface Finding { name: string; rule: string | null; file: string; source: Cited | null }
 interface AuditExpected { findings: Finding[]; summary: { counts: Record<string, number>; rulesWithSource: number; rulesWithoutSource: number } }
 interface WrittenRule { id: string | null; sources: Partial<Cited>[]; hasSource: boolean }
+interface WrittenFile { path: string; rules: WrittenRule[]; stop: { name: string; line: number } | undefined }
 
 export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; schemas: SchemaSet; agent?: string }): Problem[] {
   const { markdown, registry, schemas, agent } = input;
@@ -228,7 +230,7 @@ function checkAudit(ex: Example, value: AuditExpected, names: string[], report: 
     if ("problem" in read) report("lock-file", `"${path}" is malformed at line ${read.line}: ${read.problem}`);
     else locks.set(path, read.records);
   }
-  const written = ex.files.filter((f) => f.path.endsWith(".lore")).map((f) => ({ path: f.path, rules: writtenRules(f.path, f.content) }));
+  const written = ex.files.filter((f) => f.path.endsWith(".lore")).map((f) => writtenFile(f.path, f.content));
   for (const { name, rule, file, source } of value.findings) {
     const own = ex.files.find((f) => f.path === file);
     if (own === undefined) {
@@ -242,8 +244,12 @@ function checkAudit(ex: Example, value: AuditExpected, names: string[], report: 
       else if (!records.some((record) => sameCited(record, source))) report("unknown-source", `no record of "${rule}" in ${file} has the finding's source`);
       continue;
     }
-    const candidates = written.find((w) => w.path === file)?.rules.filter((r) => r.id === rule) ?? [];
-    if (candidates.length === 0) report("unknown-entry", `"${rule}" does not appear in ${file}`);
+    const lore = written.find((w) => w.path === file);
+    const candidates = lore?.rules.filter((r) => r.id === rule) ?? [];
+    if (candidates.length === 0) {
+      const stop = lore?.stop === undefined ? "" : `: its scan stops at line ${lore.stop.line} with ${lore.stop.name}`;
+      report("unknown-entry", `"${rule}" does not appear in ${file}${stop}`);
+    }
     else if (name === "meta-source" ? candidates.every((r) => r.hasSource) : !candidates.some((r) => r.sources.some((cited) => sameWritten(cited, source)))) {
       report("unknown-source", `"${rule}" in ${file} has no ${name === "meta-source" ? "rule without a <source>" : "source like the finding's"}`);
     }
@@ -270,27 +276,26 @@ function checkAudit(ex: Example, value: AuditExpected, names: string[], report: 
   }
 }
 
-// Each rule of a Lore file as the parser scans it, with the keys of its sources as their blocks decode, before any
-// check or path resolution.
-function writtenRules(path: string, content: string): WrittenRule[] {
+// Each rule of a Lore file as the parser scans it, with the keys of its sources as the parser would accept them, before
+// path resolution, and the error the scan stopped at, after which it reads no rule.
+function writtenFile(path: string, content: string): WrittenFile {
   const lore = parseFile(path, content);
-  return lore.nodes
+  const rules = lore.nodes
     .filter((node): node is EntryNode => node.kind === "entry" && node.name === "rule")
     .map((node) => {
       const contents = dedentEntry(lore.text.lines, node);
-      const sources = node.children.flatMap((child, n) =>
-        child.name === "source" ? writtenSources(readBlock(contents.children[n]!.lines, child.openLine + 1, child.closeLine).value) : []);
+      const blocks = node.children.flatMap((child, n) => (child.name === "source" ? [{ child, lines: contents.children[n]!.lines }] : []));
+      const read = blocks.length === 1 ? readBlock(blocks[0]!.lines, blocks[0]!.child.openLine + 1, blocks[0]!.child.closeLine) : null;
+      const valid = read !== null && read.diagnostic === null && checkSource(read.value, blocks[0]!.child.openLine) === null;
       const id = readAttributes(node.attributes.text).attributes.find((attribute) => attribute.name === "id")?.value ?? null;
-      return { id, sources, hasSource: node.children.some((child) => child.name === "source") };
+      return { id, sources: valid ? writtenSources(read.value) : [], hasSource: blocks.length > 0 };
     });
+  return { path, rules, stop: lore.diagnostics[0] };
 }
 
+// The value already passed checkSource.
 function writtenSources(value: unknown): Partial<Cited>[] {
-  const text = (field: unknown) => (typeof field === "string" ? field : undefined);
-  return (Array.isArray(value) ? value : [value]).flatMap((item) => {
-    if (typeof item !== "object" || item === null || typeof item.file !== "string") return [];
-    return [{ file: item.file, heading: text(item.heading), phrase: text(item.phrase) }];
-  });
+  return (Array.isArray(value) ? value : [value]) as Partial<Cited>[];
 }
 
 function sameWritten(cited: Partial<Cited>, source: Cited | null): boolean {
