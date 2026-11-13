@@ -520,4 +520,42 @@ describe("a Lore root the run did not wholly collect keeps every other rule's re
     });
     expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(after);
   });
+  test("a Lore file in no directory marked for the shop under the Lore root: a review and --prune delete nothing", async () => {
+    const TEAM = record("team-rule", MONEY);
+    const folder = team({ "lore/own/.lore/t.lore": ruleCiting("team-rule", `/${MONEY.file}`) }, [SHOP, TEAM, GONE]);
+    const args = ["--repo", governed("shop"), "--given", join(folder, "lore")];
+    expect(await lore(["review", "shop-rule", ...args])).toEqual({ code: 0, out: "reviewed shop-rule (1 source)\n", err: "" });
+    const after = writeReviews([GONE, record("shop-rule", MONEY, DOC, TODAY), TEAM]);
+    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(after);
+    expect(await lore(["review", "--prune", ...args])).toEqual({
+      code: 0, out: "", err: notPruning(SHARED, "external:lore/own/.lore/t.lore is in no directory marked for this repository"),
+    });
+    expect(lockOf(folder, "lore/lore-reviews.lock")).toBe(after);
+  });
+
+  test("the governed repo given as a folder reaches one lock file twice, so the run is refused and the file left as it was", async () => {
+    const A = record("a-rule", MONEY);
+    const B = record("b-rule", MONEY);
+    const root = repoWith({
+      "docs/checkout-review.md": DOC,
+      "lore/.loreconfig": "root: true\n",
+      "lore/a/.loreconfig": "repo: github.com/acme/shop\n",
+      "lore/a/.lore/r.lore": ruleCiting("a-rule", `/${MONEY.file}`),
+      "lore/b/.lore/r.lore": ruleCiting("b-rule", `/${MONEY.file}`),
+      "lore/lore-reviews.lock": writeReviews([A, B, GONE]),
+    });
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    const lock = lockOf(root, "lore/lore-reviews.lock");
+    const refused = "lore: lock file lore/lore-reviews.lock is also external:lore/lore-reviews.lock: the governed repo is also given as a folder\n";
+    for (const run of [["a-rule", "b-rule"], ["--prune"]]) {
+      const { code, out, err } = await lore(["review", ...run, "--repo", root, "--given", join(root, "lore")]);
+      expect(code).toBe(2);
+      expect(out).toBe("");
+      expect(err).toEndWith(refused);
+      expect(lockOf(root, "lore/lore-reviews.lock")).toBe(lock);
+    }
+    expect(await lore(["review", "b-rule", "--repo", root])).toMatchObject({ code: 0, out: "reviewed b-rule (1 source)\n" });
+    expect(lockOf(root, "lore/lore-reviews.lock")).toBe(writeReviews([A, record("b-rule", MONEY, DOC, TODAY), GONE]));
+  });
 });
+

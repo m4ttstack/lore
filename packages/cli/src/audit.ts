@@ -2,7 +2,7 @@ import {
   FINDINGS, lockRefs, lockRefsHolding, readReviews, type AuditResult, type Finding, type LockFile, type LockRef, type ParsedInput, type Withheld,
 } from "@lore/parser";
 import { InputError } from "./errors";
-import { unreadWarnings, type UnreadFile } from "./input";
+import { unreadWarnings, type BuiltInput } from "./input";
 
 export function loadLocks(parsed: ParsedInput, readLock: (ref: LockRef) => string | null): LockFile[] {
   const locks: LockFile[] = [];
@@ -16,14 +16,35 @@ export function loadLocks(parsed: ParsedInput, readLock: (ref: LockRef) => strin
   return locks;
 }
 
-// The lock files whose records must not be taken for orphans: a file warned lore-file-not-read lies under their Lore root.
-export function withheldLocks(parsed: ParsedInput, unread: readonly UnreadFile[]): Withheld[] {
+// The lock files whose records must not be taken for orphans: a file warned lore-file-not-read, or an untracked Lore
+// or .loreconfig file the input left out, lies under their Lore root, or the run reaches the same file under two names.
+export function withheldLocks(parsed: ParsedInput, built: BuiltInput): Withheld[] {
   const { collected } = parsed;
-  const warned = new Set(unreadWarnings(unread, collected).map(({ file }) => file));
-  return unread
+  const warned = new Set(unreadWarnings(built.unread, collected).map(({ file }) => file));
+  const unread = built.unread
     .filter(({ file }) => warned.has(file))
-    .flatMap(({ file, given }) =>
-      lockRefsHolding(collected, file, given === null ? "repo" : collected.repositoryGiven.indexOf(given)).map((ref) => ({ ...ref, file })));
+    .flatMap(({ file, given }) => lockRefsHolding(collected, file, given === null ? "repo" : collected.repositoryGiven.indexOf(given))
+      .map((ref) => ({ ...ref, reason: `${file} could not be read` })));
+  const untracked = built.untracked()
+    .flatMap((file) => lockRefsHolding(collected, file, "repo").map((ref) => ({ ...ref, reason: `${file} is not tracked by git` })));
+  const shared = sharedLocks(parsed, built).flatMap(({ governed, given }) => [
+    { ...governed, reason: `the governed repo is also given as a folder, so it is also ${given.path}` },
+    { ...given, reason: `the governed repo is also given as a folder, so it is also ${governed.path}` },
+  ]);
+  return [...unread, ...untracked, ...shared];
+}
+
+// Lock files of the governed repo that a given folder of the same working copy reaches under a second name.
+export function sharedLocks(parsed: ParsedInput, built: BuiltInput): { governed: LockRef; given: LockRef }[] {
+  const refs = lockRefs(parsed);
+  const files = new Map(refs.flatMap((ref) => {
+    const file = ref.repository === "repo" ? built.fileOf(ref, parsed.collected) : undefined;
+    return file === undefined ? [] : [[file, ref] as const];
+  }));
+  return refs.flatMap((given) => {
+    const governed = given.repository === "repo" ? undefined : files.get(built.fileOf(given, parsed.collected) ?? "");
+    return governed === undefined ? [] : [{ governed, given }];
+  });
 }
 
 export function unjudgedLines(result: Pick<AuditResult, "unjudged">): string {

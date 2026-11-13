@@ -365,6 +365,59 @@ describe("a Lore root the run did not wholly collect", () => {
   });
 });
 
+describe("lock files the audit cannot judge whole", () => {
+  test("a Lore file in no directory marked for the shop under the Lore root", async () => {
+    const folder = repoWith({
+      "lore/.loreconfig": "root: true\n",
+      "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+      "lore/shop/.lore/a.lore": ruleCiting("shop-rule", `/${SOURCE.file}`),
+      "lore/own/.lore/t.lore": ruleCiting("team-rule", `/${SOURCE.file}`),
+      "lore/lore-reviews.lock": lockFor("shop-rule", SOURCE, DOC) + lockFor("team-rule", SOURCE, DOC).split("\n")[1] + "\n",
+    });
+    const root = repoWith({ "docs/checkout-review.md": DOC });
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    expect(await lore(["audit", "--repo", root, "--given", join(folder, "lore")])).toEqual({
+      code: 0, out: "rules with a source: 1, without: 0\n",
+      err: notChecked("external:lore/lore-reviews.lock", "external:lore/own/.lore/t.lore is in no directory marked for this repository"),
+    });
+  });
+
+  test("the governed repo given as a folder judges its lock file under neither name", async () => {
+    const root = repoWith({
+      "docs/checkout-review.md": DOC,
+      "lore/.loreconfig": "root: true\n",
+      "lore/a/.loreconfig": "repo: github.com/acme/shop\n",
+      "lore/a/.lore/r.lore": ruleCiting("a-rule", `/${SOURCE.file}`),
+      "lore/b/.lore/r.lore": ruleCiting("b-rule", `/${SOURCE.file}`),
+      "lore/lore-reviews.lock": lockFor("a-rule", SOURCE, DOC) + lockFor("b-rule", SOURCE, DOC).split("\n")[1] + "\n" +
+        lockFor("gone-rule", SOURCE, DOC).split("\n")[1] + "\n",
+    });
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    const { code, out } = await lore(["audit", "--repo", root, "--given", join(root, "lore")]);
+    expect(code).toBe(0);
+    expect(out).not.toContain("orphan-review");
+    const json = JSON.parse((await lore(["audit", "--repo", root, "--given", join(root, "lore"), "--format", "json"])).out);
+    expect(json.unjudged.map((entry: { file: string }) => entry.file)).toEqual(["external:lore/lore-reviews.lock", "lore/lore-reviews.lock"]);
+  });
+
+  test("an untracked Lore file that lore review recorded is no orphan until git tracks it", async () => {
+    const root = shop({ "lore-reviews.lock": LOCK + lockFor("gone-rule", SOURCE, DOC).split("\n")[1] + "\n" });
+    write(root, { ".lore/new.lore": ruleCiting("fresh", SOURCE.file) });
+    expect((await lore(["review", "fresh", "--repo", root])).code).toBe(0);
+    git(root, "add", "lore-reviews.lock");
+    git(root, "commit", "-q", "-m", "review");
+    const note = notChecked("lore-reviews.lock", ".lore/new.lore is not tracked by git");
+    expect(await lore(["audit", "--repo", root])).toEqual({ code: 0, out: "rules with a source: 1, without: 1\n", err: note });
+    const json = JSON.parse((await lore(["audit", "--repo", root, "--format", "json"])).out);
+    expect(json.unjudged).toEqual([{ file: "lore-reviews.lock", reason: ".lore/new.lore is not tracked by git" }]);
+    git(root, "add", ".lore/new.lore");
+    const tracked = await lore(["audit", "--repo", root]);
+    expect(tracked.err).toBe("");
+    expect(tracked.out).toContain(`lore-reviews.lock\n  warn  orphan-review  gone-rule  docs/checkout-review.md#${HEADING}\n`);
+    expect(tracked.out).not.toContain("orphan-review  fresh");
+  });
+});
+
 describe("renderAudit", () => {
   test("groups findings under each file, then counts each finding and the rules", () => {
     const result: AuditResult = {

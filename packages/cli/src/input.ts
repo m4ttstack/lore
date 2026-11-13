@@ -30,6 +30,10 @@ export interface BuiltInput {
   // Whether git tracked a file of a tree when the input was built; null for a loose folder, which is in no working copy,
   // and wherever onDisk is undefined.
   tracks(ref: LockRef, collected: Collected): boolean | null;
+  // Where a file of a tree lies on disk, --rules-ref or not, so that two names for one file can be told apart.
+  fileOf(ref: LockRef, collected: Collected): string | undefined;
+  // The governed working tree's untracked Lore and .loreconfig files that the input left out; none under --rules-ref.
+  untracked(): string[];
 }
 export interface UnreadFile {
   // With its source's prefix: "loose:" or "external:" for a given folder, none for the governed repo.
@@ -118,6 +122,12 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     const at = located(ref.repository, ref.path, collected);
     return at === undefined || at.ref !== null ? undefined : { root: at.root, path: at.path };
   };
+  const fileOf = (ref: LockRef, collected: Collected): string | undefined => {
+    const at = located(ref.repository, ref.path, collected);
+    return at === undefined ? undefined : join(at.root, at.path);
+  };
+  const untracked = (): string[] =>
+    repo === null || rulesRef !== null || sources.untrackedLore === true ? [] : untrackedPaths(repo).filter(wantsContent);
   const tracks = (ref: LockRef, collected: Collected): boolean | null => {
     const at = located(ref.repository, ref.path, collected);
     return at === undefined || at.ref !== null || ref.path.startsWith(LOOSE) ? null : at.listed.has(at.path);
@@ -147,7 +157,7 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     ...[...repositories.values(), ...looseFolders.values()].flatMap((place) =>
       place.unread.filter((path) => reached(path, place.folders)).map((path) => ({ file: place.prefix + path, given: givenPlaces.indexOf(place) }))),
   ];
-  return { input, readSrc, unread, readSourceContent, readLock, onDisk, tracks };
+  return { input, readSrc, unread, readSourceContent, readLock, onDisk, tracks, fileOf, untracked };
 }
 
 // A listed path whose file cannot be read safely (a symlink out of the place, a skipped sparse-checkout file) could not be looked at.

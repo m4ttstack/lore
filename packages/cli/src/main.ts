@@ -168,7 +168,7 @@ async function runAudit(command: AuditCommand, io: IO): Promise<number> {
     locks: loadLocks(parsed, (ref) => built.readLock(ref, parsed.collected)),
     ...(command.maxAge === null ? {} : { maxAgeDays: command.maxAge }),
     levels: command.levels,
-    withheld: withheldLocks(parsed, built.unread),
+    withheld: withheldLocks(parsed, built),
   });
   const warnings = rulesWarnings(built, parsed);
   if (command.format === "json") io.stdout(`${JSON.stringify({ ...result, warnings }, null, 2)}\n`);
