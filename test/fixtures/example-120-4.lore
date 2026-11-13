@@ -1,7 +1,6 @@
-<rule id="web-dates-from-locale" category="functional_correctness">
+<rule id="refunds-to-original-method" category="functional_correctness">
 <source>
 file: /docs/checkout-review.md
-heading: Dates
 </source>
-Dates the web app displays are formatted with the shop's locale.
+A refund goes back to the payment method that paid.
 </rule>

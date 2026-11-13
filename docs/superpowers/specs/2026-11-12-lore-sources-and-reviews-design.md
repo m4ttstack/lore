@@ -235,7 +235,10 @@ record. It is not inside a Lore folder and is not a Lore file. Only
 
 It is JSON Lines: a header line, then one record per line, sorted by
 rule id, then file, heading and phrase. A record is one line, so two
-branches that review different rules merge without a conflict.
+branches that review different rules usually merge cleanly. Two branches
+that add neighboring lines can still conflict; the conflict is plain
+text, and keeping both sides' lines, or taking one side and running the
+other side's `lore review` again, settles it.
 
 ```json
 {"lore-reviews":1}
@@ -275,8 +278,9 @@ writes the rule's records, replacing those it had.
 - An id that names no rule, a rule with no `<source>`, or a `--file`
   that is not a collected Lore file, is a usage error and nothing is
   written.
-- Every run also removes records whose rule or source no longer
-  exists. `--prune` does only that.
+- A run that names rules changes only their records. Only `--prune`
+  removes records whose rule or source no longer exists, and only from
+  a lock file whose whole Lore root the run collected.
 - It writes to the working tree, so it reads rules from disk,
   untracked Lore files included as `lore check` does. `--rules-ref`,
   `--remote` and `--no-repo` are usage errors.
@@ -392,6 +396,12 @@ is never an error. There is no migration command, because a value in
   tool-written lock file.
 - The pointer is a YAML block, like the other structured children, not
   an element with attributes.
+- A record is an orphan only when the run collected the whole Lore root
+  of its lock file, and only `lore review --prune` removes orphans.
+  Records of rules that still existed were reported and deleted when a
+  Lore root held folders for other repositories, when only part of a
+  shared Lore root was given, and when an error below a folder marked
+  for another repository hid rules.
 
 ## Calls made in this document
 
@@ -401,7 +411,7 @@ is never an error. There is no migration command, because a value in
 - The check lives in a new `lore audit` command, shared with LORE-7.
 - `lore review` is the only writer of the lock file, refuses a rule
   whose source does not resolve, still writes the other rules in the
-  run, and prunes orphan records.
+  run, and with `--prune` removes orphan records.
 - One lock file per Lore root, named `lore-reviews.lock`, as JSON
   Lines.
 - A changed pointer is a new source and needs a fresh review.

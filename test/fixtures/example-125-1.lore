@@ -1,7 +1,11 @@
-<rule id="price-source-recorded" category="data_provenance">
-Every stored price records the quote it came from.
+<scope>
+files: ["**/*.{ts,tsx"]
+</scope>
+
+<rule id="currency-from-settings" category="functional_correctness">
+Display text never hard-codes a currency code.
 </rule>
 
-<context id="org-handbook" src="./../../handbook/review.md">
-Read for the organization's review conventions.
-</context>
+<rule id="dates-from-locale">
+Displayed dates are formatted with the shop's locale.
+</rule>

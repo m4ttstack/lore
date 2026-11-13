@@ -1,11 +1,16 @@
-<scope>
-files: ["**/*.{ts,tsx"]
-</scope>
-
-<rule id="currency-from-settings" category="functional_correctness">
-Display text never hard-codes a currency code.
+<rule id="money-in-minor-units" category="functional_correctness">
+<meta>
+source: https://wiki.example.com/checkout/money
+</meta>
+Amounts are integers in minor units (cents).
 </rule>
 
-<rule id="dates-from-locale">
-Displayed dates are formatted with the shop's locale.
+<rule id="price-from-quote" category="functional_correctness">
+<meta>
+source: docs/decisions/0042-quote-prices.md
+</meta>
+<source>
+file: docs/decisions/0042-quote-prices.md
+</source>
+A displayed price must come from the quote that produced it.
 </rule>
