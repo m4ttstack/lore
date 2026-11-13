@@ -39,10 +39,13 @@ export interface UnreadFile {
   // The index in input.given of the place's first folder, or null for the governed repo.
   given: number | null;
 }
-interface Place { root: string; listed: Set<string>; files: InputFile[]; unread: string[]; folders: string[]; prefix: string }
+// cited: for a loose folder, the files a source or lock file may name, hidden directories included; listed is the
+// Lore-file listing, which leaves them out.
+interface Place { root: string; listed: Set<string>; files: InputFile[]; unread: string[]; folders: string[]; prefix: string; cited?: Set<string> }
 
 const LORE_FOLDER = ".lore";
 const CONFIG_NAME = ".loreconfig";
+const GIT_FOLDER = ".git";
 
 export function findRepoRoot(dir: string): string | null {
   return gitRoot(dir);
@@ -107,7 +110,9 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     for (const [prefix, places] of [[EXTERNAL, repositories], [LOOSE, looseFolders]] as const) {
       if (!file.startsWith(prefix)) continue;
       const place = givenPlace(places, repository, collected);
-      return place === undefined ? undefined : { root: place.root, ref: null, path: file.slice(prefix.length), listed: place.listed };
+      if (place === undefined) return undefined;
+      if (prefix === LOOSE) place.cited ??= new Set(walkLoose(place.root, true));
+      return { root: place.root, ref: null, path: file.slice(prefix.length), listed: place.cited ?? place.listed };
     }
     if (repo === null) return undefined;
     return { root: repo, ref: rulesRef, path: file.startsWith(RULES) ? file.slice(RULES.length) : file, listed: governedTracked };
@@ -267,14 +272,16 @@ function walkReaches(outer: string, inner: string): boolean {
   return path.split(sep).every((name) => !name.startsWith(".") || name === LORE_FOLDER);
 }
 
-function walkLoose(dir: string): string[] {
+// Symlinks are never listed or walked into. hidden walks every directory but .git, as cited files may lie there.
+function walkLoose(dir: string, hidden = false): string[] {
   const paths: string[] = [];
   const walk = (at: string, prefix: string): void => {
     const entries = readdirSync(at, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
       const path = prefix + entry.name;
       if (entry.isDirectory()) {
-        if (!entry.name.startsWith(".") || entry.name === LORE_FOLDER) walk(join(at, entry.name), `${path}/`);
+        const walked = hidden ? entry.name !== GIT_FOLDER : !entry.name.startsWith(".") || entry.name === LORE_FOLDER;
+        if (walked) walk(join(at, entry.name), `${path}/`);
       } else if (entry.isFile()) paths.push(path);
     }
   };

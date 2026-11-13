@@ -197,6 +197,54 @@ describe("lore audit", () => {
     });
   });
 
+  describe("a loose given folder", () => {
+    const cited = (files: string[]) =>
+      `<rule id="policy-rule" category="functional_correctness">\n<source>\n${files.map((file) => `- file: ${file}\n`).join("")}</source>\nFollow the policy.\n</rule>\n`;
+    const folder = (rule: string) => {
+      const loose = tempDir();
+      write(loose, {
+        ".loreconfig": "lore: 1\nrepo: github.com/acme/shop\nloose: true\n",
+        ".lore/a.lore": rule,
+        ".lore/.github/policy.md": "# Policy\n",
+        ".github/policy.md": "# Policy\n",
+        ".git/policy.md": "# Policy\n",
+      });
+      return loose;
+    };
+    const args = (loose: string) => {
+      const root = shop();
+      git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+      return ["--repo", root, "--given", loose];
+    };
+
+    test("reads a cited file in a hidden directory, and a cited file below .git is missing", async () => {
+      const loose = folder(cited(["./.github/policy.md", "../.github/policy.md", "../.git/policy.md"]));
+      const { code, out, err } = await lore(["audit", ...args(loose)]);
+      expect(err).toBe("");
+      expect(code).toBe(1);
+      expect(out).toBe(
+        "loose:.lore/a.lore\n" +
+        "  error  source-missing  policy-rule  loose:.git/policy.md  file not found: loose:.git/policy.md\n" +
+        "  warn  never-reviewed  policy-rule  loose:.lore/.github/policy.md\n" +
+        "  warn  never-reviewed  policy-rule  loose:.github/policy.md\n" +
+        "\n" +
+        "source-missing: 1\n" +
+        "never-reviewed: 2\n" +
+        "rules with a source: 2, without: 1\n",
+      );
+    });
+
+    test("a cited file in a hidden directory can be reviewed, and a symlink there is not followed", async () => {
+      const loose = folder(cited(["./.github/policy.md", "../.github/policy.md"]));
+      const given = args(loose);
+      expect(await lore(["review", "policy-rule", ...given])).toMatchObject({ code: 0, out: "reviewed policy-rule (2 sources)\n" });
+      expect((await lore(["audit", ...given])).out).toBe("rules with a source: 2, without: 1\n");
+      symlinkSync(join(loose, ".github/policy.md"), join(loose, ".github/linked.md"));
+      write(loose, { ".lore/a.lore": cited(["../.github/linked.md"]) });
+      expect((await lore(["audit", ...given])).out).toContain("source-missing  policy-rule  loose:.github/linked.md  file not found");
+    });
+  });
+
   test("a malformed lock file exits 2 naming the file and line", async () => {
     const root = shop({ "lore-reviews.lock": '{"lore-reviews":1}\nnot json\n' });
     const { code, out, err } = await lore(["audit", "--repo", root]);
