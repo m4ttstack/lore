@@ -44,11 +44,16 @@ export interface Collected {
   repositoryFiles: InputFile[][];
   // Indexed by Repository number: the index in input.given of the first folder of that repository.
   repositoryGiven: number[];
+  // Indexed by Repository number: the given folders of that repository, "" for a loose folder.
+  repositoryFolders: string[][];
   configsByRepository: ReadonlyMap<Repository, ReadonlyMap<string, ConfigFile>>;
   // Each .loreconfig whose error may leave Lore files at or below its directory uncollected: one that excludes its
   // directory in the governed repo or an external folder, and one of a given folder's repository, outside every marked
   // directory, that marks nothing because it has a problem.
   hiding: { file: string; repository: Repository }[];
+  // Each .loreconfig of a given folder's repository whose repo key names another repository, valid or in error. One
+  // inside a directory an error excludes is not read and not listed.
+  foreign: { file: string; dir: string; repository: Repository }[];
 }
 
 type Config = Omit<ConfigFile, "trees">;
@@ -67,8 +72,9 @@ const NO_CONFIGS: Configs = new Map();
 export function collect(input: LoreInput): Collected {
   const given = repositories(input.given);
   const collected: Collected = {
-    files: [], configs: [], diagnostics: [], warnings: [], trees: [], hiding: [],
-    repositoryFiles: given.map(({ files }) => files), repositoryGiven: given.map(({ at }) => at), configsByRepository: new Map(),
+    files: [], configs: [], diagnostics: [], warnings: [], trees: [], hiding: [], foreign: [],
+    repositoryFiles: given.map(({ files }) => files), repositoryGiven: given.map(({ at }) => at),
+    repositoryFolders: given.map(({ folders }) => folders), configsByRepository: new Map(),
   };
   const governed = input.rules === undefined
     ? { prefix: "", files: input.repo }
@@ -145,7 +151,7 @@ function collectSource(source: Source, remotes: readonly string[], out: Collecte
 function readConfigs(
   source: Source,
   remotes: readonly string[],
-  out: Pick<Collected, "diagnostics" | "hiding">,
+  out: Pick<Collected, "diagnostics" | "hiding" | "foreign">,
 ): { configs: Configs; excluded: string[]; marks: string[] } {
   const configs = new Map<string, Config>();
   const excluded: string[] = [];
@@ -169,6 +175,8 @@ function readConfigs(
     }
     const { root, repo, categories, disable, audit } = read.config;
     if (repo !== null) {
+      const ours = namesRepo(repo.value, remotes);
+      if (source.folders !== null && !ours) out.foreign.push({ file: name, dir, repository: source.repository });
       const problem = source.folders === null ? "repo-inside-repo"
         : marked.some((above) => above !== dir && within(dir, above)) ? "nested-repo"
         : null;
@@ -179,7 +187,7 @@ function readConfigs(
         continue;
       }
       marked.push(dir);
-      if (source.folders!.some((folder) => within(dir, folder)) && namesRepo(repo.value, remotes)) marks.push(dir);
+      if (source.folders!.some((folder) => within(dir, folder)) && ours) marks.push(dir);
     }
     configs.set(dir, { file: name, dir, repository: source.repository, root, categories, disable, audit });
   }

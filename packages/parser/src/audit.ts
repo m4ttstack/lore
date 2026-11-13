@@ -20,12 +20,20 @@ export interface AuditResult {
   findings: Finding[];
   summary: { counts: Partial<Record<FindingName, number>>; rulesWithSource: number; rulesWithoutSource: number };
   excluded: Diagnostic[];
+  // The lock files with records no collected rule has whose Lore root the run did not wholly collect, so that no
+  // orphan-review was judged there, each with the reason.
+  unjudged: { file: string; reason: string }[];
 }
 
 // Given folders of different repositories can give the same path, so a lock file is named by both. External folders of
 // one repository that share a Lore root share its lock file.
 export interface LockRef { repository: Repository; path: string }
 export interface LockFile extends LockRef { records: ReviewRecord[] }
+// A lock file and a Lore or .loreconfig file under its Lore root that could not be read.
+export interface Withheld extends LockRef { file: string }
+// records: those that belong to no source of a collected rule and name no excluded entry. partial: null when the run
+// collected the lock file's whole Lore root, so the records are orphans; otherwise why it did not.
+export interface LockRecords { lock: LockFile; records: ReviewRecord[]; partial: string | null }
 
 export interface AuditOptions {
   today: string;
@@ -34,8 +42,7 @@ export interface AuditOptions {
   locks: readonly LockFile[];
   maxAgeDays?: number;
   levels?: Partial<Record<FindingName, Level>>;
-  // Lock files whose records are never orphan-review: a Lore or .loreconfig file under their Lore root could not be read.
-  withheld?: readonly LockRef[];
+  withheld?: readonly Withheld[];
 }
 
 type Found = Omit<Finding, "level">;
@@ -119,20 +126,25 @@ export function audit(parsed: ParsedInput, options: AuditOptions): AuditResult {
     }
   }
 
-  findings.push(...orphans(parsed, options));
+  const judged = orphanRecords(parsed, options.locks, options.withheld);
+  findings.push(...orphans(parsed, options, judged));
   findings.sort(compareFindings);
+  const unjudged = judged
+    .flatMap(({ lock, partial }) => (partial === null ? [] : [{ file: lock.path, reason: partial }]))
+    .sort((a, b) => compareCodePoints(a.file, b.file));
   const counts: Partial<Record<FindingName, number>> = {};
   for (const name of FINDINGS) {
     const count = findings.filter((finding) => finding.name === name).length;
     if (count > 0) counts[name] = count;
   }
-  return { findings, summary: { counts, rulesWithSource, rulesWithoutSource }, excluded: model.errors };
+  return { findings, summary: { counts, rulesWithSource, rulesWithoutSource }, excluded: model.errors, unjudged };
 }
 
-function orphans(parsed: ParsedInput, options: AuditOptions): Finding[] {
+function orphans(parsed: ParsedInput, options: AuditOptions, judged: readonly LockRecords[]): Finding[] {
   const roots = lockRoots(parsed.collected);
   const found: Finding[] = [];
-  for (const { lock, records } of orphanRecords(parsed, options.locks, options.withheld)) {
+  for (const { lock, records, partial } of judged) {
+    if (partial !== null) continue;
     const { repository, loreRoot } = roots.get(lockKey(lock))!;
     const settings = settingsFor(parsed.collected, options, loreRoot, repository, loreRoot);
     for (const record of records) {
@@ -143,40 +155,64 @@ function orphans(parsed: ParsedInput, options: AuditOptions): Finding[] {
   return found;
 }
 
-// The records of each lock file that name no rule source of the model. A record is no orphan while the rule it names
-// might only be excluded: an excluded Lore file, an excluded entry with no readable id, and a .loreconfig error that may
-// leave Lore files uncollected hide every rule of the Lore roots that could hold them. A withheld lock file, or one no
-// collected Lore file maps to, has none.
-export function orphanRecords(
-  parsed: ParsedInput, locks: readonly LockFile[], withheld: readonly LockRef[] = [],
-): { lock: LockFile; records: ReviewRecord[] }[] {
+// The records of each lock file that name no rule source of the model, leaving out those of an excluded entry's id,
+// with whether the run collected the lock file's whole Lore root. Only then are they orphans: a rule the run did not
+// collect may still exist. A lock file no collected Lore file maps to is left out.
+export function orphanRecords(parsed: ParsedInput, locks: readonly LockFile[], withheld: readonly Withheld[] = []): LockRecords[] {
   const { model, collected, placeOf } = parsed;
   const roots = lockRoots(collected);
-  const held = new Set(withheld.map(lockKey));
   const live = new Map<string, Set<string>>();
   for (const entry of model.entries) {
     if (entry.kind !== "rule") continue;
     const known = setIn(live, lockKey(lockPathFor(collected, placeOf.get(entry)!)));
     for (const source of entry.sources) known.add(identity(entry.id, source));
   }
-  const excluded = new Map<string, Set<string | null>>();
+  const named = new Map<string, Set<string>>();
+  const errors = new Map<string, Set<string>>();
   for (const error of model.errors) {
     const file = collected.files.find((candidate) => candidate.file === error.file);
-    if (file !== undefined) setIn(excluded, lockKey(fileLock(collected, file))).add(error.entry);
+    if (file === undefined) continue;
+    const key = lockKey(fileLock(collected, file));
+    if (error.entry === null) setIn(errors, key).add(error.file);
+    else setIn(named, key).add(error.entry);
   }
   for (const { file, repository } of collected.hiding) {
-    for (const ref of lockRefsHolding(collected, file, repository)) setIn(excluded, lockKey(ref)).add(null);
+    for (const ref of lockRefsHolding(collected, file, repository)) setIn(errors, lockKey(ref)).add(file);
   }
+  const unread = new Map<string, Set<string>>();
+  for (const held of withheld) setIn(unread, lockKey(held)).add(held.file);
 
-  const found: { lock: LockFile; records: ReviewRecord[] }[] = [];
+  const found: LockRecords[] = [];
   for (const lock of locks) {
     const key = lockKey(lock);
-    const hidden = excluded.get(key);
-    if (!roots.has(key) || hidden?.has(null) || held.has(key)) continue;
-    const records = lock.records.filter((record) => !live.get(key)?.has(identity(record.rule, record)) && !hidden?.has(record.rule));
-    if (records.length > 0) found.push({ lock, records });
+    const root = roots.get(key);
+    if (root === undefined) continue;
+    const records = lock.records.filter((record) => !live.get(key)?.has(identity(record.rule, record)) && !named.get(key)?.has(record.rule));
+    if (records.length === 0) continue;
+    found.push({ lock, records, partial: partialRoot(collected, root, errors.get(key), unread.get(key)) });
   }
   return found;
+}
+
+// Why the run did not collect the whole Lore root, or null when it did. In the governed repo every directory is read
+// and every repo key is an error that hides, so only the last two reasons apply there.
+function partialRoot(
+  collected: Collected, root: { repository: Repository; loreRoot: string }, errors: Set<string> | undefined, unread: Set<string> | undefined,
+): string | null {
+  const { repository, loreRoot } = root;
+  if (repository !== "repo" && !collected.repositoryFolders[repository]!.some((folder) => within(loreRoot, folder))) {
+    return "the given folders hold only part of its Lore root";
+  }
+  const foreign = collected.foreign.find((config) => config.repository === repository && within(config.dir, loreRoot));
+  if (foreign !== undefined) return `${foreign.file} names another repository`;
+  const error = first(errors);
+  if (error !== undefined) return `an error in ${error} may hide rules`;
+  const file = first(unread);
+  return file === undefined ? null : `${file} could not be read`;
+}
+
+function first(files: Set<string> | undefined): string | undefined {
+  return files === undefined ? undefined : [...files].sort(compareCodePoints)[0];
 }
 
 function lockRoots(collected: Collected): Map<string, { ref: LockRef; repository: Repository; loreRoot: string }> {
