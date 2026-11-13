@@ -89,13 +89,13 @@ In JSON the selection gains a last key, `alsoInScope`, which is not capped:
 
 `paths` holds the changed paths the rule's scope covers, sorted. Entries are sorted blocking before advisory, then by more covered paths first, then by id.
 
-In text a section `## Also in scope, not triggered` follows the rules and contexts and comes before the warnings. It opens with a short paragraph, then has one line per rule in the same order, with the summary cut to 160 code points:
+In text a section `## Also in scope, not triggered` follows the rules and contexts and comes before the warnings. It opens with a short paragraph, then has one line per rule in the same order, with the rule's whole first paragraph as the summary, cut only past 600 code points:
 
 ```
 - `no-eur` (advisory, code_style): Do not hardcode EUR.
 ```
 
-It shows at most 40 rules, then `` - and N more; `--format json` lists them all ``. When nothing is selected, the output says so and then prints the section; for `lore select` the verdict format follows it. When the listing is empty, the text output is the same as without the option; JSON carries an empty `alsoInScope`.
+It lists every blocking rule and fills up to 40 lines with advisory rules, then `` - and N more; `--format json` lists them all ``. When nothing is selected, the output says so and then prints the section; for `lore select` the verdict format follows it. When the listing is empty, the text output is the same as without the option; JSON carries an empty `alsoInScope`.
 
 `--expand <id>` moves a listed rule into `rules`. It is printed in full like a selected rule, with no flagged lines, marked `"expanded": true` in JSON and `expanded` in its text heading, and it needs a verdict. An id that is not in the listing (already selected, disabled, unknown or out of scope) is a usage error, exit 2.
 

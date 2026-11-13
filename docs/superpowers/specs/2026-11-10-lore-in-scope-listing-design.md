@@ -131,6 +131,7 @@ it, or give it a verdict directly.
 - Order: blocking before advisory, then rules covering more changed
   paths first (a rename with both paths in scope counts twice), then id.
 - At most 40 lines; the rest are counted in a final line.
+- 2026-11-13: the cut is 600 code points and the cap never drops a blocking rule; see `2026-11-13-listing-summary-design.md`.
 - For the author audience (`check`) the paragraph reads: "These rules
   cover files you changed, but nothing in your change triggered them.
   Read any that look relevant with `--expand <id>`."
