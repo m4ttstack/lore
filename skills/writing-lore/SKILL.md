@@ -184,10 +184,10 @@ Then:
 - `--strict` exits 0: no entry was excluded for an error.
 - Read `--format text` once. It is exactly what the reviewer receives.
 - A verdict set answering every selected rule passes `lore verdicts`.
-- `lore audit` with the same rules flags reports no `invalid-source` and no
-  `source-missing`. `select` never reads a cited file, so only `audit`
-  finds a wrong path or heading. `never-reviewed` on a new rule is
-  expected.
+- `lore audit` with the same rules flags reports no `invalid-source`, no
+  `source-missing` and no `source-unchecked`. `select` never reads a cited
+  file, so only `audit` finds a wrong path or heading, or a source it could
+  not read at all. `never-reviewed` on a new rule is expected.
 
 ## 7. Conversion notes
 
