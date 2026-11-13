@@ -265,6 +265,18 @@ describe("lore audit", () => {
       );
     });
 
+    test("a directory stored as .GIT, with no .git beside it, is refused", async () => {
+      const loose = folder(cited(["../.GIT/config", "../sub/.GIT/x"]));
+      rmSync(join(loose, ".git"), { recursive: true });
+      write(loose, { ".GIT/config": "# Config\n", "sub/.GIT/x": "# X\n" });
+      expect(readdirSync(loose)).toContain(".GIT");
+      const { code, out } = await lore(["audit", ...args(loose)]);
+      expect(code).toBe(1);
+      expect(out).toContain("  error  source-missing  policy-rule  loose:.GIT/config  file not found: loose:.GIT/config\n");
+      expect(out).toContain("  error  source-missing  policy-rule  loose:sub/.GIT/x  file not found: loose:sub/.GIT/x\n");
+      expect(out).not.toContain("never-reviewed  policy-rule");
+    });
+
     test("an unreadable directory beside a cited file does not stop the run, and an unreadable cited file is source-unchecked", async () => {
       const loose = folder(cited(["../.github/policy.md", "../.private/policy.md", "../.github/locked.md"]));
       write(loose, { ".private/policy.md": "# Policy\n", ".github/locked.md": "# Policy\n" });
