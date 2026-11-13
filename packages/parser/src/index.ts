@@ -19,4 +19,4 @@ export { RegexLimitError } from "./regex";
 export { compareCodePoints } from "./text";
 export { fingerprint, normalizeText, resolveSource, slug, type Resolved, type SourceContent } from "./sources";
 export { LOCK_NAME, isRealDate, readReviews, sameSource, writeReviews, type ReviewRecord } from "./reviews";
-export { audit, lockKey, lockPathFor, lockRefs, lockRefsHolding, missingReason, orphanRecords, type AuditOptions, type AuditResult, type Finding, type LockFile, type LockRecords, type LockRef, type Withheld } from "./audit";
+export { audit, lockKey, lockPathFor, lockRefHolding, lockRefs, missingReason, orphanRecords, type AuditOptions, type AuditResult, type Finding, type LockFile, type LockRecords, type LockRef, type Withheld } from "./audit";

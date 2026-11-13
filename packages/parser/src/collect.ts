@@ -44,16 +44,9 @@ export interface Collected {
   repositoryFiles: InputFile[][];
   // Indexed by Repository number: the index in input.given of the first folder of that repository.
   repositoryGiven: number[];
-  // Indexed by Repository number: the given folders of that repository, "" for a loose folder.
-  repositoryFolders: string[][];
   configsByRepository: ReadonlyMap<Repository, ReadonlyMap<string, ConfigFile>>;
-  // Each .loreconfig whose error may leave Lore files at or below its directory uncollected: one that excludes its
-  // directory in the governed repo or an external folder, and one of a given folder's repository, outside every marked
-  // directory, that marks nothing because it has a problem.
-  hiding: { file: string; repository: Repository }[];
-  // Each .loreconfig of a given folder's repository whose repo key names another repository, valid or in error. One
-  // inside a directory an error excludes is not read and not listed.
-  foreign: { file: string; dir: string; repository: Repository }[];
+  // Each directory that repo-inside-repo or nested-repo excludes, in its repository.
+  excluded: { dir: string; repository: Repository }[];
 }
 
 type Config = Omit<ConfigFile, "trees">;
@@ -72,9 +65,8 @@ const NO_CONFIGS: Configs = new Map();
 export function collect(input: LoreInput): Collected {
   const given = repositories(input.given);
   const collected: Collected = {
-    files: [], configs: [], diagnostics: [], warnings: [], trees: [], hiding: [], foreign: [],
-    repositoryFiles: given.map(({ files }) => files), repositoryGiven: given.map(({ at }) => at),
-    repositoryFolders: given.map(({ folders }) => folders), configsByRepository: new Map(),
+    files: [], configs: [], diagnostics: [], warnings: [], trees: [], excluded: [],
+    repositoryFiles: given.map(({ files }) => files), repositoryGiven: given.map(({ at }) => at), configsByRepository: new Map(),
   };
   const governed = input.rules === undefined
     ? { prefix: "", files: input.repo }
@@ -120,6 +112,7 @@ export function loreRootIn(collected: Collected, dir: string, repository: Reposi
 
 function collectSource(source: Source, remotes: readonly string[], out: Collected): void {
   const { configs, excluded, marks } = readConfigs(source, remotes, out);
+  out.excluded.push(...excluded.map((dir) => ({ dir, repository: source.repository })));
   const roots: { marked: string; tree: Tree }[] = source.folders === null
     ? [{ marked: ROOT, tree: "repo" }]
     : marks.map((marked) => ({ marked, tree: out.trees.push({ repository: source.repository as number, marked }) - 1 }));
@@ -151,7 +144,7 @@ function collectSource(source: Source, remotes: readonly string[], out: Collecte
 function readConfigs(
   source: Source,
   remotes: readonly string[],
-  out: Pick<Collected, "diagnostics" | "hiding" | "foreign">,
+  out: Pick<Collected, "diagnostics">,
 ): { configs: Configs; excluded: string[]; marks: string[] } {
   const configs = new Map<string, Config>();
   const excluded: string[] = [];
@@ -170,24 +163,20 @@ function readConfigs(
       out.diagnostics.push({ name: problem, file: name, entry: null, line, range: lineRange(read.lines, line) });
     if (read.config === null) {
       report("invalid-loreconfig", read.problem);
-      if (source.folders !== null && !marked.some((above) => within(dir, above))) out.hiding.push({ file: name, repository: source.repository });
       continue;
     }
     const { root, repo, categories, disable, audit } = read.config;
     if (repo !== null) {
-      const ours = namesRepo(repo.value, remotes);
-      if (source.folders !== null && !ours) out.foreign.push({ file: name, dir, repository: source.repository });
       const problem = source.folders === null ? "repo-inside-repo"
         : marked.some((above) => above !== dir && within(dir, above)) ? "nested-repo"
         : null;
       if (problem !== null) {
         report(problem, repo.line);
         excluded.push(dir);
-        if (source.folders === null || marks.some((above) => within(dir, above))) out.hiding.push({ file: name, repository: source.repository });
         continue;
       }
       marked.push(dir);
-      if (source.folders!.some((folder) => within(dir, folder)) && ours) marks.push(dir);
+      if (source.folders!.some((folder) => within(dir, folder)) && namesRepo(repo.value, remotes)) marks.push(dir);
     }
     configs.set(dir, { file: name, dir, repository: source.repository, root, categories, disable, audit });
   }
