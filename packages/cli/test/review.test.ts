@@ -264,6 +264,20 @@ describe("lore review", () => {
     expect(lockOf(root)).toBe(writeReviews([stale]));
   });
 
+  test("a file or symlink already at a temporary name beside the lock file is not written through or removed", async () => {
+    const root = shop();
+    const outside = tempDir();
+    write(outside, { "target": "outside\n" });
+    const planted = [`lore-reviews.lock.${process.pid}.tmp`, "lore-reviews.lock.tmp"];
+    symlinkSync(join(outside, "target"), join(root, planted[0]!));
+    write(root, { [planted[1]!]: "planted\n" });
+    expect((await lore(["review", "money-in-minor-units", "--repo", root])).code).toBe(0);
+    expect(lockOf(root)).toBe(writeReviews([record("money-in-minor-units", MONEY, DOC, TODAY)]));
+    expect(readFileSync(join(outside, "target"), "utf8")).toBe("outside\n");
+    expect(readFileSync(join(root, planted[1]!), "utf8")).toBe("planted\n");
+    expect(readdirSync(root).filter((name) => name.startsWith("lore-reviews")).sort()).toEqual(["lore-reviews.lock", ...planted].sort());
+  });
+
   test("when nothing changes the lock file is not rewritten", async () => {
     const crlf = writeReviews([record("money-in-minor-units", MONEY, DOC, TODAY)]).replaceAll("\n", "\r\n");
     const root = shop({ "lore-reviews.lock": crlf });

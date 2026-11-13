@@ -1,4 +1,5 @@
-import { lstatSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { closeSync, lstatSync, openSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   lockKey, lockPathFor, missingReason, orphanRecords, resolveSource, writeReviews,
@@ -121,16 +122,25 @@ function readOnDisk(at: { root: string; path: string } | undefined, shown: strin
   return text;
 }
 
-// Written beside the lock file and renamed over it, so an interrupted run leaves the old file or the new one.
+// Written beside the lock file and renamed over it, so an interrupted run leaves the old file or the new one. The
+// temporary file is created new, never opened through a file or link already at its name, and only a file this run
+// created is removed.
 function writeAtomically(at: { root: string; path: string } | undefined, shown: string, text: string): void {
   if (at === undefined) throw new InputError(`cannot write lock file ${shown}`);
   const target = join(at.root, at.path);
-  const temporary = `${target}.${process.pid}.tmp`;
+  const temporary = `${target}.${randomBytes(8).toString("hex")}.tmp`;
+  let created = false;
   try {
-    writeFileSync(temporary, text);
+    const fd = openSync(temporary, "wx");
+    created = true;
+    try {
+      writeFileSync(fd, text);
+    } finally {
+      closeSync(fd);
+    }
     renameSync(temporary, target);
   } catch (error) {
-    rmSync(temporary, { force: true });
+    if (created) rmSync(temporary, { force: true });
     throw new InputError(`cannot write lock file ${shown}: ${(error as Error).message}`);
   }
 }
