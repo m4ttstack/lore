@@ -152,7 +152,7 @@ A level is `error`, `warn` or `off`. A finding at `off` is not reported.
 
 ### Where lock files live
 
-A rule's records are in `lore-reviews.lock` in the nearest directory, at or above its Lore folder and inside its repository, whose `.loreconfig` has `root: true` or a `repo:` key, or else in the repository's root. A directory marked with `repo:` starts a new lock file just as `root: true` does; categories, `disable` and the audit settings still follow the Lore root. In a shared rules repository that serves the shop and the blog:
+A rule's records are in `lore-reviews.lock` in the nearest directory, at or above the directory that holds the Lore file and no higher than the root of its repository (for a loose folder, the loose folder's top), whose `.loreconfig` has `root: true` or a `repo:` key, or else in that root. A directory marked with `repo:` starts a new lock file just as `root: true` does; categories, `disable` and the audit settings still follow the Lore root. In a shared rules repository that serves the shop and the blog:
 
 ```
 team-repo/lore/
@@ -172,7 +172,7 @@ team-repo/lore/
 
 A run from the shop (`--given team-repo/lore`, or `--given team-repo/lore/shop`) reads and writes only the shop's lock files; a run from the blog only the blog's; and the team repository's own run, where every marked directory is `repo-inside-repo`, only `lore/lore-reviews.lock`. The shop and the blog can each have a rule with the same id: their records never meet.
 
-A rule moved to a folder with another lock file, such as from `web/` to `shop/`, or below a new `root: true`, leaves its record behind. It is `never-reviewed` in its new place, and its old record is an `orphan-review` of the old lock file. Review it again, then `lore review --prune` from the same side removes the old record. A lock file that no longer covers any collected Lore file is not read at all, so delete it by hand. A rule moved within one lock file's folders keeps its records.
+A rule moved to a folder with another lock file, such as from `web/` to `shop/`, or below a new `root: true`, leaves its record behind. It is `never-reviewed` in its new place, and its old record is an `orphan-review` of the old lock file. Review it again, then `lore review --prune` from the same side removes the old record. A directory that gains a `repo:` key moves every rule below it the same way: its rules leave the enclosing lock file's scope, so their old records there become orphans that `--prune` removes. Check `lore audit` output before pruning after such a change. A `repo:` key below another marked directory is `nested-repo` instead, which no layout uses, so while it stands the lock file above it is not judged. A lock file that no longer covers any collected Lore file is not read at all, so delete it by hand. A rule moved within one lock file's folders keeps its records.
 
 ### When a record is an orphan
 
@@ -180,7 +180,8 @@ Every Lore file a lock file covers is collected by the same runs, so a run that 
 
 - an excluded Lore file, or an entry with no readable id;
 - a Lore or `.loreconfig` file warned `lore-file-not-read`;
-- an untracked Lore or `.loreconfig` file in the governed working tree (not under `--rules-ref`).
+- an untracked Lore or `.loreconfig` file in the governed working tree (not under `--rules-ref`);
+- a `nested-repo` `.loreconfig` below a marked directory, for that directory's lock file and that of any Lore root between them.
 
 Then none of that lock file's records is reported. When it holds a record that no collected rule has, stderr says so in one line, so the silence is not taken for a clean lock file:
 

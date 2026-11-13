@@ -206,7 +206,7 @@ describe("audit", () => {
     expect(result.summary).toEqual({ counts: {}, rulesWithSource: 0, rulesWithoutSource: 0 });
   });
 
-  describe("a directory a repo key excludes covers its own Lore files, so it hides none of an outer lock file's rules", () => {
+  describe("a directory repo-inside-repo excludes covers its own Lore files, so it hides none of an outer lock file's rules", () => {
     const WEB = record(source({ file: "docs/review.md" }), { rule: "web-rule" });
     const GONE = record(AT_HEADING, { rule: "gone-rule" });
     const names = (files: Record<string, string>) => run(files).findings.map((f) => [f.name, f.rule, f.file]);
@@ -224,19 +224,6 @@ describe("audit", () => {
       expect(run(files).unjudged).toEqual([]);
     });
 
-    test("nested-repo in an external folder", () => {
-      const files = {
-        "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
-        "external:lore/shop/.lore/a.lore": rule("file: /docs/review.md\nheading: Money is integer minor units"),
-        "external:lore/shop/apps/web/.loreconfig": "repo: github.com/acme/web\n",
-        "external:lore/shop/apps/web/.lore/web.lore": rule("file: /docs/review.md", "web-rule"),
-        "docs/review.md": DOC,
-        "external:lore/shop/lore-reviews.lock": lock(record(AT_HEADING), WEB, GONE),
-      };
-      const at = "external:lore/shop/lore-reviews.lock";
-      expect(names(files)).toEqual([["orphan-review", "gone-rule", at], ["orphan-review", "web-rule", at]]);
-    });
-
     test("not invalid-loreconfig in the governed repo, which leaves every Lore file collected", () => {
       const files = {
         [LORE]: rule(HEADING),
@@ -246,6 +233,58 @@ describe("audit", () => {
         [LOCK]: lock(record(AT_HEADING), WEB, GONE),
       };
       expect(names(files)).toEqual([["orphan-review", "gone-rule", LOCK]]);
+    });
+  });
+
+  describe("nested-repo below a marked directory may hide rules from the lock file they would have without the key", () => {
+    const WEB = record(source({ file: "docs/review.md" }), { rule: "web-rule" });
+    const GONE = record(AT_HEADING, { rule: "gone-rule" });
+    const SHOP_LOCK = "external:lore/shop/lore-reviews.lock";
+    const shop = {
+      "external:lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+      "external:lore/shop/.lore/a.lore": rule("file: /docs/review.md\nheading: Money is integer minor units"),
+      "external:lore/shop/apps/web/.loreconfig": "repo: github.com/acme/web\n",
+      "external:lore/shop/apps/web/.lore/web.lore": rule("file: /docs/review.md", "web-rule"),
+      "docs/review.md": DOC,
+      [SHOP_LOCK]: lock(record(AT_HEADING), WEB, GONE),
+    };
+    const hides = "an error in external:lore/shop/apps/web/.loreconfig may hide rules";
+
+    test("the marked directory's lock file is not judged", () => {
+      const result = run(shop);
+      expect(result.excluded.map((d) => [d.name, d.file])).toEqual([["nested-repo", "external:lore/shop/apps/web/.loreconfig"]]);
+      expect(result.findings).toEqual([]);
+      expect(result.unjudged).toEqual([{ file: SHOP_LOCK, reason: hides }]);
+    });
+
+    test("nor is the lock file of a Lore root between them, while one beside them still is", () => {
+      const APPS_LOCK = "external:lore/shop/apps/lore-reviews.lock";
+      const ADMIN_LOCK = "external:lore/shop/admin/lore-reviews.lock";
+      const result = run({
+        ...shop,
+        "external:lore/shop/apps/.loreconfig": "root: true\n",
+        "external:lore/shop/apps/.lore/apps.lore": rule("file: /docs/review.md", "apps-rule"),
+        [APPS_LOCK]: lock(record(source(), { rule: "apps-rule" }), WEB),
+        "external:lore/shop/admin/.loreconfig": "root: true\n",
+        "external:lore/shop/admin/.lore/admin.lore": rule("file: /docs/review.md", "admin-rule"),
+        [ADMIN_LOCK]: lock(record(source(), { rule: "admin-rule" }), GONE),
+      });
+      expect(result.findings.map((f) => [f.name, f.rule, f.file])).toEqual([["orphan-review", "gone-rule", ADMIN_LOCK]]);
+      expect(result.unjudged).toEqual([{ file: APPS_LOCK, reason: hides }, { file: SHOP_LOCK, reason: hides }]);
+    });
+
+    test("below a directory marked for another repository it hides nothing from the governed repo's lock files", () => {
+      const result = run({
+        "external:lore/shop/.loreconfig": shop["external:lore/shop/.loreconfig"],
+        "external:lore/shop/.lore/a.lore": shop["external:lore/shop/.lore/a.lore"],
+        "external:lore/blog/.loreconfig": "repo: github.com/acme/blog\n",
+        "external:lore/blog/apps/.loreconfig": "repo: github.com/acme/web\n",
+        "docs/review.md": DOC,
+        [SHOP_LOCK]: lock(record(AT_HEADING), GONE),
+      });
+      expect(result.excluded.map((d) => [d.name, d.file])).toEqual([["nested-repo", "external:lore/blog/apps/.loreconfig"]]);
+      expect(result.findings.map((f) => [f.name, f.rule])).toEqual([["orphan-review", "gone-rule"]]);
+      expect(result.unjudged).toEqual([]);
     });
   });
 });

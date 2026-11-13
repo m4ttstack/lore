@@ -225,6 +225,23 @@ describe("lore audit", () => {
     });
   });
 
+  test("a directory nested-repo excludes in a given folder may hide rules, so the outer lock file is not judged", async () => {
+    const root = shop();
+    git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
+    const folder = repoWith({
+      "lore/shop/.loreconfig": "repo: github.com/acme/shop\n",
+      "lore/shop/.lore/a.lore": ruleCiting("shared-rule", `/${SOURCE.file}`),
+      "lore/shop/apps/web/.loreconfig": "repo: github.com/acme/web\n",
+      "lore/shop/apps/web/.lore/web.lore": ruleCiting("web-rule", `/${SOURCE.file}`),
+      "lore/shop/lore-reviews.lock": lockFor("shared-rule", SOURCE, DOC) + lockFor("web-rule", SOURCE, DOC).split("\n")[1] + "\n",
+    });
+    const reason = "an error in external:lore/shop/apps/web/.loreconfig may hide rules";
+    expect(await lore(["audit", "--repo", root, "--given", join(folder, "lore")])).toEqual({
+      code: 0, out: "rules with a source: 2, without: 1\n",
+      err: "lore: excluded nested-repo in external:lore/shop/apps/web/.loreconfig line 1\n" + notChecked("external:lore/shop/lore-reviews.lock", reason),
+    });
+  });
+
   test("--format json is an audit result plus the excluded entries", async () => {
     const root = shop({ ".lore/bad.lore": BROKEN, ".lore/b.lore": ruleCiting("notes-rule", "docs/notes.md", null) });
     const { code, out, err } = await lore(["audit", "--repo", root, "--format", "json"]);

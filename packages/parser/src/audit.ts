@@ -172,6 +172,7 @@ export function orphanRecords(parsed: ParsedInput, locks: readonly LockFile[], w
     if (error.entry === null) setIn(errors, key).add(error.file);
     else setIn(named, key).add(error.entry);
   }
+  for (const { key, file } of nestedLocks(collected)) setIn(errors, key).add(file);
   const held = new Map<string, Set<string>>();
   for (const lock of withheld) setIn(held, lockKey(lock)).add(lock.reason);
 
@@ -183,6 +184,23 @@ export function orphanRecords(parsed: ParsedInput, locks: readonly LockFile[], w
     if (records.length === 0) continue;
     const error = first(errors.get(key));
     found.push({ lock, records, partial: error === undefined ? (first(held.get(key)) ?? null) : `an error in ${error} may hide rules` });
+  }
+  return found;
+}
+
+// A nested-repo key has no layout a run collects, so it is taken for a stray one: the rules below it would be covered,
+// once it is removed, by the enclosing marked directory's lock file or that of a Lore root between them.
+function nestedLocks(collected: Collected): { key: string; file: string }[] {
+  const found: { key: string; file: string }[] = [];
+  for (const gone of collected.excluded) {
+    if (gone.repository === "repo") continue;
+    const prefix = gone.file.startsWith(LOOSE) ? LOOSE : EXTERNAL;
+    collected.trees.forEach(({ repository, marked }, tree) => {
+      if (repository !== gone.repository || !within(gone.dir, marked)) return;
+      for (const loreRoot of new Set([marked, loreRootIn(collected, gone.dir, repository, marked)])) {
+        found.push({ key: lockKey(lockOf(collected, tree, prefix, loreRoot)), file: gone.file });
+      }
+    });
   }
   return found;
 }

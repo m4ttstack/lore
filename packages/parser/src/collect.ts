@@ -45,8 +45,8 @@ export interface Collected {
   // Indexed by Repository number: the index in input.given of the first folder of that repository.
   repositoryGiven: number[];
   configsByRepository: ReadonlyMap<Repository, ReadonlyMap<string, ConfigFile>>;
-  // Each directory that repo-inside-repo or nested-repo excludes, in its repository.
-  excluded: { dir: string; repository: Repository }[];
+  // Each directory that repo-inside-repo or nested-repo excludes, in its repository, with its .loreconfig's path.
+  excluded: { dir: string; repository: Repository; file: string }[];
 }
 
 type Config = Omit<ConfigFile, "trees">;
@@ -112,7 +112,7 @@ export function loreRootIn(collected: Collected, dir: string, repository: Reposi
 
 function collectSource(source: Source, remotes: readonly string[], out: Collected): void {
   const { configs, excluded, marks } = readConfigs(source, remotes, out);
-  out.excluded.push(...excluded.map((dir) => ({ dir, repository: source.repository })));
+  out.excluded.push(...excluded.map((dir) => ({ dir, repository: source.repository, file: source.prefix + join(dir, CONFIG_NAME) })));
   const roots: { marked: string; tree: Tree }[] = source.folders === null
     ? [{ marked: ROOT, tree: "repo" }]
     : marks.map((marked) => ({ marked, tree: out.trees.push({ repository: source.repository as number, marked }) - 1 }));

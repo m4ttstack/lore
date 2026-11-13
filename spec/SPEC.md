@@ -6241,9 +6241,9 @@ Dates are shown in the shop's locale.
 Review records are kept in **lock files**, each named
 `lore-reviews.lock`. The lock file of a Lore file is in the nearest
 directory, at or above the directory that holds the Lore file and no
-higher than the root of its repository, whose `.loreconfig` has
-`root: true` or a `repo` key. When there is none, it is in the
-repository's root. So a directory marked with `repo` (see
+higher than the root of its repository (for a loose folder, the loose
+folder's top), whose `.loreconfig` has `root: true` or a `repo` key.
+When there is none, it is in that root. So a directory marked with `repo` (see
 [External folders](#external-folders)) starts a new lock file just as a
 Lore root does (see [Lore root](#lore-root)), and everything else that
 uses the Lore root, such as categories, `disable`, audit settings and
@@ -6254,6 +6254,17 @@ still counts: the Lore files below it, which no tool collects from
 there, have the lock file in its directory or below it, never one above
 it. A lock file **covers** each Lore file whose lock file it is, and
 holds the records of their rules.
+
+So adding a `repo` key to a directory moves the rules below it out of
+the scope of the lock file above it, and their records there become
+orphans. In the governed repo the key is `repo-inside-repo`, which is
+how a shared rules repository looks from its own run, so those records
+are reported as `orphan-review`, and a tool that removes orphan records
+removes them: after adding such a key, read the audit before removing
+any. A `nested-repo` key has no layout that a run collects, so it is
+taken for a stray one, and while it stands the lock files above it
+that would cover its rules without it are not judged (see
+[Findings](#findings)).
 
 A lock file's path has the prefix its Lore files have, so in the team
 repository of [External folders](#external-folders), where `lore/` has
@@ -6742,7 +6753,12 @@ collect every Lore file the lock file covers:
   directory where such a Lore file could be, that the tool could not
   read, or that it can see but did not collect, such as an untracked
   file in the governed repo's working tree, whose rules a tool that
-  records reviews may have recorded.
+  records reviews may have recorded;
+- a `nested-repo` error below a marked directory, for that directory's
+  lock file and for the lock file of any Lore root between them that
+  would cover the Lore files below the error without its `repo` key.
+  Such a key is taken for a stray one, and a record of a rule below it
+  may be one from before the key was added.
 
 Nothing else can leave a covered rule uncollected:
 
@@ -6750,8 +6766,8 @@ Nothing else can leave a covered rule uncollected:
   so a run that collects any Lore file below it reads every directory
   below it.
 - A directory marked for another repository, and one that
-  `repo-inside-repo` or `nested-repo` excludes, has its own lock file,
-  so the rules below it are never covered by a lock file above it.
+  `repo-inside-repo` excludes, has its own lock file, so the rules below
+  it are never covered by a lock file above it.
 - A Lore file of a given folder's repository in no marked directory is
   covered by a lock file of that repository's own rules, which a run
   for another governed repo never reads.
@@ -7050,11 +7066,11 @@ is excluded, and no record of the root lock file is reported: not that
 of `refunds-to-original-method`, which may be the file's, and not even
 that of `price-from-quote`. In the team repository,
 `lore/shop/apps/checkout/` is marked below the shop's marked directory,
-so it is `nested-repo`. It has its own lock file, which nothing
-collected is covered by and the tool does not read, so it hides no rule
-from `lore/shop/`'s lock file: the record of
-`checkout-refunds-logged` there, left from before the directory was
-marked, is an orphan:
+so it is `nested-repo`. Its own lock file covers nothing collected, and
+the tool does not read it. Without the key, `lore/shop/`'s lock file
+would cover the rules below it, so that lock file is not judged either:
+the record of `checkout-refunds-logged` there, from before the
+directory was marked, is kept until the key is removed:
 
 ``````example audit
 === .lore/checkout.lore
@@ -7114,13 +7130,8 @@ Dates are shown in the shop's locale.
 2026-11-12
 === expect
 {
-  "findings": [
-    {
-      "name": "orphan-review", "level": "warn", "rule": "checkout-refunds-logged", "file": "external:lore/shop/lore-reviews.lock",
-      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
-    }
-  ],
-  "summary": { "counts": { "orphan-review": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+  "findings": [],
+  "summary": { "counts": {}, "rulesWithSource": 2, "rulesWithoutSource": 0 }
 }
 ``````
 

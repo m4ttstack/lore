@@ -380,7 +380,7 @@ describe("records that are not provably orphans are kept", () => {
     expect(lockOf(root, "apps/web/lore-reviews.lock")).toBe(writeReviews([web]));
   });
 
-  test("a directory nested-repo excludes in a given folder covers its own rules, so --prune removes their records from the outer lock file", async () => {
+  test("a directory nested-repo excludes in a given folder may hide rules, so --prune leaves the outer lock file as it is", async () => {
     const root = shop();
     git(root, "remote", "add", "origin", "https://github.com/acme/shop.git");
     const web = record("web-rule", MONEY);
@@ -395,11 +395,13 @@ describe("records that are not provably orphans are kept", () => {
     const args = ["--repo", root, "--given", join(folder, "lore")];
     const excluded = "lore: excluded nested-repo in external:lore/shop/apps/web/.loreconfig line 1\n";
     expect(await lore(["review", "shared-rule", ...args])).toEqual({ code: 0, out: "reviewed shared-rule (1 source)\n", err: excluded });
-    expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(writeReviews([GONE, record("shared-rule", MONEY, DOC, TODAY), web]));
+    const reviewed = lockOf(folder, "lore/shop/lore-reviews.lock");
+    expect(reviewed).toBe(writeReviews([GONE, record("shared-rule", MONEY, DOC, TODAY), web]));
+    const reason = "an error in external:lore/shop/apps/web/.loreconfig may hide rules";
     expect(await lore(["review", "--prune", ...args])).toEqual({
-      code: 0, out: "pruned 2 records from external:lore/shop/lore-reviews.lock\n", err: excluded,
+      code: 0, out: "", err: excluded + notPruning("external:lore/shop/lore-reviews.lock", reason),
     });
-    expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(writeReviews([record("shared-rule", MONEY, DOC, TODAY)]));
+    expect(lockOf(folder, "lore/shop/lore-reviews.lock")).toBe(reviewed);
   });
 
   test("two external folders of one repository under one Lore root each have their own lock file", async () => {
