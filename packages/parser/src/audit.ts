@@ -29,8 +29,8 @@ export interface AuditResult {
 // one repository that share a Lore root share its lock file.
 export interface LockRef { repository: Repository; path: string }
 export interface LockFile extends LockRef { records: ReviewRecord[] }
-// A lock file and a Lore or .loreconfig file under its Lore root that could not be read.
-export interface Withheld extends LockRef { file: string }
+// A lock file the caller knows the run did not wholly collect, such as one with an unread file under its Lore root.
+export interface Withheld extends LockRef { reason: string }
 // records: those that belong to no source of a collected rule and name no excluded entry. partial: null when the run
 // collected the lock file's whole Lore root, so the records are orphans; otherwise why it did not.
 export interface LockRecords { lock: LockFile; records: ReviewRecord[]; partial: string | null }
@@ -179,8 +179,8 @@ export function orphanRecords(parsed: ParsedInput, locks: readonly LockFile[], w
   for (const { file, repository } of collected.hiding) {
     for (const ref of lockRefsHolding(collected, file, repository)) setIn(errors, lockKey(ref)).add(file);
   }
-  const unread = new Map<string, Set<string>>();
-  for (const held of withheld) setIn(unread, lockKey(held)).add(held.file);
+  const held = new Map<string, Set<string>>();
+  for (const lock of withheld) setIn(held, lockKey(lock)).add(lock.reason);
 
   const found: LockRecords[] = [];
   for (const lock of locks) {
@@ -189,7 +189,7 @@ export function orphanRecords(parsed: ParsedInput, locks: readonly LockFile[], w
     if (root === undefined) continue;
     const records = lock.records.filter((record) => !live.get(key)?.has(identity(record.rule, record)) && !named.get(key)?.has(record.rule));
     if (records.length === 0) continue;
-    found.push({ lock, records, partial: partialRoot(collected, root, errors.get(key), unread.get(key)) });
+    found.push({ lock, records, partial: partialRoot(collected, root, errors.get(key), held.get(key)) });
   }
   return found;
 }
@@ -197,29 +197,37 @@ export function orphanRecords(parsed: ParsedInput, locks: readonly LockFile[], w
 // Why the run did not collect the whole Lore root, or null when it did. In the governed repo every directory is read
 // and every repo key is an error that hides, so only the last two reasons apply there.
 function partialRoot(
-  collected: Collected, root: { repository: Repository; loreRoot: string }, errors: Set<string> | undefined, unread: Set<string> | undefined,
+  collected: Collected, root: { repository: Repository; loreRoot: string; prefix: string }, errors: Set<string> | undefined, held: Set<string> | undefined,
 ): string | null {
-  const { repository, loreRoot } = root;
-  if (repository !== "repo" && !collected.repositoryFolders[repository]!.some((folder) => within(loreRoot, folder))) {
-    return "the given folders hold only part of its Lore root";
+  const { repository, loreRoot, prefix } = root;
+  if (repository !== "repo") {
+    if (!collected.repositoryFolders[repository]!.some((folder) => within(loreRoot, folder))) return "the given folders hold only part of its Lore root";
+    const foreign = collected.foreign.find((config) => config.repository === repository && within(config.dir, loreRoot));
+    if (foreign !== undefined) return `${foreign.file} names another repository`;
+    const marks = collected.trees.filter((tree) => tree.repository === repository).map(({ marked }) => marked);
+    const unmarked = collected.repositoryFiles[repository]!.find(({ path }) =>
+      isLorePath(path) && within(dirOf(path), loreRoot) && !marks.some((marked) => within(dirOf(path), marked)));
+    if (unmarked !== undefined) return `${prefix}${unmarked.path} is in no directory marked for this repository`;
   }
-  const foreign = collected.foreign.find((config) => config.repository === repository && within(config.dir, loreRoot));
-  if (foreign !== undefined) return `${foreign.file} names another repository`;
   const error = first(errors);
   if (error !== undefined) return `an error in ${error} may hide rules`;
-  const file = first(unread);
-  return file === undefined ? null : `${file} could not be read`;
+  return first(held) ?? null;
+}
+
+function isLorePath(path: string): boolean {
+  const segments = path.split("/");
+  return segments.at(-1)!.endsWith(".lore") && segments.slice(0, -1).includes(".lore");
 }
 
 function first(files: Set<string> | undefined): string | undefined {
   return files === undefined ? undefined : [...files].sort(compareCodePoints)[0];
 }
 
-function lockRoots(collected: Collected): Map<string, { ref: LockRef; repository: Repository; loreRoot: string }> {
-  const roots = new Map<string, { ref: LockRef; repository: Repository; loreRoot: string }>();
+function lockRoots(collected: Collected): Map<string, { ref: LockRef; repository: Repository; loreRoot: string; prefix: string }> {
+  const roots = new Map<string, { ref: LockRef; repository: Repository; loreRoot: string; prefix: string }>();
   for (const file of collected.files) {
     const ref = fileLock(collected, file);
-    roots.set(lockKey(ref), { ref, repository: ref.repository, loreRoot: file.loreRoot });
+    roots.set(lockKey(ref), { ref, repository: ref.repository, loreRoot: file.loreRoot, prefix: file.prefix });
   }
   return roots;
 }

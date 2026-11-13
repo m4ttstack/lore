@@ -128,8 +128,8 @@ describe("audit", () => {
     const gone = record(AT_HEADING, { rule: "price-from-quote" });
     const files = { [LORE]: rule(HEADING), "docs/review.md": DOC, [LOCK]: lock(record(AT_HEADING), gone) };
     expect(run(files).findings.map((f) => f.name)).toEqual(["orphan-review"]);
-    expect(run(files, { withheld: [{ repository: "repo", path: LOCK, file: ".lore/linked.lore" }] }).findings).toEqual([]);
-    expect(run(files, { withheld: [{ repository: 0, path: LOCK, file: "external:.lore/linked.lore" }] }).findings.map((f) => f.name)).toEqual(["orphan-review"]);
+    expect(run(files, { withheld: [{ repository: "repo", path: LOCK, reason: ".lore/linked.lore could not be read" }] }).findings).toEqual([]);
+    expect(run(files, { withheld: [{ repository: 0, path: LOCK, reason: "external:.lore/linked.lore could not be read" }] }).findings.map((f) => f.name)).toEqual(["orphan-review"]);
   });
 
   test("two matching headings are ambiguous-heading, not source-missing", () => {
@@ -348,13 +348,42 @@ describe("records are orphans only when the run collected the whole Lore root of
     expect(given.unjudged).toEqual([]);
   });
 
+  test("a Lore file under the Lore root in no directory marked for this repository keeps every record", () => {
+    const result = run({
+      ...shared,
+      "external:lore/own/.lore/t.lore": rule("file: /docs/review.md", "team-rule"),
+      [SHARED]: lock(SHOP, record(source(), { rule: "team-rule" }), GONE),
+    });
+    expect(result.findings).toEqual([]);
+    expect(result.unjudged).toEqual([{ file: SHARED, reason: "external:lore/own/.lore/t.lore is in no directory marked for this repository" }]);
+  });
+
+  test("the governed repo given as a folder judges neither view of its lock file", () => {
+    const files = [
+      { path: "docs/review.md", content: DOC },
+      { path: "lore/.loreconfig", content: "root: true\n" },
+      { path: "lore/a/.loreconfig", content: "repo: github.com/acme/shop\n" },
+      { path: "lore/a/.lore/r.lore", content: rule("file: /docs/review.md", "a-rule") },
+      { path: "lore/b/.lore/r.lore", content: rule("file: /docs/review.md", "b-rule") },
+    ];
+    const parsed = parseWithContext({ repo: files, given: [{ folder: "lore", repository: "/work/shop", files }], remotes: ["https://github.com/acme/shop"] });
+    const records = [record(source(), { rule: "a-rule" }), record(source(), { rule: "b-rule" }), GONE];
+    const locks = [{ repository: "repo" as const, path: "lore/lore-reviews.lock", records }, { repository: 0, path: SHARED, records }];
+    const result = audit(parsed, { today: "2026-11-12", readSource: (_place, file) => (file === "docs/review.md" ? DOC : null), locks });
+    expect(orphans(result)).toEqual([]);
+    expect(result.unjudged).toEqual([
+      { file: SHARED, reason: "external:lore/b/.lore/r.lore is in no directory marked for this repository" },
+      { file: "lore/lore-reviews.lock", reason: "an error in lore/a/.loreconfig may hide rules" },
+    ]);
+  });
+
   test("an error that hides rules is the reason, and a lock file whose records all match has no entry", () => {
     const hidden = run({ [LORE]: rule(HEADING), ".lore/bad.lore": "<rule id=\"x\">\n", "docs/review.md": DOC, [LOCK]: lock(record(AT_HEADING), GONE) });
     expect(hidden.unjudged).toEqual([{ file: LOCK, reason: "an error in .lore/bad.lore may hide rules" }]);
     const clean = run({ [LORE]: rule(HEADING), ".lore/bad.lore": "<rule id=\"x\">\n", "docs/review.md": DOC, [LOCK]: lock(record(AT_HEADING)) });
     expect(clean.unjudged).toEqual([]);
     const unread = run({ [LORE]: rule(HEADING), "docs/review.md": DOC, [LOCK]: lock(record(AT_HEADING), GONE) }, {
-      withheld: [{ repository: "repo", path: LOCK, file: ".lore/linked.lore" }],
+      withheld: [{ repository: "repo", path: LOCK, reason: ".lore/linked.lore could not be read" }],
     });
     expect(unread.unjudged).toEqual([{ file: LOCK, reason: ".lore/linked.lore could not be read" }]);
   });
