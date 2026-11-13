@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import Ajv from "ajv/dist/2020";
@@ -242,6 +242,34 @@ describe("lore audit", () => {
       symlinkSync(join(loose, ".github/policy.md"), join(loose, ".github/linked.md"));
       write(loose, { ".lore/a.lore": cited(["../.github/linked.md"]) });
       expect((await lore(["audit", ...given])).out).toContain("source-missing  policy-rule  loose:.github/linked.md  file not found");
+      symlinkSync(join(loose, ".github"), join(loose, ".linked"));
+      write(loose, { ".lore/a.lore": cited(["../.linked/policy.md"]) });
+      expect((await lore(["audit", ...given])).out).toContain("source-missing  policy-rule  loose:.linked/policy.md  file not found");
+    });
+
+    test("an unreadable directory beside a cited file does not stop the run, and an unreadable cited file is source-unchecked", async () => {
+      const loose = folder(cited(["../.github/policy.md", "../.private/policy.md", "../.github/locked.md"]));
+      write(loose, { ".private/policy.md": "# Policy\n", ".github/locked.md": "# Policy\n" });
+      chmodSync(join(loose, ".github/locked.md"), 0o000);
+      chmodSync(join(loose, ".private"), 0o000);
+      try {
+        const { code, out, err } = await lore(["audit", ...args(loose)]);
+        expect(err).toBe("");
+        expect(code).toBe(1);
+        expect(out).toBe(
+          "loose:.lore/a.lore\n" +
+          "  error  source-unchecked  policy-rule  loose:.private/policy.md\n" +
+          "  error  source-unchecked  policy-rule  loose:.github/locked.md\n" +
+          "  warn  never-reviewed  policy-rule  loose:.github/policy.md\n" +
+          "\n" +
+          "source-unchecked: 2\n" +
+          "never-reviewed: 1\n" +
+          "rules with a source: 2, without: 1\n",
+        );
+      } finally {
+        chmodSync(join(loose, ".private"), 0o755);
+        chmodSync(join(loose, ".github/locked.md"), 0o644);
+      }
     });
   });
 

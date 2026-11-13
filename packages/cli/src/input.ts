@@ -1,4 +1,4 @@
-import { readdirSync, realpathSync, statSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync, realpathSync, statSync, type Stats } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import {
   EXTERNAL, LOOSE, RULES, type Collected, type Diagnostic, type InputFile, type LockRef, type LoreInput, type Repository, type SourceContent, type Tree,
@@ -41,9 +41,7 @@ export interface UnreadFile {
   // The index in input.given of the place's first folder, or null for the governed repo.
   given: number | null;
 }
-// cited: for a loose folder, the files a source or lock file may name, hidden directories included; listed is the
-// Lore-file listing, which leaves them out.
-interface Place { root: string; listed: Set<string>; files: InputFile[]; unread: string[]; folders: string[]; prefix: string; cited?: Set<string> }
+interface Place { root: string; listed: Set<string>; files: InputFile[]; unread: string[]; folders: string[]; prefix: string }
 
 const LORE_FOLDER = ".lore";
 const CONFIG_NAME = ".loreconfig";
@@ -113,8 +111,7 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
       if (!file.startsWith(prefix)) continue;
       const place = givenPlace(places, repository, collected);
       if (place === undefined) return undefined;
-      if (prefix === LOOSE) place.cited ??= new Set(walkLoose(place.root, true));
-      return { root: place.root, ref: null, path: file.slice(prefix.length), listed: place.cited ?? place.listed };
+      return { root: place.root, ref: null, path: file.slice(prefix.length), listed: prefix === LOOSE ? null : place.listed };
     }
     if (repo === null) return undefined;
     return { root: repo, ref: rulesRef, path: file.startsWith(RULES) ? file.slice(RULES.length) : file, listed: governedTracked };
@@ -134,7 +131,7 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
     repo === null || rulesRef !== null || sources.untrackedLore === true ? [] : untrackedPaths(repo).filter(wantsContent);
   const tracks = (ref: LockRef, collected: Collected): boolean | null => {
     const at = located(ref.repository, ref.path, collected);
-    return at === undefined || at.ref !== null || ref.path.startsWith(LOOSE) ? null : at.listed.has(at.path);
+    return at === undefined || at.ref !== null || at.listed === null ? null : at.listed.has(at.path);
   };
   const readSourceContent = (place: { tree: Tree }, file: string, collected: Collected): SourceContent | undefined => {
     const bytes = readBytes(place.tree === "repo" ? "repo" : collected.trees[place.tree]!.repository, file, collected);
@@ -165,7 +162,9 @@ export async function buildInput(sources: RuleSources): Promise<BuiltInput> {
 }
 
 // A listed path whose file cannot be read safely (a symlink out of the place, a skipped sparse-checkout file) could not be looked at.
-function readListed(root: string, ref: string | null, path: string, listed: ReadonlySet<string>, tree: RefTree | null): Buffer | null | undefined {
+// listed is null for a loose folder, whose cited files may lie in hidden directories its listing leaves out.
+function readListed(root: string, ref: string | null, path: string, listed: ReadonlySet<string> | null, tree: RefTree | null): Buffer | null | undefined {
+  if (listed === null) return readLoose(root, path);
   if (!listed.has(path)) return null;
   if (ref === null) return readTrackedBytes(root, path, listed) ?? undefined;
   try {
@@ -277,21 +276,44 @@ function walkReaches(outer: string, inner: string): boolean {
   return path.split(sep).every((name) => !name.startsWith(".") || name === LORE_FOLDER);
 }
 
-// Symlinks are never listed or walked into. hidden walks every directory but .git, as cited files may lie there.
-function walkLoose(dir: string, hidden = false): string[] {
+function walkLoose(dir: string): string[] {
   const paths: string[] = [];
   const walk = (at: string, prefix: string): void => {
     const entries = readdirSync(at, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
     for (const entry of entries) {
       const path = prefix + entry.name;
       if (entry.isDirectory()) {
-        const walked = hidden ? entry.name !== GIT_FOLDER : !entry.name.startsWith(".") || entry.name === LORE_FOLDER;
-        if (walked) walk(join(at, entry.name), `${path}/`);
+        if (!entry.name.startsWith(".") || entry.name === LORE_FOLDER) walk(join(at, entry.name), `${path}/`);
       } else if (entry.isFile()) paths.push(path);
     }
   };
   walk(dir, "");
   return paths;
+}
+
+// One file of a loose folder, found without listing the folder: as in its listing, no symlink is followed, at the file
+// or on the way to it, and nothing below .git is read. Null when there is no such file; undefined when it, or a
+// directory on the way, cannot be read.
+function readLoose(root: string, path: string): Buffer | null | undefined {
+  const names = path.split("/");
+  if (names.some((name) => name === "" || name === "." || name === "..") || names.slice(0, -1).includes(GIT_FOLDER)) return null;
+  let at = root;
+  for (const [n, name] of names.entries()) {
+    at = join(at, name);
+    let stats: Stats;
+    try {
+      stats = lstatSync(at);
+    } catch (error) {
+      const { code } = error as NodeJS.ErrnoException;
+      return code === "ENOENT" || code === "ENOTDIR" ? null : undefined;
+    }
+    if (n === names.length - 1 ? !stats.isFile() : !stats.isDirectory()) return null;
+  }
+  try {
+    return readFileSync(at);
+  } catch {
+    return undefined;
+  }
 }
 
 // A path listed by more than one place is ambiguous, so it is read from none rather than from whichever came first.
