@@ -1020,16 +1020,52 @@
     "path": "external:lore/web/apps/web/.lore/web.lore",
     "errors": []
   },
+  "example-114-3.lore": {
+    "example": 114,
+    "kind": "audit",
+    "path": "external:lore/blog/.lore/posts.lore",
+    "errors": []
+  },
+  "example-114-4.lore": {
+    "example": 114,
+    "kind": "audit",
+    "path": "external:lore/own/.lore/team.lore",
+    "errors": []
+  },
   "example-115-1.lore": {
     "example": 115,
     "kind": "audit",
-    "path": ".lore/checkout.lore",
+    "path": "external:lore/shop/.lore/shared.lore",
+    "errors": []
+  },
+  "example-115-2.lore": {
+    "example": 115,
+    "kind": "audit",
+    "path": "external:lore/web/apps/web/.lore/web.lore",
+    "errors": []
+  },
+  "example-115-3.lore": {
+    "example": 115,
+    "kind": "audit",
+    "path": "external:lore/blog/.lore/posts.lore",
+    "errors": []
+  },
+  "example-115-4.lore": {
+    "example": 115,
+    "kind": "audit",
+    "path": "external:lore/own/.lore/team.lore",
     "errors": []
   },
   "example-116-1.lore": {
     "example": 116,
     "kind": "audit",
-    "path": ".lore/checkout.lore",
+    "path": "external:lore/shop/apps/web/.lore/web.lore",
+    "errors": []
+  },
+  "example-116-2.lore": {
+    "example": 116,
+    "kind": "audit",
+    "path": "external:lore/web/.lore/dates.lore",
     "errors": []
   },
   "example-117-1.lore": {
@@ -1044,28 +1080,10 @@
     "path": ".lore/checkout.lore",
     "errors": []
   },
-  "example-118-2.lore": {
-    "example": 118,
-    "kind": "audit",
-    "path": "apps/web/.lore/web.lore",
-    "errors": []
-  },
   "example-119-1.lore": {
     "example": 119,
     "kind": "audit",
-    "path": "apps/web/.lore/web.lore",
-    "errors": []
-  },
-  "example-119-2.lore": {
-    "example": 119,
-    "kind": "audit",
     "path": ".lore/checkout.lore",
-    "errors": []
-  },
-  "example-119-3.lore": {
-    "example": 119,
-    "kind": "audit",
-    "path": "apps/api/.lore/api.lore",
     "errors": []
   },
   "example-120-1.lore": {
@@ -1080,52 +1098,58 @@
     "path": "apps/web/.lore/web.lore",
     "errors": []
   },
-  "example-120-3.lore": {
-    "example": 120,
-    "kind": "audit",
-    "path": "external:lore/shop/.lore/shared.lore",
-    "errors": []
-  },
-  "example-120-4.lore": {
-    "example": 120,
-    "kind": "audit",
-    "path": "external:lore/checkout/.lore/refunds.lore",
-    "errors": []
-  },
   "example-121-1.lore": {
     "example": 121,
     "kind": "audit",
-    "path": "external:lore/shop/.lore/shared.lore",
+    "path": "apps/web/.lore/web.lore",
     "errors": []
   },
   "example-121-2.lore": {
     "example": 121,
     "kind": "audit",
-    "path": "external:lore/web/.lore/web.lore",
+    "path": ".lore/checkout.lore",
+    "errors": []
+  },
+  "example-121-3.lore": {
+    "example": 121,
+    "kind": "audit",
+    "path": "apps/api/.lore/api.lore",
     "errors": []
   },
   "example-122-1.lore": {
     "example": 122,
     "kind": "audit",
-    "path": "external:lore/shop/.lore/shared.lore",
+    "path": ".lore/checkout.lore",
     "errors": []
   },
   "example-122-2.lore": {
     "example": 122,
     "kind": "audit",
-    "path": "external:lore/own/.lore/team.lore",
+    "path": ".lore/refunds.lore",
+    "errors": []
+  },
+  "example-122-3.lore": {
+    "example": 122,
+    "kind": "audit",
+    "path": "external:lore/shop/.lore/shared.lore",
+    "errors": []
+  },
+  "example-122-4.lore": {
+    "example": 122,
+    "kind": "audit",
+    "path": "external:lore/shop/apps/checkout/.lore/refunds.lore",
     "errors": []
   },
   "example-123-1.lore": {
     "example": 123,
     "kind": "audit",
-    "path": "external:lore/shop/.lore/shared.lore",
+    "path": "lore/shop/.lore/shared.lore",
     "errors": []
   },
   "example-123-2.lore": {
     "example": 123,
     "kind": "audit",
-    "path": "external:lore/apps/checkout/.lore/refunds.lore",
+    "path": "lore/own/.lore/team.lore",
     "errors": []
   },
   "example-124-1.lore": {

@@ -1,13 +1,6 @@
-<rule id="money-in-minor-units" category="functional_correctness" disabled>
+<rule id="web-prices-from-quote" category="functional_correctness">
 <source>
-- file: docs/money-review.md
-- file: docs/checkout-review.md
-  heading: Money
-- file: docs/checkout-review.md
-  phrase: 'fromCents('
-- file: docs/checkout-review.md
-  heading: Dates
-  phrase: integers in minor units
+file: /docs/checkout-review.md
 </source>
-Amounts are integers in minor units (cents).
+A price the web app displays comes from the quote that produced it.
 </rule>

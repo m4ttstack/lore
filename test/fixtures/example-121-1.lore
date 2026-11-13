@@ -1,7 +1,7 @@
-<rule id="dates-from-locale" category="functional_correctness">
+<rule id="money-in-minor-units" category="functional_correctness">
 <source>
 file: /docs/checkout-review.md
-heading: Dates
+heading: Money is integer minor units
 </source>
-Displayed dates are formatted with the shop's locale.
+Amounts are integers in minor units (cents).
 </rule>

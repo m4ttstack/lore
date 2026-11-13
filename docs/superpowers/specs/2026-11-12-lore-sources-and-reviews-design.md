@@ -226,12 +226,12 @@ A file that is not valid UTF-8 is hashed as its raw bytes, and a
 
 ### The lock file
 
-One file, `lore-reviews.lock`, in the directory of each Lore root: the
-governed repo's root, a directory with `root: true`, or the root of an
-external or loose folder. It holds the records for every rule collected
-under that root, so moving a rule between Lore folders keeps its
-record. It is not inside a Lore folder and is not a Lore file. Only
-`lore review` writes it.
+One file, `lore-reviews.lock`, in the nearest directory above a rule's
+Lore folder that is a Lore root (the governed repo's root or a directory
+with `root: true`) or a directory marked with `repo:`. It holds the
+records for every rule it covers, so moving a rule between Lore folders
+it covers keeps its record. It is not inside a Lore folder and is not a
+Lore file. Only `lore review` writes it.
 
 It is JSON Lines: a header line, then one record per line, sorted by
 rule id, then file, heading and phrase. A record is one line, so two
@@ -280,7 +280,7 @@ writes the rule's records, replacing those it had.
   written.
 - A run that names rules changes only their records. Only `--prune`
   removes records whose rule or source no longer exists, and only from
-  a lock file whose whole Lore root the run collected.
+  a lock file whose every rule the run collected.
 - It writes to the working tree, so it reads rules from disk,
   untracked Lore files included as `lore check` does. `--rules-ref`,
   `--remote` and `--no-repo` are usage errors.
@@ -344,7 +344,7 @@ audit:
   the way up from the rule's Lore file to its Lore root. A setting
   nobody sets has the default above.
 - A finding with no rule (`orphan-review`) takes the settings of the
-  `.loreconfig` in the Lore root's directory.
+  lock file's directory.
 - `--max-age` and `--level` override the files for the whole run.
 
 ### Specified and tested
@@ -396,12 +396,20 @@ is never an error. There is no migration command, because a value in
   tool-written lock file.
 - The pointer is a YAML block, like the other structured children, not
   an element with attributes.
-- A record is an orphan only when the run collected the whole Lore root
-  of its lock file, and only `lore review --prune` removes orphans.
+- A record is an orphan only when the run collected every rule its lock
+  file covers, and only `lore review --prune` removes orphans.
   Records of rules that still existed were reported and deleted when a
   Lore root held folders for other repositories, when only part of a
   shared Lore root was given, and when an error below a folder marked
   for another repository hid rules.
+- A directory marked with `repo:` starts a new lock file, as `root: true`
+  does. A lock file's scope must be something one run collects as a
+  unit. One lock file per Lore root covered the rules of several
+  governed repos and the rules repository's own, while a run collects
+  one governed repo's, so each fix for lost records needed another
+  condition. The cost: a rule moved across a lock boundary leaves its
+  record behind, `never-reviewed` in its new place and an orphan in the
+  old lock file.
 
 ## Calls made in this document
 
@@ -412,8 +420,8 @@ is never an error. There is no migration command, because a value in
 - `lore review` is the only writer of the lock file, refuses a rule
   whose source does not resolve, still writes the other rules in the
   run, and with `--prune` removes orphan records.
-- One lock file per Lore root, named `lore-reviews.lock`, as JSON
-  Lines.
+- One lock file per Lore root or marked directory, whichever is nearer
+  the rule, named `lore-reviews.lock`, as JSON Lines.
 - A changed pointer is a new source and needs a fresh review.
 - One `<source>` block per rule, holding a mapping or a list.
 - Rules only; contexts cannot carry a source in this release.

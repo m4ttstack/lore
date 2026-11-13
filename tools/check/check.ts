@@ -82,7 +82,8 @@ export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; 
     }
     if (ex.remote !== null && (ex.remote === "" || ex.remote.includes("\n"))) report("remote", "the remote section is not one line");
     if (ex.kind === "eligibility" && ex.diff === null) report("diff", "an eligibility example needs a diff");
-    if (ex.kind !== "eligibility" && (ex.diff !== null || ex.remote !== null)) report("diff", `a ${ex.kind} example takes no diff or remote`);
+    if (ex.kind !== "eligibility" && ex.diff !== null) report("diff", `a ${ex.kind} example takes no diff`);
+    if (ex.kind === "parse" && ex.remote !== null) report("remote", "a parse example takes no remote");
     if (ex.kind === "audit" && (ex.today === null || !TODAY.test(ex.today))) report("today", "an audit example needs a today section of one YYYY-MM-DD line");
     if (ex.kind !== "audit" && ex.today !== null) report("today", `a ${ex.kind} example takes no today section`);
     if (ex.diff !== null) checkDiff(ex, report);

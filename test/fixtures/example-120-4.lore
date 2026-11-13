@@ -1,6 +1,0 @@
-<rule id="refunds-to-original-method" category="functional_correctness">
-<source>
-file: /docs/checkout-review.md
-</source>
-A refund goes back to the payment method that paid.
-</rule>

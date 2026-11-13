@@ -99,7 +99,7 @@ test("requires a diff exactly for eligibility examples", () => {
   expect(rules(swap("=== diff\nM src/x.ts\n+2 two\n", ""))).toContain("diff");
   expect(rules(swap("=== expect\n" + parseExpect, "=== diff\nA lore/a.lore\n=== expect\n" + parseExpect))).toContain("diff");
   const remote = "=== remote\ngit@example.com:acme/shop.git\n=== expect\n" + parseExpect;
-  expect(rules(swap("=== expect\n" + parseExpect, remote))).toContain("diff");
+  expect(rules(swap("=== expect\n" + parseExpect, remote))).toContain("remote");
 });
 
 test("diff-syntax: rejects malformed diff lines", () => {
@@ -368,8 +368,9 @@ test("today: an audit example needs one date, and other kinds take none", () => 
   expect(rules(swap("=== expect\n" + parseExpect, "=== today\n2026-11-12\n=== expect\n" + parseExpect))).toEqual(["today"]);
 });
 
-test("diff and sections: an audit example takes no diff, remote or rules: section", () => {
+test("diff and sections: an audit example takes a remote, but no diff or rules: section", () => {
   const ok = auditExpect([missing("c-rule")]);
+  expect(rules(withAudit(ok, "=== today\n2026-11-12\n=== remote\nhttps://github.com/acme/blog\n"))).toEqual([]);
   expect(rules(withAudit(ok, "=== today\n2026-11-12\n=== diff\nA lore/c.lore\n"))).toEqual(["diff"]);
   expect(rules(withAudit(ok, "=== today\n2026-11-12\n=== rules:lore/c.lore\nx\n"))).toEqual(["sections"]);
 });

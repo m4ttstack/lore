@@ -1,0 +1,6 @@
+<rule id="checkout-refunds-logged" category="observability">
+<source>
+file: /docs/checkout-review.md
+</source>
+Every refund is logged with the order it refunds.
+</rule>

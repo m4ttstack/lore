@@ -132,7 +132,7 @@ of the example:
 | `=== external:<path>` | An input file at `<path>` in the external repository described below. |
 | `=== loose:<path>` | A file of one given folder that is in no working copy, `<path>` relative to that folder. |
 | `=== rules:<path>` | Eligibility only. A file of the governed repo as it is at the rules revision (see [Collecting files](#collecting-files)). With at least one such section, the tool is given a rules revision. |
-| `=== remote` | Eligibility only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, and in every parse and audit example, the remote is `https://github.com/acme/shop`. |
+| `=== remote` | Eligibility and audit only, optional. One line: the governed repo's remote URL, used to match `repo` keys. Without it, and in every parse example, the remote is `https://github.com/acme/shop`. |
 | `=== diff` | Eligibility only, required. The change, in the format below. |
 | `=== today` | Audit only, required. One line: the date of the audit, `YYYY-MM-DD`. |
 | `=== expect` | The expected output, as JSON. |
@@ -184,9 +184,9 @@ that repository's root.
 sources cite. A source's file exists when the example has an input file
 at exactly its resolved path, prefix included, and is absent otherwise,
 so every source in an audit example could be looked at. An input named
-`lore-reviews.lock` is the lock file of the Lore root whose directory
-holds it (see [The lock file](#the-lock-file)), and no example holds a
-malformed one. The audit runs on the date in `=== today`, and its
+`lore-reviews.lock` is the lock file in the directory that holds it
+(see [The lock file](#the-lock-file)), and no example holds a malformed
+one. The audit runs on the date in `=== today`, and its
 levels and age limits come from the example's `.loreconfig` files only.
 
 **Expected output.** A parse example's expect is a document model,
@@ -6238,24 +6238,68 @@ Dates are shown in the shop's locale.
 
 ### The lock file
 
-Review records are kept in **lock files**. Each Lore root (see
-[Lore root](#lore-root)) has at most one, named `lore-reviews.lock`, in
-the Lore root's directory: the governed repo's root, a directory with
-`root: true`, or the root of an external or loose folder. Its path has
-the prefix its Lore root's files have, so the lock file of an external
-folder marked at `lore/shop/` is `external:lore/shop/lore-reviews.lock`.
-That path does not say which repository the file is in (see
-[Document model](#document-model)), so two given folders of different
-repositories can have lock files with the same path. Each is still its
-own Lore root's lock file, and a tool MUST NOT read one in place of the
-other: a lock file is named by its repository and its path. Two external
-folders of one repository have one Lore root when a `root: true` above
-both makes it so, and then share its one lock file, which a tool reads
-once and writes once. A lock file holds the records
-of every rule collected under its Lore root, so a rule moved between
-Lore folders under one Lore root keeps its records. It is not a Lore
-file. Only a tool that records reviews writes it; an audit only reads
-it.
+Review records are kept in **lock files**, each named
+`lore-reviews.lock`. The lock file of a Lore file is in the nearest
+directory, at or above the directory that holds the Lore file and no
+higher than the root of its repository, whose `.loreconfig` has
+`root: true` or a `repo` key. When there is none, it is in the
+repository's root. So a directory marked with `repo` (see
+[External folders](#external-folders)) starts a new lock file just as a
+Lore root does (see [Lore root](#lore-root)), and everything else that
+uses the Lore root, such as categories, `disable`, audit settings and
+file-relative paths, still uses it. A `.loreconfig` with a problem is
+ignored here too. A `.loreconfig` that is `repo-inside-repo` or
+`nested-repo` (see [Where repo may appear](#where-repo-may-appear))
+still counts: the Lore files below it, which no tool collects from
+there, have the lock file in its directory or below it, never one above
+it. A lock file **covers** each Lore file whose lock file it is, and
+holds the records of their rules.
+
+A lock file's path has the prefix its Lore files have, so in the team
+repository of [External folders](#external-folders), where `lore/` has
+`root: true` and `lore/shop/` is marked, the shop's lock file is
+`external:lore/shop/lore-reviews.lock`, not
+`external:lore/lore-reviews.lock`. That path does not say which
+repository the file is in (see [Document model](#document-model)), so
+two given folders of different repositories can have lock files with
+the same path. Each covers its own Lore files, and a tool MUST NOT read
+one in place of the other: a lock file is named by its repository and
+its path.
+
+A `repo` key names one repository, and a tool collects a marked
+directory only when a given folder holds it (see
+[External folders](#external-folders)). So the Lore files a lock file
+covers are all collected by the same runs: below a marked directory,
+those of the repository it names; elsewhere, those of the repository
+itself as the governed repo. A shared rules repository keeps the records
+of each repository it serves in that repository's marked directories,
+and its own in its Lore root:
+
+```
+team-repo/lore/
+  .loreconfig          root: true
+  lore-reviews.lock    the team repository's own rules, as in own/
+  own/.lore/team.lore
+  shop/
+    .loreconfig        repo: github.com/acme/shop
+    lore-reviews.lock  the shop's rules below shop/
+  web/
+    .loreconfig        repo: github.com/acme/shop
+    lore-reviews.lock  the shop's rules below web/
+  blog/
+    .loreconfig        repo: github.com/acme/blog
+    lore-reviews.lock  the blog's rules
+```
+
+A run for the shop reads and writes the lock files of `shop/` and `web/`
+only, a run for the blog that of `blog/`, and the team repository's own
+run that of `lore/`. Ids are unique only among the
+rules one run collects (see [Trees](#trees)), so the shop and the blog
+can each have a rule with the same id. Their records are in different
+lock files and never meet.
+
+A lock file is not a Lore file. Only a tool that records reviews writes
+it; an audit only reads it.
 
 A lock file is UTF-8 JSON Lines. Its first line is the JSON object
 `{"lore-reviews":1}`. Each further line is one **record**, a JSON
@@ -6313,14 +6357,15 @@ silently. How it reports one is tool behavior, and no example holds one.
 A record **belongs** to a source when its `rule` is the rule's id, its
 `file` is the source's resolved `file`, and its `heading` and `phrase`
 equal the source's as written, null when absent. A rule's records are
-looked up only in the lock file of the rule's Lore root. Changing a
+looked up only in its Lore file's lock file. Changing a
 source's `file`, `heading` or `phrase` makes it a different source,
 which has no record until it is reviewed again.
 
-Moving a rule between Lore folders under one Lore root keeps its
+Moving a rule between Lore folders that one lock file covers keeps its
 record. `money-in-minor-units` moved from `.lore/` to `apps/web/.lore/`
 and names its file from the repository root, so its source is unchanged.
-The external folder keeps its records in its own Lore root's lock file:
+The external folder keeps its records in its marked directory's lock
+file:
 
 ``````example audit
 === apps/web/.lore/money.lore
@@ -6368,12 +6413,17 @@ A price the web app displays comes from the quote that produced it.
 }
 ``````
 
-Two external folders of the team repository, `lore/shop/` and
-`lore/web/`, both name the shop. `lore/` has `root: true`, so it is the
-Lore root of both, and its one lock file holds the records of the rules
-of both. Neither folder's record is an orphan for the other. The tool
-collected the whole Lore root, so the record of `price-from-quote`,
-which neither folder has, is an orphan:
+The team repository serves the shop and the blog. `lore/shop/` and
+`lore/web/` are marked for the shop and `lore/blog/` for the blog, below
+the Lore root `lore/`, and `lore/own/` holds the team repository's own
+rule. Each marked directory has its own lock file, and the team
+repository's own rule has the Lore root's. Auditing the shop reads the
+lock files of `lore/shop/` and `lore/web/` only. The record of
+`price-from-quote`, which no rule of the shop has, is an orphan there;
+the records of the blog and of the team repository are not read, so
+`post-titles-cased` and `release-notes-written` are not reported. The
+blog has a rule `dates-from-locale` too, with a different source, and
+its record in the blog's lock file does not meet the shop's:
 
 ``````example audit
 === external:lore/.loreconfig
@@ -6397,6 +6447,23 @@ file: /docs/checkout-review.md
 </source>
 A price the web app displays comes from the quote that produced it.
 </rule>
+=== external:lore/blog/.loreconfig
+repo: github.com/acme/blog
+=== external:lore/blog/.lore/posts.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Post dates are formatted with the blog's locale.
+</rule>
+=== external:lore/own/.lore/team.lore
+<rule id="handbook-reviewed" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+The review handbook is read before each release.
+</rule>
 === docs/checkout-review.md
 # Checkout review
 
@@ -6407,10 +6474,163 @@ Amounts are integers in minor units (cents).
 ## Dates
 
 Dates are shown in the shop's locale.
-=== external:lore/lore-reviews.lock
+=== external:lore/shop/lore-reviews.lock
 {"lore-reviews":1}
 {"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
 {"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/web/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/blog/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"post-titles-cased","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"handbook-reviewed","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"release-notes-written","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "orphan-review", "level": "warn", "rule": "price-from-quote", "file": "external:lore/shop/lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "orphan-review": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+}
+``````
+
+Auditing the blog from the same files reads only `lore/blog/`'s lock
+file. Its `dates-from-locale` is judged against its own record, and
+`post-titles-cased` is the orphan:
+
+``````example audit
+=== remote
+https://github.com/acme/blog
+=== external:lore/.loreconfig
+root: true
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/.lore/shared.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Displayed dates are formatted with the shop's locale.
+</rule>
+=== external:lore/web/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/web/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== external:lore/blog/.loreconfig
+repo: github.com/acme/blog
+=== external:lore/blog/.lore/posts.lore
+<rule id="dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Money is integer minor units
+</source>
+Post dates are formatted with the blog's locale.
+</rule>
+=== external:lore/own/.lore/team.lore
+<rule id="handbook-reviewed" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+The review handbook is read before each release.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== external:lore/shop/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+{"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/web/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/blog/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
+{"rule":"post-titles-cased","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"handbook-reviewed","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"release-notes-written","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== today
+2026-11-12
+=== expect
+{
+  "findings": [
+    {
+      "name": "orphan-review", "level": "warn", "rule": "post-titles-cased", "file": "external:lore/blog/lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "orphan-review": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+}
+``````
+
+A rule moved to a Lore folder with another lock file leaves its records
+behind, such as from one marked directory to another, or to a directory
+below a new `root: true`. In its new place it has no record and is
+`never-reviewed`, and its old record is an `orphan-review` of the old
+lock file once that lock file is judged (see [Findings](#findings)).
+`web-prices-from-quote` moved from `lore/web/` to `lore/shop/`, so it is
+reviewed again there; `web-dates-from-locale` keeps `lore/web/`'s lock
+file read:
+
+``````example audit
+=== external:lore/.loreconfig
+root: true
+=== external:lore/shop/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/shop/apps/web/.lore/web.lore
+<rule id="web-prices-from-quote" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+</source>
+A price the web app displays comes from the quote that produced it.
+</rule>
+=== external:lore/web/.loreconfig
+repo: github.com/acme/shop
+=== external:lore/web/.lore/dates.lore
+<rule id="web-dates-from-locale" category="functional_correctness">
+<source>
+file: /docs/checkout-review.md
+heading: Dates
+</source>
+Dates the web app displays are formatted with the shop's locale.
+</rule>
+=== docs/checkout-review.md
+# Checkout review
+
+## Money is integer minor units
+
+Amounts are integers in minor units (cents).
+
+## Dates
+
+Dates are shown in the shop's locale.
+=== external:lore/web/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"web-dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
 {"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
 === today
 2026-11-12
@@ -6418,11 +6638,15 @@ Dates are shown in the shop's locale.
 {
   "findings": [
     {
-      "name": "orphan-review", "level": "warn", "rule": "price-from-quote", "file": "external:lore/lore-reviews.lock",
+      "name": "never-reviewed", "level": "warn", "rule": "web-prices-from-quote", "file": "external:lore/shop/apps/web/.lore/web.lore",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    },
+    {
+      "name": "orphan-review", "level": "warn", "rule": "web-prices-from-quote", "file": "external:lore/web/lore-reviews.lock",
       "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
     }
   ],
-  "summary": { "counts": { "orphan-review": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
+  "summary": { "counts": { "never-reviewed": 1, "orphan-review": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
 }
 ``````
 
@@ -6499,78 +6723,52 @@ A rule with no `<source>` whose `<meta>` has a member named `source`
 gets `meta-source`. The member's value does not matter, and no tool
 gives it a meaning (see [Children](#children)).
 
-The records of a lock file are audited when its Lore root holds a
-collected Lore file. A Lore root can hold rules that the tool does not
-collect, and a record of such a rule is no orphan. So a record that
-belongs to no source of a collected rule under that Lore root gets
-`orphan-review`, with the lock file as its file, only when the tool
-**collected the whole Lore root**. A record is never reported when an
-error excludes an entry with its `rule` as id under that Lore root.
+The records of a lock file are audited when it covers a collected Lore
+file (see [The lock file](#the-lock-file)). A record that belongs to no
+source of a collected rule covered by that lock file gets
+`orphan-review`, with the lock file as its file, when the tool collected
+every Lore file the lock file covers, and is not reported otherwise. A
+record is never reported when an error excludes an entry with its `rule`
+as id among the Lore files that lock file covers.
 
-A tool collected the whole Lore root of a lock file when all four of
-these hold, checked in this order:
+The Lore files a lock file covers are collected by the same runs, so a
+tool that collects one of them collects them all, unless one of these
+hides a rule without naming it. When any holds, the tool did not
+collect every Lore file the lock file covers:
 
-1. **It read every directory at or below the Lore root's directory.** In
-   the governed repo this always holds. It holds in a loose folder too,
-   whose files are by definition those outside directories whose names
-   start with `.` other than `.lore`, so a file in such a directory is
-   no part of the folder (see [External folders](#external-folders)). In
-   an external folder's repository it holds when the Lore root's
-   directory is one of that repository's given folders or lies inside
-   one. When a `root: true` above a given folder makes the Lore root
-   higher than it, other folders under the Lore root were not read and
-   may hold rules, even when every one of them is a given folder too.
-2. **No directory at or below the Lore root's directory is marked for
-   another repository.** That is, no `.loreconfig` there has a `repo`
-   key whose value does not name the governed repo (see
-   [Matching the governed repo](#matching-the-governed-repo)), whether
-   that `.loreconfig` is otherwise valid or has an error such as
-   `nested-repo`. Such a directory holds another repository's rules,
-   which the tool does not collect and whose records can be in the same
-   lock file. This also covers every error below such a directory: a
-   `nested-repo` or an `invalid-loreconfig` below it may hide a rule of
-   the governed repo's. A `.loreconfig` inside a directory an error
-   excludes is not read, and an `invalid-loreconfig` is not read for its
-   `repo` key. In the governed repo every `repo` key is
-   `repo-inside-repo`, which item 4 covers.
-3. **In a given folder's repository, every Lore file at or below the
-   Lore root's directory lies at or below a directory marked for the
-   governed repo.** A Lore file in no marked directory is not collected
-   (see [External folders](#external-folders)), yet it can be a rule of
-   the given folder's own repository whose record is in the same lock
-   file.
-4. **No error or unread file may hide a rule under the Lore root without
-   naming it:**
-   - an error that excludes a Lore file under that Lore root, or an
-     entry with no readable id there;
-   - an error that excludes a directory of the governed repo or of an
-     external folder (see [Where repo may appear](#where-repo-may-appear)),
-     when that directory, with the excluded `.loreconfig` ignored, has
-     that Lore root;
-   - an `invalid-loreconfig` in a given folder's repository, outside
-     every marked directory, when its directory would have that Lore
-     root if it were marked (see [External folders](#external-folders)).
-     A `.loreconfig` with a problem marks nothing, so no Lore file below
-     it is collected, though it may have been meant to mark its
-     directory;
-   - a Lore file or `.loreconfig` under that Lore root that the tool
-     could not read, or that it can see but did not collect, such as an
-     untracked file in the governed repo's working tree, whose rules a
-     tool that records reviews may have recorded.
+- an error that excludes a Lore file the lock file covers, or an entry
+  with no readable id in one;
+- a Lore file the lock file would cover, or a `.loreconfig` in a
+  directory where such a Lore file could be, that the tool could not
+  read, or that it can see but did not collect, such as an untracked
+  file in the governed repo's working tree, whose rules a tool that
+  records reviews may have recorded.
 
-When the tool did not collect the whole Lore root, no record of that
-lock file is reported. A real orphan there is reported again once the
-Lore root is collected whole: the error fixed, or the folder that holds
-the Lore root given. A lock file whose Lore root holds directories marked
-for different repositories never gets `orphan-review` from either. How
-a tool shows that it did not judge a lock file, and how a tool that
-records reviews removes orphan records, are tool behavior; a tool that
-removes them MUST NOT remove any record of a lock file whose Lore root
-it did not collect whole.
+Nothing else can leave a covered rule uncollected:
+
+- A tool collects a marked directory only when a given folder holds it,
+  so a run that collects any Lore file below it reads every directory
+  below it.
+- A directory marked for another repository, and one that
+  `repo-inside-repo` or `nested-repo` excludes, has its own lock file,
+  so the rules below it are never covered by a lock file above it.
+- A Lore file of a given folder's repository in no marked directory is
+  covered by a lock file of that repository's own rules, which a run
+  for another governed repo never reads.
+- A `.loreconfig` with a problem is ignored by every run alike, so it
+  changes no lock file's Lore files.
+
+When the tool did not collect every Lore file a lock file covers, it
+does not **judge** that lock file: no record of it is reported. A real
+orphan there is reported
+again once the error is fixed, or the file read or tracked. How a tool
+shows that it did not judge a lock file, and how a tool that records
+reviews removes orphan records, are tool behavior; a tool that removes
+them MUST NOT remove any record of a lock file it did not judge.
 
 A finding about a rule takes its level from the audit settings of the
 directory that holds the rule's Lore file, and `orphan-review` from
-those of the Lore root's directory (see
+those of the lock file's directory (see
 [Audit settings](#audit-settings)). A finding whose level is `off` is
 not reported.
 
@@ -6846,14 +7044,17 @@ Dates are shown in the shop's locale.
 }
 ``````
 
-Errors that hide rules keep every record of the Lore roots that could
-hold those rules. `apps/web/.loreconfig` has a `repo` key, which
-excludes `apps/web/`, so no record of the root lock file is reported:
-not that of `web-prices-from-quote`, and not even that of
-`price-from-quote`, which no longer exists. In the team repository,
-`lore/` is the Lore root of the shop's marked directory, and
-`lore/checkout/.loreconfig` has a problem, so it marks nothing, while if
-it were marked its Lore root would be `lore/` too:
+An error that hides rules keeps every record of the lock file that
+covers them. `.lore/refunds.lore` breaks off in its opening tag, so it
+is excluded, and no record of the root lock file is reported: not that
+of `refunds-to-original-method`, which may be the file's, and not even
+that of `price-from-quote`. In the team repository,
+`lore/shop/apps/checkout/` is marked below the shop's marked directory,
+so it is `nested-repo`. It has its own lock file, which nothing
+collected is covered by and the tool does not read, so it hides no rule
+from `lore/shop/`'s lock file: the record of
+`checkout-refunds-logged` there, left from before the directory was
+marked, is an orphan:
 
 ``````example audit
 === .lore/checkout.lore
@@ -6864,74 +7065,13 @@ heading: Money is integer minor units
 </source>
 Amounts are integers in minor units (cents).
 </rule>
-=== apps/web/.loreconfig
-repo: github.com/acme/shop
-=== apps/web/.lore/web.lore
-<rule id="web-prices-from-quote" category="functional_correctness">
-<source>
-file: /docs/checkout-review.md
-</source>
-A price the web app displays comes from the quote that produced it.
-</rule>
-=== docs/checkout-review.md
-# Checkout review
-
-## Money is integer minor units
-
-Amounts are integers in minor units (cents).
-
-## Dates
-
-Dates are shown in the shop's locale.
+=== .lore/refunds.lore
+<rule id="refunds-to-original-method" category="functional_correctness"
 === lore-reviews.lock
 {"lore-reviews":1}
 {"rule":"money-in-minor-units","file":"docs/checkout-review.md","heading":"Money is integer minor units","phrase":null,"reviewed":"2026-11-02","hash":"9f413384c605"}
 {"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
-{"rule":"web-prices-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
-=== external:lore/.loreconfig
-root: true
-=== external:lore/shop/.loreconfig
-repo: github.com/acme/shop
-=== external:lore/shop/.lore/shared.lore
-<rule id="dates-from-locale" category="functional_correctness">
-<source>
-file: /docs/checkout-review.md
-heading: Dates
-</source>
-Displayed dates are formatted with the shop's locale.
-</rule>
-=== external:lore/checkout/.loreconfig
-repo: github.com/acme/shop
-root: yes
-=== external:lore/checkout/.lore/refunds.lore
-<rule id="refunds-to-original-method" category="functional_correctness">
-<source>
-file: /docs/checkout-review.md
-</source>
-A refund goes back to the payment method that paid.
-</rule>
-=== external:lore/lore-reviews.lock
-{"lore-reviews":1}
-{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
 {"rule":"refunds-to-original-method","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
-=== today
-2026-11-12
-=== expect
-{
-  "findings": [],
-  "summary": { "counts": {}, "rulesWithSource": 2, "rulesWithoutSource": 0 }
-}
-``````
-
-A directory marked for another repository holds rules the tool does not
-collect. In the team repository, `lore/` is the Lore root of
-`lore/shop/`, marked for the shop, and of `lore/web/`, marked for
-`github.com/acme/web`, and its one lock file holds the records of both.
-Auditing the shop collects only `lore/shop/`, so no record of that lock
-file is reported: not that of `web-dates-from-locale`, and not even
-that of `price-from-quote`, which may have been either repository's:
-
-``````example audit
 === external:lore/.loreconfig
 root: true
 === external:lore/shop/.loreconfig
@@ -6944,16 +7084,22 @@ heading: Dates
 </source>
 Displayed dates are formatted with the shop's locale.
 </rule>
-=== external:lore/web/.loreconfig
-repo: github.com/acme/web
-=== external:lore/web/.lore/web.lore
-<rule id="web-dates-from-locale" category="functional_correctness">
+=== external:lore/shop/apps/checkout/.loreconfig
+repo: github.com/acme/checkout
+=== external:lore/shop/apps/checkout/.lore/refunds.lore
+<rule id="checkout-refunds-logged" category="observability">
 <source>
 file: /docs/checkout-review.md
-heading: Dates
 </source>
-Dates the web app displays are formatted with the shop's locale.
+Every refund is logged with the order it refunds.
 </rule>
+=== external:lore/shop/apps/checkout/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"checkout-refunds-logged","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+=== external:lore/shop/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"checkout-refunds-logged","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
 === docs/checkout-review.md
 # Checkout review
 
@@ -6964,31 +7110,35 @@ Amounts are integers in minor units (cents).
 ## Dates
 
 Dates are shown in the shop's locale.
-=== external:lore/lore-reviews.lock
-{"lore-reviews":1}
-{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
-{"rule":"price-from-quote","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
-{"rule":"web-dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
 === today
 2026-11-12
 === expect
 {
-  "findings": [],
-  "summary": { "counts": {}, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+  "findings": [
+    {
+      "name": "orphan-review", "level": "warn", "rule": "checkout-refunds-logged", "file": "external:lore/shop/lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "orphan-review": 1 }, "rulesWithSource": 2, "rulesWithoutSource": 0 }
 }
 ``````
 
-A Lore file in no marked directory is not collected either.
-`lore/own/.lore/team.lore` lies under the Lore root `lore/` and in no
-marked directory: it is a rule of the team repository itself, whose
-record is in the same lock file, so no record is reported:
+The team repository audits its own rules as the governed repo. Each
+marked directory is `repo-inside-repo` there, and holds rules this run
+does not collect, but those rules are covered by the marked
+directories' own lock files. So the Lore root's lock file covers only
+`lore/own/`, which the run collects whole, and the record of
+`release-notes-written`, which no longer exists, is an orphan:
 
 ``````example audit
-=== external:lore/.loreconfig
+=== remote
+https://github.com/acme/team
+=== lore/.loreconfig
 root: true
-=== external:lore/shop/.loreconfig
+=== lore/shop/.loreconfig
 repo: github.com/acme/shop
-=== external:lore/shop/.lore/shared.lore
+=== lore/shop/.lore/shared.lore
 <rule id="dates-from-locale" category="functional_correctness">
 <source>
 file: /docs/checkout-review.md
@@ -6996,66 +7146,20 @@ heading: Dates
 </source>
 Displayed dates are formatted with the shop's locale.
 </rule>
-=== external:lore/own/.lore/team.lore
+=== lore/shop/lore-reviews.lock
+{"lore-reviews":1}
+{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
+=== lore/own/.lore/team.lore
 <rule id="handbook-reviewed" category="functional_correctness">
 <source>
 file: /docs/checkout-review.md
 </source>
 The review handbook is read before each release.
 </rule>
-=== docs/checkout-review.md
-# Checkout review
-
-## Money is integer minor units
-
-Amounts are integers in minor units (cents).
-
-## Dates
-
-Dates are shown in the shop's locale.
-=== external:lore/lore-reviews.lock
+=== lore/lore-reviews.lock
 {"lore-reviews":1}
-{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
 {"rule":"handbook-reviewed","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
-=== today
-2026-11-12
-=== expect
-{
-  "findings": [],
-  "summary": { "counts": {}, "rulesWithSource": 1, "rulesWithoutSource": 0 }
-}
-``````
-
-An error below such a directory is covered by the same rule.
-`lore/apps/` is marked for `github.com/acme/web`, so
-`lore/apps/checkout/.loreconfig`, which names the shop, is `nested-repo`
-and `refunds-to-original-method` is not collected. `lore/apps/` is
-under the Lore root `lore/`, so the record of that rule is kept:
-
-``````example audit
-=== external:lore/.loreconfig
-root: true
-=== external:lore/shop/.loreconfig
-repo: github.com/acme/shop
-=== external:lore/shop/.lore/shared.lore
-<rule id="dates-from-locale" category="functional_correctness">
-<source>
-file: /docs/checkout-review.md
-heading: Dates
-</source>
-Displayed dates are formatted with the shop's locale.
-</rule>
-=== external:lore/apps/.loreconfig
-repo: github.com/acme/web
-=== external:lore/apps/checkout/.loreconfig
-repo: github.com/acme/shop
-=== external:lore/apps/checkout/.lore/refunds.lore
-<rule id="refunds-to-original-method" category="functional_correctness">
-<source>
-file: /docs/checkout-review.md
-</source>
-A refund goes back to the payment method that paid.
-</rule>
+{"rule":"release-notes-written","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
 === docs/checkout-review.md
 # Checkout review
 
@@ -7066,16 +7170,17 @@ Amounts are integers in minor units (cents).
 ## Dates
 
 Dates are shown in the shop's locale.
-=== external:lore/lore-reviews.lock
-{"lore-reviews":1}
-{"rule":"dates-from-locale","file":"docs/checkout-review.md","heading":"Dates","phrase":null,"reviewed":"2026-11-02","hash":"d7fc8675e774"}
-{"rule":"refunds-to-original-method","file":"docs/checkout-review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"}
 === today
 2026-11-12
 === expect
 {
-  "findings": [],
-  "summary": { "counts": {}, "rulesWithSource": 1, "rulesWithoutSource": 0 }
+  "findings": [
+    {
+      "name": "orphan-review", "level": "warn", "rule": "release-notes-written", "file": "lore/lore-reviews.lock",
+      "source": { "file": "docs/checkout-review.md", "heading": null, "phrase": null }, "reason": null
+    }
+  ],
+  "summary": { "counts": { "orphan-review": 1 }, "rulesWithSource": 1, "rulesWithoutSource": 0 }
 }
 ``````
 
@@ -7617,8 +7722,8 @@ each finding, takes its value from the nearest `.loreconfig` that sets
 it, on the way up from a directory to its Lore root (see
 [Lore root](#lore-root)); a setting that none sets has its default. A
 `.loreconfig` above the Lore root is not consulted. A finding that
-belongs to no rule takes the settings of the directory that holds the
-Lore root.
+belongs to no rule takes the settings of the directory that holds its
+lock file (see [The lock file](#the-lock-file)).
 
 The root `.loreconfig` sets an age limit and turns one finding off.
 `apps/web/` raises one finding to an error and leaves the rest as the

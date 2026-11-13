@@ -1,6 +1,1 @@
-<rule id="handbook-reviewed" category="functional_correctness">
-<source>
-file: /docs/checkout-review.md
-</source>
-The review handbook is read before each release.
-</rule>
+<rule id="refunds-to-original-method" category="functional_correctness"

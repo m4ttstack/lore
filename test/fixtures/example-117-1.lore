@@ -1,7 +1,7 @@
-<rule id="refunds-to-original-method" category="functional_correctness">
+<rule id="money-in-minor-units" category="functional_correctness" severity="blocking">
 <source>
 file: docs/checkout-review.md
-heading: Refunds
+heading: money-is-integer-minor-units
 </source>
-A refund goes back to the payment method that paid.
+Amounts are integers in minor units (cents).
 </rule>
