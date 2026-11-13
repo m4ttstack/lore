@@ -351,11 +351,19 @@ const missing = (rule: string, file = "lore/c.lore") => ({
   name: "source-missing", level: "error", rule, file,
   source: { file: "docs/review.md", heading: null, phrase: null }, reason: "file not found: docs/review.md",
 });
-const auditExpect = (findings: object[], counts: object = { "source-missing": findings.length }) =>
-  JSON.stringify({ findings, summary: { counts, rulesWithSource: 1, rulesWithoutSource: 0 } });
-const auditExample = (expect: string, sections = "=== today\n2026-11-12\n") =>
-  ["## Auditing", "An audit MUST look.", F + "example audit", "=== lore/c.lore", '<rule id="c-rule">', '<rule id="d-rule">', sections + "=== expect", expect, F].join("\n");
-const withAudit = (expect: string, sections?: string) => swap("## Errors and warnings", auditExample(expect, sections) + "\n## Errors and warnings");
+const summary = (rulesWithSource = 2, rulesWithoutSource = 0) => ({ rulesWithSource, rulesWithoutSource });
+const auditExpect = (findings: object[], counts: object = { "source-missing": findings.length }, rules = summary()) =>
+  JSON.stringify({ findings, summary: { counts, ...rules } });
+const citing = (id: string, source = "file: docs/review.md") => `<rule id="${id}">\n<source>\n${source}\n</source>\nProse.\n</rule>`;
+const LORE = [citing("c-rule"), citing("d-rule")].join("\n");
+const auditExample = (expect: string, sections = "=== today\n2026-11-12\n", lore = LORE) =>
+  ["## Auditing", "An audit MUST look.", F + "example audit", "=== lore/c.lore", lore, sections + "=== expect", expect, F].join("\n");
+const withAudit = (expect: string, sections?: string, lore?: string) =>
+  swap("## Errors and warnings", auditExample(expect, sections, lore) + "\n## Errors and warnings");
+const RECORD = '"file":"docs/review.md","heading":null,"phrase":null,"reviewed":"2026-11-02","hash":"10ad6236c284"';
+const lockSection = (...lines: string[]) => `=== today\n2026-11-12\n=== lore-reviews.lock\n{"lore-reviews":1}\n${lines.join("\n")}\n`;
+const orphan = (rule: string, source: { file: string; heading: string | null; phrase: string | null } = { file: "docs/review.md", heading: null, phrase: null }) =>
+  ({ ...missing(rule, "lore-reviews.lock"), name: "orphan-review", level: "warn", source, reason: null });
 
 test("audit: a well-formed audit example passes", () => {
   expect(check(withAudit(auditExpect([missing("c-rule"), missing("d-rule")])))).toEqual([]);
@@ -393,10 +401,48 @@ test("order and counts: findings sort by file, rule, then finding, and counts ta
 test("unknown-file and unknown-entry: a finding names an input and an id in it", () => {
   expect(rules(withAudit(auditExpect([missing("c-rule", "lore/z.lore")])))).toEqual(["unknown-file"]);
   expect(rules(withAudit(auditExpect([missing("e-rule")])))).toEqual(["unknown-entry"]);
-  const lock = '=== today\n2026-11-12\n=== lore-reviews.lock\n{"lore-reviews":1}\n{"rule":"gone-rule"}\n';
-  const orphan = (rule: string) => ({ ...missing(rule, "lore-reviews.lock"), name: "orphan-review", level: "warn", reason: null });
+  const lock = lockSection(`{"rule":"gone-rule",${RECORD}}`);
   expect(rules(withAudit(auditExpect([orphan("gone-rule")], { "orphan-review": 1 }), lock))).toEqual([]);
   expect(rules(withAudit(auditExpect([orphan("c-rule")], { "orphan-review": 1 }), lock))).toEqual(["unknown-entry"]);
+});
+
+test("unknown-source: a finding's source is one its rule has, or for orphan-review one of the record's", () => {
+  const one = [citing("c-rule"), '<rule id="d-rule">\nProse.\n</rule>'].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")], undefined, summary(1, 1)), undefined, one))).toEqual([]);
+  const plain = ['<rule id="c-rule">\nProse.\n</rule>', citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([missing("c-rule")], undefined, summary(1, 1)), undefined, plain))).toEqual(["unknown-source"]);
+  const headed = { ...missing("c-rule"), source: { file: "docs/review.md", heading: "Dates", phrase: null } };
+  expect(rules(withAudit(auditExpect([headed])))).toEqual(["unknown-source"]);
+  const cited = [citing("c-rule", "- file: /docs/notes.md\n- file: docs/review.md\n  heading: Dates"), citing("d-rule")].join("\n");
+  expect(rules(withAudit(auditExpect([headed]), undefined, cited))).toEqual([]);
+  const quoted = [citing("c-rule", "file: ../docs/review.md\nphrase: 'it''s here'"), citing("d-rule")].join("\n");
+  const phrased = { ...missing("c-rule"), source: { file: "docs/review.md", heading: null, phrase: "it's here" } };
+  expect(rules(withAudit(auditExpect([phrased]), undefined, quoted))).toEqual([]);
+  const meta = { ...missing("c-rule"), name: "meta-source", level: "warn", source: null, reason: null };
+  expect(rules(withAudit(auditExpect([meta], { "meta-source": 1 }, summary(1, 1)), undefined, plain))).toEqual([]);
+  expect(rules(withAudit(auditExpect([meta], { "meta-source": 1 }, summary(1, 1))))).toEqual(["unknown-source", "counts"]);
+
+  const lock = lockSection(`{"rule":"gone-rule",${RECORD}}`);
+  const elsewhere = orphan("gone-rule", { file: "docs/review.md", heading: "Dates", phrase: null });
+  expect(rules(withAudit(auditExpect([elsewhere], { "orphan-review": 1 }), lock))).toEqual(["unknown-source"]);
+  const spaced = lockSection(`{"rule": "gone-rule", ${RECORD.replaceAll(",", ", ")}}`);
+  expect(rules(withAudit(auditExpect([orphan("gone-rule")], { "orphan-review": 1 }), spaced))).toEqual([]);
+});
+
+test("lock-file: every lock file of an audit example is well-formed", () => {
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), lockSection('{"rule":"gone-rule"}')))).toEqual(["lock-file"]);
+  expect(rules(withAudit(auditExpect([missing("c-rule")]), lockSection(`{"rule":"gone-rule",${RECORD}}`)))).toEqual([]);
+});
+
+test("counts: the rule counts fit the rules the inputs hold and the rules the findings name", () => {
+  const plain = ['<rule id="c-rule">\nProse.\n</rule>', '<rule id="d-rule">\nProse.\n</rule>'].join("\n");
+  const none = (rulesWithSource: number, rulesWithoutSource: number) => auditExpect([], {}, summary(rulesWithSource, rulesWithoutSource));
+  expect(rules(withAudit(none(0, 2), undefined, plain))).toEqual([]);
+  expect(rules(withAudit(none(1, 0), undefined, plain))).toEqual(["counts"]);
+  expect(rules(withAudit(none(0, 3), undefined, plain))).toEqual(["counts"]);
+  expect(rules(withAudit(none(2, 0)))).toEqual([]);
+  expect(rules(withAudit(none(1, 0)))).toEqual([]);
+  expect(rules(withAudit(auditExpect([missing("c-rule"), missing("d-rule")], undefined, summary(1, 0))))).toEqual(["counts"]);
 });
 
 test("untested-finding: every finding but source-unchecked needs an audit example once the audit heading exists", () => {

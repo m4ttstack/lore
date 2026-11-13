@@ -1,5 +1,5 @@
 import Ajv from "ajv/dist/2020";
-import { isRealDate } from "../../packages/parser/src/reviews";
+import { LOCK_NAME, isRealDate, readReviews, type ReviewRecord } from "../../packages/parser/src/reviews";
 import { extractExamples, type Example } from "./extract";
 
 export interface Problem { rule: string; line: number; message: string }
@@ -41,8 +41,10 @@ interface Diagnostic { name: string; file: string; entry: string | null; line: n
 interface Hit { rule: string; file: string; line: number; text: string; side?: "new" | "old" }
 interface Entry { id: string; file: string }
 interface Expected { entries?: Entry[]; errors?: Diagnostic[]; warnings?: Diagnostic[]; excluded?: Diagnostic[]; eligible?: string[]; hits?: Hit[] }
-interface Finding { name: string; rule: string | null; file: string }
-interface AuditExpected { findings: Finding[]; summary: { counts: Record<string, number> } }
+interface Cited { file: string; heading: string | null; phrase: string | null }
+interface Finding { name: string; rule: string | null; file: string; source: Cited | null }
+interface AuditExpected { findings: Finding[]; summary: { counts: Record<string, number>; rulesWithSource: number; rulesWithoutSource: number } }
+interface WrittenRule { id: string | null; sources: Partial<Cited>[]; hasSource: boolean }
 
 export function checkSpec(input: { markdown: string; registry: RegistryEntry[]; schemas: SchemaSet; agent?: string }): Problem[] {
   const { markdown, registry, schemas, agent } = input;
@@ -212,12 +214,35 @@ function checkReferences(ex: Example, diagnostics: Diagnostic[], entries: Entry[
   }
 }
 
+// A finding must fit the inputs as written: its rule's id and source, or for orphan-review a record of its lock file.
+// Paths are compared by their last name only, and the rule counts only within bounds, since resolving paths and
+// collecting rules are what the examples test.
 function checkAudit(ex: Example, value: AuditExpected, names: string[], report: (rule: string, message: string) => void): void {
-  for (const { name, rule, file } of value.findings) {
+  const locks = new Map<string, ReviewRecord[]>();
+  for (const { path, content } of ex.files) {
+    if (path.split("/").at(-1) !== LOCK_NAME) continue;
+    const read = readReviews(content);
+    if ("problem" in read) report("lock-file", `"${path}" is malformed at line ${read.line}: ${read.problem}`);
+    else locks.set(path, read.records);
+  }
+  const written = ex.files.filter((f) => f.path.endsWith(".lore")).map((f) => ({ path: f.path, rules: writtenRules(f.content) }));
+  for (const { name, rule, file, source } of value.findings) {
     const own = ex.files.find((f) => f.path === file);
-    if (own === undefined) report("unknown-file", `"${file}" is not an input`);
-    else if (rule !== null && !own.content.includes(name === "orphan-review" ? `"rule":"${rule}"` : `id="${rule}"`)) {
-      report("unknown-entry", `"${rule}" does not appear in ${file}`);
+    if (own === undefined) {
+      report("unknown-file", `"${file}" is not an input`);
+      continue;
+    }
+    if (rule === null) continue;
+    if (name === "orphan-review") {
+      const records = locks.get(file)?.filter((record) => record.rule === rule) ?? [];
+      if (!locks.has(file) || records.length === 0) report("unknown-entry", `no record of "${rule}" in ${file}`);
+      else if (!records.some((record) => sameCited(record, source))) report("unknown-source", `no record of "${rule}" in ${file} has the finding's source`);
+      continue;
+    }
+    const candidates = written.find((w) => w.path === file)?.rules.filter((r) => r.id === rule) ?? [];
+    if (candidates.length === 0) report("unknown-entry", `"${rule}" does not appear in ${file}`);
+    else if (name === "meta-source" ? candidates.every((r) => r.hasSource) : !candidates.some((r) => r.sources.some((cited) => sameWritten(cited, source)))) {
+      report("unknown-source", `"${rule}" in ${file} has no ${name === "meta-source" ? "rule without a <source>" : "source like the finding's"}`);
     }
   }
   const rule = (a: Finding, b: Finding) => (a.rule === b.rule ? 0 : a.rule === null ? -1 : b.rule === null ? 1 : compare(a.rule, b.rule));
@@ -230,6 +255,78 @@ function checkAudit(ex: Example, value: AuditExpected, names: string[], report: 
   if (Object.keys(counts).length !== Object.keys(tally).length || Object.entries(tally).some(([name, n]) => counts[name] !== n)) {
     report("counts", "summary counts are not the number of findings of each name");
   }
+  const rules = written.flatMap((w) => w.rules);
+  const named = (meta: boolean) =>
+    new Set(value.findings.filter((f) => f.rule !== null && f.name !== "orphan-review" && (f.name === "meta-source") === meta).map((f) => JSON.stringify([f.file, f.rule]))).size;
+  const bounds = [
+    ["rulesWithSource", value.summary.rulesWithSource, named(false), rules.filter((r) => r.hasSource).length],
+    ["rulesWithoutSource", value.summary.rulesWithoutSource, named(true), rules.filter((r) => !r.hasSource).length],
+  ] as const;
+  for (const [key, n, least, most] of bounds) {
+    if (n < least || n > most) report("counts", `summary ${key} is ${n}, but the findings name ${least} such rules and the inputs hold ${most}`);
+  }
+}
+
+// Each <rule> of a Lore file as written, ending at its </rule> or at the next entry, with the keys of its sources.
+function writtenRules(content: string): WrittenRule[] {
+  const rules: WrittenRule[] = [];
+  let tag: string[] | null = null;
+  let body: string[] | null = null;
+  const close = () => {
+    if (tag !== null && body !== null) rules.push({ id: /\bid="([^"]*)"/.exec(tag.join(" "))?.[1] ?? null, ...writtenSources(body) });
+    tag = body = null;
+  };
+  for (const line of content.split("\n")) {
+    if (/^<(rule|context)([ \t>]|$)/.test(line) || line.startsWith("</rule>")) {
+      close();
+      if (line.startsWith("<rule")) [tag, body] = [[line], line.includes(">") ? [] : null];
+    } else if (tag !== null && body === null) {
+      tag.push(line);
+      if (line.includes(">")) body = [];
+    } else body?.push(line);
+  }
+  close();
+  return rules;
+}
+
+function writtenSources(body: string[]): { sources: Partial<Cited>[]; hasSource: boolean } {
+  const sources: Partial<Cited>[] = [];
+  let open = false;
+  let hasSource = false;
+  for (const line of body) {
+    if (line.trimEnd() === "<source>") [open, hasSource] = [true, true];
+    else if (line.trimEnd() === "</source>") open = false;
+    else if (open) {
+      const pair = /^(- +)?[ \t]*(file|heading|phrase):[ \t]*(.*?)[ \t]*$/.exec(line);
+      if (pair === null) continue;
+      const [, item, key, text] = pair as unknown as [string, string | undefined, keyof Cited, string];
+      if (item !== undefined || sources.length === 0 || sources.at(-1)![key] !== undefined) sources.push({});
+      sources.at(-1)![key] = scalar(text);
+    }
+  }
+  return { sources, hasSource };
+}
+
+function scalar(text: string): string {
+  if (text.startsWith("'") && text.endsWith("'") && text.length > 1) return text.slice(1, -1).replaceAll("''", "'");
+  if (text.startsWith('"')) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text;
+    }
+  }
+  return text;
+}
+
+function sameWritten(cited: Partial<Cited>, source: Cited | null): boolean {
+  if (source === null || cited.file === undefined) return false;
+  const last = (path: string) => path.replace(/^[a-z]+:/, "").split("/").at(-1);
+  return last(cited.file) === last(source.file) && (cited.heading ?? null) === source.heading && (cited.phrase ?? null) === source.phrase;
+}
+
+function sameCited(record: ReviewRecord, source: Cited | null): boolean {
+  return source !== null && record.file === source.file && record.heading === source.heading && record.phrase === source.phrase;
 }
 
 function checkAgentCopy(lines: string[], agent: string | undefined): string | null {
