@@ -76,8 +76,8 @@ the change. Decide it for each rule, in this order:
      or compare. Such a rule rides along on every change in its scope, so
      its scope must be narrow: one with no `<when>` at a repo or app root is
      either scoped down or recorded as a gap in the conversion notes.
-     Its scope is every file where the slip can happen, even when the team
-     wants reviews cheaper: a trigger or a file list that misses one of
+     Inside that limit, its scope is every file where the slip can happen,
+     even when the team wants reviews cheaper: a trigger or a file list that misses one of
      those files misses the slip. Bring the rule's cost down by keeping its
      prose short.
 3. **A literal list cannot say it** (a word boundary, a value that varies):
