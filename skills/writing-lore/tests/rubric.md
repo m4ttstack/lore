@@ -39,3 +39,8 @@ Refactor round 3 (sources)
 
 Refactor round 4 (listing line)
 - C22 Item 10: the rule's first paragraph says when the rule applies before what it asks for, and holds the limit (exported functions of apps/web/src/checkout/lib/ only), so a reader who sees only the first paragraph, as the in-scope listing shows it, does not ask for the comment on a local or unexported function. The first paragraph stays under 600 code points, and adds no limit the source does not state; neither does any other rule's first paragraph.
+
+Refactor round 5 (review cost)
+- C23 The background section becomes a short `<context>` scoped to apps/web/src/checkout/payment/ (the folder its first line names), not one every checkout change selects. Its prose keeps the "do not raise" list, because that list stops wrong findings; the monolith history and the questions-not-assertions register (a posting step) are not carried into the context, and the notes say where they went.
+- C24 Keeping what a reviewer reads small never narrows a rule below where its slip can happen: item 3 is not limited to `.graphql` files or to a file list that misses the components that read a new field, and no trigger is added to a rule whose slip can leave no literal. The size comes down through short context prose and scoped contexts.
+- C25 The proof includes the size of `lore select --format text` on one diff that touches many checkout files, and names the entries that every checkout change selects.

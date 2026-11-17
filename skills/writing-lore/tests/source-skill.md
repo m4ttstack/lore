@@ -15,6 +15,20 @@ Read this whole skill before reviewing. Then:
 
 For pricing questions, run the `pricing-deep-dive` skill in a subagent and paste its verdict.
 
+## Background for reviewers
+
+Read this before judging a change to apps/web/src/checkout/payment/.
+
+Checkout was split out of the old monolith in 2023, and the payment step was rewritten twice: first on Stripe Elements, then on PayProvider. Many of the oddities in payment/ date from that move, and most of them are tracked already.
+
+Pose uncertain findings as questions anchored to `file:line`. "Would this miss a saved card?" reads better than a false assertion, and payment has a lot of non-obvious history.
+
+Do not raise these in apps/web/src/checkout/payment/; the payments team owns them and they are tracked:
+
+- the double `useQuote()` call in `PaymentStep.tsx`
+- the retry loop in `submitPayment.ts`
+- the legacy `cardBrand` prop on `CardForm`
+
 ## 1. Displayed prices come from the quote `[BLOCKING]`
 
 The total a customer sees must come from the `Quote` object that produced it (`quote.total`, `quote.lines[i].amount`). Recomputing a total from line items drops quote-level discounts, so the customer sees one number and is charged another (this shipped once, see !4120). Signal: new code that sums `price * quantity`, or calls `computeTotal(`.

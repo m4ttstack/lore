@@ -76,6 +76,10 @@ the change. Decide it for each rule, in this order:
      or compare. Such a rule rides along on every change in its scope, so
      its scope must be narrow: one with no `<when>` at a repo or app root is
      either scoped down or recorded as a gap in the conversion notes.
+     Its scope is every file where the slip can happen, even when the team
+     wants reviews cheaper: a trigger or a file list that misses one of
+     those files misses the slip. Bring the rule's cost down by keeping its
+     prose short.
 3. **A literal list cannot say it** (a word boundary, a value that varies):
    `addedMatches` for a slip in added lines, `removedMatches` or
    `droppedMatches` (by the question above) for a slip only in removed
@@ -172,6 +176,17 @@ can open: a file of the governed repo, or, in an external folder, a file
 in that folder written file-relative (`./guide.md`). Otherwise put the
 background in the context's prose.
 
+A reviewer re-reads every selected entry on every turn of a review, so a
+context costs more than its length suggests. Its prose is the paragraph a
+reviewer needs to judge the change, in this shape:
+
+- **Scope:** the folders the source says the background is for ("read this
+  before judging a change to `payment/`" scopes it to `payment/**`).
+- **Kept:** what changes a verdict, such as a list of things not to raise.
+  That list stops wrong findings.
+- **Left out:** history and how the area came to be, which no verdict
+  needs. How to word or post findings is a step, so it stays in the skill.
+
 ## 6. Prove it
 
 Keep fixture diffs and a test next to the rules, so the next edit can re-run
@@ -188,6 +203,9 @@ Then:
   `rules`, and the flagged lines are the right ones.
 - `--strict` exits 0: no entry was excluded for an error.
 - Read `--format text` once. It is exactly what the reviewer receives.
+- Measure it on one broad diff that touches many files in scope:
+  `--format text | wc -c`, and list the entries that every change in scope
+  selects. Those are the first to shorten. Put both in the notes.
 - A verdict set answering every selected rule passes `lore verdicts`.
 - `lore audit` with the same rules flags reports no `invalid-source`, no
   `source-missing` and no `source-unchecked`. `select` never reads a cited
@@ -212,7 +230,8 @@ source that has moved or changed.
 
 The source keeps only its steps and ends with one that runs `lore select`
 on the change and answers the selected rules. It stops restating rules that
-Lore now holds: two copies drift apart.
+Lore now holds: two copies drift apart, and a reviewer who still reads the
+converted section pays for both.
 
 ## Common mistakes
 
@@ -222,6 +241,8 @@ Lore now holds: two copies drift apart.
 | `\(` or `\b` in a pattern for a fixed string | a plain string in `addedContains` |
 | One rule scoped across two trees | one rule per tree, in each tree's file |
 | A rule with no `<when>` at the repo root | scope it to where the slip happens, or record a gap |
+| A trigger or file list added so a rule stops riding along | keep every file where the slip can happen; shorten the prose instead |
+| A context that carries the whole background section | one paragraph, scoped to the folders it names, keeping any do-not-raise list |
 | `addedContains` and `addedMatches` in one `<when>` as alternatives | all alternatives in one `addedMatches` list (both conditions must hold) |
 | `removedContains` on a common construct, selected by every edit of such a line | `droppedContains`, when an edited line that keeps the construct is never the slip |
 | `source:` in `<meta>`, or a converted rule with no source | a `<source>` block with `file` and `heading` |
