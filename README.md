@@ -80,10 +80,10 @@ was read by hand.
 | Median time per review | **49 s** | 106 s |
 | Median agent turns per review | **9** | 24 |
 
-Lore reviews cost about 45% as much as prose reviews, took about half the
-time, and caught as many breaks or more. The prose reviewer opened guidance
-files one after another, up to 18 in a single review. The Lore reviewer read
-only the rules the change selected.
+At the median, a Lore review cost about 40% of a prose review and took
+about half the time, and it caught as many breaks or more. The prose
+reviewer opened guidance files one after another, up to 18 in a single
+review. The Lore reviewer read only the rules the change selected.
 
 What the test does and does not show:
 
