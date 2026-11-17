@@ -77,9 +77,9 @@ the change. Decide it for each rule, in this order:
      its scope must be narrow: one with no `<when>` at a repo or app root is
      either scoped down or recorded as a gap in the conversion notes.
      Inside that limit, its scope is every file where the slip can happen,
-     even when the team wants reviews cheaper: a trigger or a file list that misses one of
-     those files misses the slip. Bring the rule's cost down by keeping its
-     prose short.
+     even when the team wants reviews cheaper: a trigger or a file list
+     that misses one of those files misses the slip. Bring the rule's cost
+     down by keeping its prose short.
 3. **A literal list cannot say it** (a word boundary, a value that varies):
    `addedMatches` for a slip in added lines, `removedMatches` or
    `droppedMatches` (by the question above) for a slip only in removed
