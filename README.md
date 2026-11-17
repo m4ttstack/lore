@@ -56,6 +56,46 @@ Lore gives each rule just enough structure to be selected by a machine,
 while keeping the rule itself in plain prose for people and models to
 apply.
 
+## Does it work?
+
+We tested Lore on a production web application whose review guidance
+lived in prose: agent instruction files, review skills and topic docs.
+Part of that prose had been converted into 224 Lore rules. The same AI
+review agent then reviewed the same changes two ways:
+
+- **Prose:** the repository's guidance as it is.
+- **Lore:** the sections the rules came from are cut from the prose. The
+  agent gets the remaining prose plus the rules each change selects.
+
+Each change was a real past change of 200 to 900 lines with one break of a
+documented rule planted in it. Four more changes had nothing planted, to
+count wrong findings. Every case ran twice per setup, and every finding
+was read by hand.
+
+| | Lore | Prose |
+|---|---|---|
+| Planted breaks caught, per run | **19 of 20** | 15 of 20 |
+| Wrong findings on clean changes | **0** | 13 |
+| Median cost per review | **$0.40** | $1.01 |
+| Median time per review | **49 s** | 106 s |
+| Median agent turns per review | **9** | 24 |
+
+At the median, a Lore review cost about 40% of a prose review and took
+about half the time, and it caught as many breaks or more. The prose
+reviewer opened guidance files one after another, up to 18 in a single
+review. The Lore reviewer read only the rules the change selected.
+
+What the test does and does not show:
+
+- Only breaks of documented rules are scored. Problems no guidance
+  describes are left out for both setups. That is the job Lore is for.
+- The breaks are planted, so this measures whether guidance gets applied,
+  not how hard a break is to spot.
+- It is one codebase, 14 changes and two runs each: enough to show the
+  direction and the size of the cost gap, not fine catch rates.
+- One lesson for rule authors: background entries that every change in an
+  area selects cost the reviewer on every turn. Keep them short and scoped.
+
 ## Design principles
 
 1. **Plain files, versioned with the code.** Rules are reviewed, blamed and
