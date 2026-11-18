@@ -85,17 +85,6 @@ about half the time, and it caught as many breaks or more. The prose
 reviewer opened guidance files one after another, up to 18 in a single
 review. The Lore reviewer read only the rules the change selected.
 
-What the test does and does not show:
-
-- Only breaks of documented rules are scored. Problems no guidance
-  describes are left out for both setups. That is the job Lore is for.
-- The breaks are planted, so this measures whether guidance gets applied,
-  not how hard a break is to spot.
-- It is one codebase, 14 changes and two runs each: enough to show the
-  direction and the size of the cost gap, not fine catch rates.
-- One lesson for rule authors: background entries that every change in an
-  area selects cost the reviewer on every turn. Keep them short and scoped.
-
 ## Design principles
 
 1. **Plain files, versioned with the code.** Rules are reviewed, blamed and
