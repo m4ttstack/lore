@@ -101,6 +101,15 @@ review. The Lore reviewer read only the rules the change selected.
 
 ## A quick tour
 
+> [!TIP]
+> To have an AI agent write rules, or convert an existing review guide,
+> checklist or `AGENTS.md` section into them, give it the
+> [`writing-lore`](skills/writing-lore/SKILL.md) skill in this repository.
+> It covers which instructions belong in Lore, how to choose when a rule
+> applies, and how to test the result. For Claude Code, copy
+> `skills/writing-lore/` into `.claude/skills/` in your project or into
+> `~/.claude/skills/`.
+
 ### Files and folders
 
 Rules live in `.lore` files inside a `.lore/` folder. A folder can sit
