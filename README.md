@@ -457,7 +457,7 @@ can use it without reading the specification.
    verdict format as a normative part of the specification, and more ways
    to describe a change, such as a list of paths or two git refs.
 4. **Integrations** with code review tools and AI agents. A first
-   integration with an AI review pipeline is in trial.
+   integration with an AI review pipeline is in use.
 5. **More implementations:** a second conforming implementation in Rust,
    standalone binaries, and an online playground. The other packages go to
    npm once the format's name is final.
