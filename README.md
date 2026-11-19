@@ -200,7 +200,8 @@ lines without deciding whether the rule applies. It is a hint, never a
 verdict: the reviewer still decides whether the rule is broken. Checks are
 regular expressions or [ast-grep](https://ast-grep.github.io/) patterns,
 which can match code by its structure rather than its text. Lore never
-runs shell commands.
+runs shell commands. The reference `lore` command runs regular expression
+checks; it does not run ast-grep checks yet, and says so in a warning.
 
 ```html
 <rule id="tenant-scoped-queries" category="security" severity="blocking">
@@ -335,8 +336,8 @@ shown is up to the tool. A review bot might show something like this:
 
 ## Try it
 
-The reference `lore` command implements selection, change checking and
-verdict checking. It is on npm as `@mattstack/lore` and runs on Node 20 or
+The reference `lore` command implements selection, change checking,
+verdict checking and source auditing. It is on npm as `@mattstack/lore` and runs on Node 20 or
 later.
 
 From a repository with `.lore` files, check your uncommitted work against
@@ -451,8 +452,8 @@ can use it without reading the specification.
    examples and schemas.
 2. **Editor support:** done: reference parser, Prettier plugin, language
    server, VS Code/Cursor and Zed extensions (not yet published).
-3. **Applying rules:** in progress. The `lore` command (`select`, `check`
-   and `verdicts`) is on npm as `@mattstack/lore`, a preview. Next: the
+3. **Applying rules:** in progress. The `lore` command (`select`, `check`,
+   `verdicts`, `audit` and `review`) is on npm as `@mattstack/lore`, a preview. Next: the
    verdict format as a normative part of the specification, and more ways
    to describe a change, such as a list of paths or two git refs.
 4. **Integrations** with code review tools and AI agents. A first
@@ -464,7 +465,8 @@ can use it without reading the specification.
 ### Editor support
 
 The repository holds a [reference parser](packages/parser/README.md), a [Prettier
-plugin](packages/prettier-plugin/README.md), a language server, and
+plugin](packages/prettier-plugin/README.md), a [language
+server](packages/language-server/README.md), and
 extensions for [VS Code and Cursor](packages/vscode/README.md) and
 [Zed](packages/zed/README.md). None are published yet, so install them from
 a checkout using each README.

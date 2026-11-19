@@ -32,14 +32,21 @@ With `loose: true` (this input flag, not the `.loreconfig` `loose` key) the fold
 - `collect(input: LoreInput): Collected`: the collection step on its own: which files are Lore files, their bases, categories and trees, and the `.loreconfig` files that apply.
 - `select(input: LoreInput, change: Change, options?: SelectOptions): Promise<EligibilityResult>`: the entries the change makes eligible, check hits, the entries excluded by errors, and warnings, including `missing-src-target`.
 - `selectParsed(input: LoreInput, parsed: ParsedInput, change: Change, options?: SelectOptions): Promise<EligibilityResult>`: `select` for a caller that has run `parseWithContext(input)` already, so the input is parsed once.
+- `selectDetailed(input: LoreInput, parsed: ParsedInput, change: Change, options?: SelectOptions): Promise<{ result: EligibilityResult; untriggered: Untriggered[] }>`: `selectParsed` that also returns the rules whose scope covers a changed file but whose `<when>` did not hold, each with the changed paths it covers.
 - `coveringEntries(input: LoreInput, model: DocumentModel, path: string): Entry[]`: the enabled entries whose scope covers `path`, leaving out those a `disable` list switches off for it. `<when>` is not evaluated. Pass the `model` that `parse(input)` returned.
 - `missingSrcTargets(input: LoreInput, model: DocumentModel): Diagnostic[]`: the `missing-src-target` warnings with no change, for callers that know the governed repository's files.
 
 ### SelectOptions
 
 ```ts
-interface SelectOptions { capabilities?: ("regex" | "ast-grep")[]; astGrepBinary?: string | null }
+interface SelectOptions {
+  capabilities?: ("regex" | "ast-grep")[];
+  astGrepBinary?: string | null;
+  fileContent?: (path: string) => string | null;
+}
 ```
+
+`fileContent` gives a changed file's content for ast-grep checks. By default it is read from `input.repo`; a caller that returns `null` gets `check-needs-file` for each ast-grep check instead.
 
 `capabilities` turns on `<check>` evaluation per language; without one, checks in that language report `unsupported-check-language`. `astGrepBinary` says where `ast-grep` comes from for `<check lang="ast-grep">`:
 
@@ -48,6 +55,15 @@ interface SelectOptions { capabilities?: ("regex" | "ast-grep")[]; astGrepBinary
 - `null`: no binary, so ast-grep checks report `unsupported-check-language`.
 
 A binary that does not report version `0.51.0` counts as missing.
+
+### Sources and reviews
+
+These back `lore audit` and `lore review`:
+
+- `audit(parsed: ParsedInput, options: AuditOptions): AuditResult`: the findings for every rule's `<source>`, with a count per finding. `options` gives `today`, a `readSource` callback for cited files, the lock files read so far, and optionally `maxAgeDays`, `levels` and `withheld` lock files.
+- `resolveSource(source, content)` and `fingerprint(text)`: find a source's heading or phrase in a file and fingerprint that text.
+- `readReviews(content)` and `writeReviews(records)`: read and write a `lore-reviews.lock` file.
+- `lockPathFor`, `lockRefs` and `orphanRecords`: which lock file holds a rule's records, and which records no collected rule has.
 
 ### Errors
 

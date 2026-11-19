@@ -65,7 +65,7 @@ and click Rebuild on the Lore entry in Zed's Extensions page.
 
 - `test/fixtures/readme-1.lore`: tag names, attribute names and quoted
   values are colored; the `files:` line inside `<scope>` and the
-  `addedMatches:` line inside `<when>` highlight as YAML; prose renders with
+  `addedContains:` line inside `<when>` highlight as YAML; prose renders with
   Markdown highlighting (the backticks in `readme-2.lore` and later files).
 - `test/fixtures/example-9-1.lore`: the language server reports
   `unknown-element` on line 5 (`<notes>`).

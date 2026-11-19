@@ -45,7 +45,7 @@ The two options need lore 0.5.0 or later.
 
 `--paths`, `--change`, `--base` and `--head` are not available yet.
 
-ast-grep checks are skipped in this version: each one reports the warning `check-needs-file`, and its rule stays eligible.
+ast-grep checks are skipped in this version, and their rules stay eligible. Each check reports the warning `check-needs-file`, or `unsupported-check-language` when `ast-grep` 0.51.0 is not on the `PATH`.
 
 The command reads only files git tracks in a working copy, or the files a loose folder holds. In a loose folder symlinks are never followed and are skipped silently. A folder meant to be loose, such as rules installed with a tool, puts `loose: true` in its top `.loreconfig`, and the `untracked-given-folder` warning is not reported for it. The key needs lore 0.2.0 or later: older tools report that `.loreconfig` as `invalid-loreconfig` and ignore it whole, including a `repo:` beside it. In a working copy a symlink is read only when it points to a tracked file inside the same place. It never fetches (with git 2.44 or later; older git ignores `GIT_NO_LAZY_FETCH`): with `--rules-ref` in a partial clone, a Lore file whose content is not local is an input error. Two more warnings say what it could not read:
 
