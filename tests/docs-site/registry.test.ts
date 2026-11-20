@@ -13,8 +13,10 @@ describe("errorsPage", () => {
     expect(body.indexOf("{#unreadable-structure}")).toBeLessThan(body.indexOf(`{#${registry.find((e) => e.kind === "warning")!.name}}`));
     expect(body).not.toContain("| Name | Kind | Description |");
   });
-  test("short table of contents", () => {
-    expect(errorsPage(page, registry).body).toMatch(/^toc_max_heading_level: 2$/m);
+  test("short table of contents: an Errors and a Warnings group", () => {
+    const body = errorsPage(page, registry).body;
+    expect(body).toMatch(/^toc_max_heading_level: 2$/m);
+    expect(body.indexOf("## Errors {#error-codes}")).toBeLessThan(body.indexOf("## Warnings {#warning-codes}"));
   });
   test("drift fails, naming the code", () => {
     const drifted = registry.map((e, i) => (i === 2 ? { ...e, description: "changed" } : e));

@@ -23,8 +23,11 @@ export function errorsPage(page: SpecPage, registry: RegistryEntry[]): SpecPage 
     }
   }
 
-  const ordered = [...registry.filter((e) => e.kind === "error"), ...registry.filter((e) => e.kind === "warning")];
-  const sections = ordered.flatMap((e) => [`### ${e.name} {#${e.name}}`, "", `**Kind:** ${e.kind}`, "", e.description, ""]);
+  const codes = (kind: RegistryEntry["kind"]) =>
+    registry
+      .filter((e) => e.kind === kind)
+      .flatMap((e) => [`### ${e.name} {#${e.name}}`, "", `**Kind:** ${e.kind}`, "", e.description, ""]);
+  const sections = ["## Errors {#error-codes}", "", ...codes("error"), "## Warnings {#warning-codes}", "", ...codes("warning")];
   const body = [...lines.slice(0, start), ...sections, ...lines.slice(end)].join("\n");
   return { ...page, body: body.replace(/\n---\n/, "\ntoc_max_heading_level: 2\n---\n") };
 }
