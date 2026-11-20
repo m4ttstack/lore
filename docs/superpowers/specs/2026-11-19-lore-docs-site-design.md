@@ -20,7 +20,8 @@ It serves three readers, all equally:
 
 - A docs site on GitHub Pages, built and deployed from the Lore repo
   (`m4ttstack/lore`), at `https://m4ttstack.github.io/lore/`.
-- Concept pages and guides that teach the format to rule writers.
+- A Guide (quick start, core concepts, topics, how-to guides) that
+  teaches the format, and a Reference for every element, key and command.
 - A reference page for each CLI command.
 - The spec on the site, split one page per top-level section and
   generated from `spec/SPEC.md`, so the site never holds a copy of it.
@@ -92,55 +93,112 @@ describe, and there is no cross-repo build.
   the latest tag, not from `main`, is my call: it keeps "the site matches
   npm" true.)
 
+## Models
+
+The site's structure and writing follow four docs sites for tools of the
+same shape (a rule format plus a CLI), studied 2026-11-19:
+
+- **Vale** (docs.vale.sh): style rules in folders plus a CLI, the
+  closest match to Lore. Taken: one reference page per rule type and per
+  config key with the same table each time; every rule example paired
+  with the input and the tool's exact output; concept pages that go
+  from a plain definition to a minimal example to a real one, and end
+  with the lookup or precedence order as a numbered list; version gates
+  as one "Requires ..." note; a Markdown twin of every page and an
+  `llms.txt` for agents.
+- **ESLint** (eslint.org/docs): Taken: one short "Core concepts" page
+  that defines each term in a paragraph or two and links on; CLI
+  options grouped by task, each option with the same block (description,
+  argument, repeatable, default, example); the full `--help` output at
+  the top of the CLI reference as an index; "incorrect" and "correct"
+  example pairs; a "Next steps" list at the end of a page.
+- **ast-grep** (ast-grep.github.io): Taken: navbar split into a Guide
+  and a Reference; a reference page that opens with an index of every
+  key grouped by purpose, then one heading per key with its type and
+  whether it is required; a CLI hub page with a table of every command,
+  plus a page per command; a quick start that begins with one command
+  and grows from there.
+- **Semgrep** (docs.semgrep.dev): Taken: a Required and Optional table at
+  the top of the syntax reference, linking to each key's section; every
+  key documented as a definition, a complete example, and what it
+  selects and what it does not. Avoided: a CLI reference that is only a
+  raw help dump.
+
+Not taken: ast-grep's marketing tone, playground links (Lore has no
+playground), and pages titled by error message (the error registry
+already gives each code its own anchor).
+
+## Writing style
+
+- Direct and neutral. Guides speak to the reader as "you"; reference
+  pages describe in the third person. No marketing language.
+- Short sentences (about 10 to 25 words), paragraphs of one to three
+  sentences, plain words. No em or en dashes.
+- An example follows the sentence that introduces it, usually after a
+  colon, and is followed by one sentence saying what it shows.
+- Every rule example comes with a change and what Lore does with it:
+  the exact `lore check` output, or "selects" and "does not select"
+  pairs, taken from real runs, never typed by hand.
+- Callouts are rare and typed: tip, note, warning. A feature that needs
+  a recent CLI gets one note: "Requires lore 0.6.0 or later."
+- Each guide and concept page ends with "Next steps": two to four links,
+  each with one sentence on what the reader finds there.
+
 ## Site structure
 
-Top navbar: **Learn**, **CLI**, **Specification**, and a GitHub link.
+Top navbar: **Guide**, **Reference**, **Specification**, and a GitHub
+link. Guide is for learning, Reference for looking things up,
+Specification for implementers.
 
-### Learn (rule writers)
+### Guide
 
-- **Introduction:** what Lore is and why, condensed from the README's
+- **What is Lore:** what Lore is and why, condensed from the README's
   opening, "Why Lore" and "Design principles". Links to the README's
   "Does it work?" results rather than repeating them.
-- **Getting started:** write a first `.lore` file, run `lore check`,
-  read the output.
-- **Concepts**, one page each: files and folders (`.lore/` folders,
-  where globs resolve); entries (rules and context, ids, categories,
-  severity); scope (`<scope>`, `<defaults>`, narrowing); conditions
-  (`<when>` and every key, including the added, removed and dropped
-  pairs); checks (`<check>`, regex and ast-grep, hits are hints);
-  context (`<context>`, `src`); sources and reviews (`<source>`, lock
-  files, `lore audit`, `lore review`); configuration (`.loreconfig`:
-  categories, `disable`, `root`, `loose`, `audit`); shared rule
-  repositories (given folders, `repo` keys, reading rules at a ref);
-  selection (how a tool decides which entries apply, and the verdict
-  format).
-- **Guides:** convert an existing review guide (pointing at the
+- **Quick start:** one command first (`npx @mattstack/lore check` on a
+  repo with one rule), then growing to a `<when>` condition and a
+  second file. Each step shows the real output.
+- **Core concepts:** one page, a paragraph or two per term (rule,
+  context, scope, condition, check, source, Lore folder, `.loreconfig`,
+  selection, verdict), each ending with a link to its topic page.
+- **Topics**, one page each, simplest to advanced, ending with any
+  lookup or precedence order as a numbered list: files and folders;
+  writing rules (ids, categories, severity, prose); scope; conditions
+  (every `<when>` key, with the added, removed and dropped pairs);
+  checks; context; sources and reviews; configuration (`.loreconfig`
+  lookup order); shared rule repositories (given folders, `repo` keys,
+  reading rules at a ref); how selection works (and the verdict format).
+- **How-to guides:** convert an existing review guide (pointing at the
   `writing-lore` skill); run `lore check` from an agent (the `AGENTS.md`
   line); hand a reviewer the selection and check verdicts; run Lore in
   CI; adopt `<source>` file by file; keep rules in a shared repository;
   Lore or a skill (the README's comparison).
-- **Editors:** one page on highlighting (`.gitattributes`), and links to
-  the VS Code, Zed, Prettier and language server READMEs.
+- **Editors:** highlighting (`.gitattributes`), and links to the VS Code,
+  Zed, Prettier and language server READMEs.
 
-Each concept page ends with links to the spec sections that define it.
+### Reference
 
-### CLI (CLI and pipeline users)
-
-- **Overview:** install, Node and git requirements, the single-file
-  `lore.js` from releases, how the commands relate.
-- One page per command: `select`, `check`, `verdicts`, `audit`,
-  `review`. Each has usage, every option, examples, output in text and
-  JSON, and exit codes. Content moves from `packages/cli/README.md`.
-- **Shared options:** the rules options (`--repo`, `--no-repo`,
-  `--remote`, `--rules-ref`, `--given`) and output options, defined once
-  and linked from each command.
-- **Rules in scope, not triggered:** `--also-in-scope` and `--expand`,
-  with the cost notes.
-- **Output formats:** the selection JSON, the text output, the verdict
-  set.
-- **Exit codes.**
-- **Errors and warnings:** a link to the spec's Errors and warnings
-  page, which is the one error-code reference (see Specification).
+- **Format:** one page per element: `<rule>`, `<context>`, `<scope>`,
+  `<defaults>`, `<when>`, `<check>`, `<source>`, `<meta>`; and one page
+  for `.loreconfig`. Each page opens with a Required and Optional table
+  of its attributes or keys, linking to each one's section. Each
+  attribute or key then gets a heading in code font, a short list
+  (type, required, default), a definition, an example, and for
+  conditions a "selects" and "does not select" pair. Each page ends
+  with the spec sections that define it.
+- **CLI:** a hub page with install, requirements, the single-file
+  `lore.js`, a table of every command, and the full `lore --help`
+  output. Then one page per command (`select`, `check`, `verdicts`,
+  `audit`, `review`): purpose, usage, options grouped by task, each
+  option with the same block (description, argument, repeatable,
+  default, example), output in text and JSON with a real sample, and
+  exit codes. Shared options (rules and output) are defined once on
+  their own page and linked. Also: rules in scope, not triggered
+  (`--also-in-scope`, `--expand`, cost notes); output formats (the
+  selection JSON, text output, the verdict set); exit codes. Content
+  moves from `packages/cli/README.md`.
+- **Errors and warnings:** a link to the spec's Errors and warnings page,
+  the one error-code reference.
 
 After the move, `packages/cli/README.md` keeps what npm readers need:
 what the command is, install, one example per command, and a link to the
@@ -163,7 +221,7 @@ site.
   build fails if the spec's table and `errors.json` disagree. (My call.)
 - **For agents** already quotes `spec/AGENT.md` in full, so there is no
   separate AGENT.md page. (My call.)
-- **Adopting Lore** stays a spec page; the Learn guides link to it rather
+- **Adopting Lore** stays a spec page; the Guide pages link to it rather
   than repeat it.
 - Links inside the spec (`#auditing-sources`) are rewritten to the page
   and anchor that now holds the target. A link that cannot be resolved
@@ -197,17 +255,22 @@ examples open with six backticks and hold shorter fences inside.
 
 A bun test in the repo (so `bun test` in CI runs it):
 
-- Every command in the CLI's usage text has a page under `site/docs/cli/`.
+- Every command in the CLI's usage text has a page under `site/docs/reference/cli/`.
 - Every flag the CLI accepts for a command appears on that command's
   page or on the shared options page it links to. The flag lists come
   from the CLI's own source (`packages/cli/src/args.ts` and the `HELP`
   text in `main.ts`), not a copy.
-- Every page under `site/docs/cli/` names a real command.
+- Every page under `site/docs/reference/cli/` names a real command.
+- Every key in `spec/schemas/when.schema.json`, `scope.schema.json`,
+  `defaults.schema.json` and `loreconfig.schema.json` has a heading on
+  its Format reference page.
 
-## Search
+## Search and agents
 
 Local search with `@easyops-cn/docusaurus-search-local`, so the site is
-searchable without an Algolia application. (My call.)
+searchable without an Algolia application. An `llms.txt` and a Markdown
+copy of every page, as Vale does, so agents can read the docs; Lore is
+written for agents as much as people. (Both my calls.)
 
 ## README changes
 
