@@ -65,7 +65,7 @@ const config: Config = {
     },
     prism: {
       theme: themes.github,
-      darkTheme: themes.vsDark,
+      darkTheme: themes.oneDark,
       additionalLanguages: ["bash", "json", "diff", "yaml"],
     },
     colorMode: { respectPrefersColorScheme: true },
