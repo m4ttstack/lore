@@ -65,7 +65,7 @@ A change judged by its own rules can loosen the rule it breaks in the same commi
 lore check --base origin/main --rules-ref origin/main
 ```
 
-The change itself still comes from your branch. Only the rules come from `origin/main`.
+The change itself still comes from your branch. Only the governed repo's own rules come from `origin/main`: rules in a given folder are read from that folder's checkout, so pin them by checking out the rules repository at a tag or commit.
 
 ## Edge cases
 
@@ -75,7 +75,7 @@ A given folder inside a git working copy is an **external folder**: only files g
 
 ### Loose folders
 
-A given folder in no working copy, such as a downloaded copy of the rules, is a **loose folder**. Every file under it is read, and the tool warns `untracked-given-folder` unless its top `.loreconfig` says `loose: true`.
+A given folder in no working copy, such as a downloaded copy of the rules, is a **loose folder**. Every file under it is read, except files under a hidden directory other than `.lore/` (so `.archive/.lore/` is skipped), and symlinks are never followed. The tool warns `untracked-given-folder` unless its top `.loreconfig` says `loose: true`.
 
 ### Ids across repositories
 

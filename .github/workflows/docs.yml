@@ -25,6 +25,8 @@ jobs:
       LORE_REF: ${{ github.head_ref }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.3
@@ -55,6 +57,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.LORE_REF }}
+          persist-credentials: false
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.3

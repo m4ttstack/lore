@@ -33,13 +33,15 @@ This guide moves rules into a repository of their own, so one set serves several
 
    The tool matches `repo: github.com/acme/shop` against the shop's git remotes and collects the rules below `shop/`.
 
-5. **Name the remote in CI if needed.** If CI clones from a mirror whose URL does not match, pass the remote yourself:
+5. **Check out the rules in CI.** CI has no sibling folder, so check the rules repository out inside the workspace, for example with `actions/checkout` and `path: team-rules`. The CI commands below give it as `--given team-rules/lore`.
+
+6. **Name the remote in CI if needed.** If CI clones from a mirror whose URL does not match, pass the remote yourself:
 
    ```sh
    npx @mattstack/lore check --base origin/main --given team-rules/lore --remote github.com/acme/shop
    ```
 
-6. **Judge by the target branch's own rules.** `--rules-ref` reads the governed repo's own Lore files at a git ref, so a change cannot loosen one of them in the same commit that breaks it:
+7. **Judge by the target branch's own rules.** `--rules-ref` reads the governed repo's own Lore files at a git ref, so a change cannot loosen one of them in the same commit that breaks it:
 
    ```sh
    npx @mattstack/lore check --base origin/main --rules-ref origin/main --given team-rules/lore
@@ -47,7 +49,7 @@ This guide moves rules into a repository of their own, so one set serves several
 
    It does not apply to the given folder, which is read from its own checkout. The next step pins that.
 
-7. **Pin the rules version.** Check out the rules repository at a tag or commit in CI, so a change to the shared rules reaches each repository when its team chooses.
+8. **Pin the rules version.** Check out the rules repository at a tag or commit in CI, so a change to the shared rules reaches each repository when its team chooses.
 
 ## Next steps
 

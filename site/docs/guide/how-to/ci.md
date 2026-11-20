@@ -52,7 +52,7 @@ This guide adds a GitHub Actions job that prints the rules for each pull request
    ```yaml
          - run: npm ci
          - name: Rules for this change
-           run: npx lore check --base origin/${{ github.base_ref }} --strict
+           run: npx lore check --base origin/${{ github.base_ref }} --rules-ref origin/${{ github.base_ref }} --strict
          - name: Rule sources
            run: npx lore audit
    ```

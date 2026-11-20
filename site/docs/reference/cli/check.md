@@ -62,7 +62,7 @@ These options are defined on [Shared options](./options.md#rules):
 - [`--rules-ref <ref>`](./options.md#rules-ref)
 - [`--given <dir>`](./options.md#given)
 
-The rules come from the working tree. Without a commit, untracked `.lore` and `.loreconfig` files are read too, so a rule file that has not been added yet already applies. A context `src` is read only when git tracks the file. With a commit, the rules are the tracked files, as in `lore select`.
+By default, the rules come from the working tree; with `--rules-ref`, from that ref. Without a commit or `--rules-ref`, untracked `.lore` and `.loreconfig` files are read too, so a rule file that has not been added yet already applies. A context `src` is read only when git tracks the file. With a commit, the rules are the tracked files, as in `lore select`.
 
 ## Output options
 

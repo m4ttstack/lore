@@ -82,7 +82,7 @@ Records live in `lore-reviews.lock`, beside the nearest `.loreconfig` that has `
 
 ### Moving a rule
 
-A rule moved to a folder with another lock file is `never-reviewed` in its new place, and its old record becomes an `orphan-review`. Review it again, then `lore review --prune` removes the old record.
+A rule moved to a folder with another lock file is `never-reviewed` in its new place, and its old record becomes an `orphan-review`. Review it again, then `lore review --prune` removes the old record. If the old lock file no longer covers any collected Lore file, no command reads it, so delete it by hand.
 
 ### No flag for every rule
 

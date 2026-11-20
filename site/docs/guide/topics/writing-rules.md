@@ -66,7 +66,7 @@ You can declare your own in a [`.loreconfig`](./configuration.md). A rule with n
 
 ## Severity
 
-`blocking` means a violation is fixed, or explicitly waived, before the change merges. `advisory` means a reviewer raises it and the author decides. A rule with no severity is advisory, so a missing value never blocks anyone.
+`blocking` means a violation is fixed, or explicitly waived, before the change merges. `advisory` means a reviewer raises it and the author decides. A rule with no severity takes its file's `<defaults>`, and is advisory when the file sets none, so a missing value never blocks anyone.
 
 To set a category or severity for every rule in a file, use [`<defaults>`](../../reference/format/defaults.md). A rule's own attributes win.
 

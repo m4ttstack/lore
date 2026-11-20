@@ -118,7 +118,7 @@ For a directory, settings come from the `.loreconfig` files that apply to it:
 
 1. The `.loreconfig` in the directory itself, if any.
 2. Each `.loreconfig` in a directory above it, one level at a time.
-3. Lookup stops at the directory's Lore root: the nearest directory at or above it whose `.loreconfig` has `root: true`, or else the repository root. In a loose folder it never goes above the folder.
+3. Lookup stops at the directory's Lore root: the nearest directory at or above it whose `.loreconfig` has `root: true`, or else the repository root. In a loose folder it never goes above the folder. In a shared rules repository, it stops at the directory marked with `repo` unless a `root: true` sits higher, so shared settings above the marked directories need a `root: true` beside them.
 4. `categories` and `disable` lists add up across every file found.
 5. `maxAgeDays` and each finding level take the value of the nearest file that sets it. A setting no file sets keeps its default.
 

@@ -24,7 +24,7 @@ The block is YAML (or JSON), and its value must be a mapping. It takes no attrib
 
 `<meta>` is free-form: the specification gives no key a meaning, and tools may define their own. Its keys and values never change whether an entry is selected.
 
-The mapping is kept as parsed and passed to the reviewer in the selection's `meta` field. Under YAML's core schema, `2026-03-01` stays a string, not a date.
+The mapping is kept as parsed in the document model. The `lore` command passes a rule's `meta` to the reviewer in the selection; a context's `meta` is not included. Under YAML's core schema, `2026-03-01` stays a string, not a date.
 
 A `source` key in `<meta>` is free-form too. To cite the files a rule came from in a way tools can audit, use [`<source>`](./source.md); `lore audit --level meta-source=warn` lists the rules that still carry a `source` key and no `<source>` block.
 

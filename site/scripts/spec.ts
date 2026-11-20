@@ -5,7 +5,7 @@ export interface SpecPage { id: string; title: string; position: number; body: s
 export interface SplitOptions { ref: string } // git ref for GitHub links, e.g. "cli-v0.7.0" or "main"
 
 const FENCE_OPEN = /^(`{3,}|~{3,})/;
-const HEADING = /^(#{2,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
+const HEADING = /^(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const LINK = /\]\(([^)\s]+)\)/g;
 const EXAMPLE_OPEN = /^`{6}example[ \t]+(\S+)[ \t]*$/;
 const EXAMPLE_CLOSE = /^`{6}$/;
@@ -30,7 +30,7 @@ export function splitSpec(markdown: string, options: SplitOptions): SpecPage[] {
     }
     const page = pages.at(-1);
     if (!page) {
-      if (!/^# /.test(line.text)) preamble.push(line.text);
+      if (!line.heading) preamble.push(line.text);
       return;
     }
     if (line.heading) pageOfAnchor.set(line.heading.slug, page.id);

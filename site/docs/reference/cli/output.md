@@ -20,7 +20,7 @@ This page describes the JSON `lore select` and `lore check` print, how text outp
 | `change` | Each changed file, as the command read the diff. |
 | `excluded` | The errors that excluded files or entries. |
 | `warnings` | Warnings for the rules and the run. |
-| `alsoInScope` | Only with `--also-in-scope`: see [Rules in scope, not triggered](./also-in-scope.md#json). |
+| `alsoInScope` | Only with `--also-in-scope` or `--expand`: see [Rules in scope, not triggered](./also-in-scope.md#json). |
 
 A selected rule has `id`, `file`, `category`, `severity`, `summary` (its first paragraph on one line), `prose` (its full text), `meta`, `sources` and `hits`. A rule moved in with `--expand` also has `"expanded": true`:
 

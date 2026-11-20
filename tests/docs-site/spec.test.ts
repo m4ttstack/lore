@@ -40,6 +40,12 @@ describe("splitSpec", () => {
     expect(b!.body).toContain("### Refunds {#refunds-1}");
     expect(b!.body).toContain("](#refunds-1)");
   });
+  test("level-one headings count toward GitHub's deduped slugs", () => {
+    const md = "# Rules\n\n## A\n\n### Rules\n\nSee [r](#rules-1).\n";
+    const [a] = splitSpec(md, { ref: "main" });
+    expect(a!.body).toContain("### Rules {#rules-1}");
+    expect(a!.body).toContain("](#rules-1)");
+  });
   test("an unknown anchor throws", () => {
     expect(() => splitSpec("# T\n\n## A\n\n[x](#nope)\n", { ref: "main" })).toThrow("spec link #nope matches no heading");
   });

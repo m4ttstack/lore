@@ -15,7 +15,7 @@ This guide turns an existing review checklist, style guide or `AGENTS.md` sectio
 
 4. **Check the rules parse.** Run `npx @mattstack/lore check` on any change. Excluded entries print on stderr with an error name, such as `unknown-category`; fix each one.
 
-5. **Try them on real changes.** Run `lore check <commit>` on a few past commits the guide was written for. A rule that never shows up on a change it should catch has a scope or condition that is too narrow.
+5. **Try them on real changes.** Run `npx @mattstack/lore check <commit>` on a few past commits the guide was written for. A rule that never shows up on a change it should catch has a scope or condition that is too narrow.
 
 6. **Cut the prose.** Remove the converted sections from the original guide, or replace them with a pointer to the Lore files, so the rules live in one place.
 

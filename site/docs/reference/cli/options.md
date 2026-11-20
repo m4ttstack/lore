@@ -108,7 +108,7 @@ Exits 1 when errors in the rules excluded entries.
 
 - **Argument:** none.
 
-Without it, an excluded entry is reported on stderr and the exit code stays 0. Warnings never change the exit code, with or without `--strict`.
+Without it, an excluded entry is reported on stderr and does not change the exit code on its own; `lore audit` still exits 1 for a finding at level `error`. Warnings never change the exit code, with or without `--strict`.
 
 ```sh
 lore check --base main --strict
