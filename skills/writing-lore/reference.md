@@ -498,7 +498,7 @@ lore review --file .lore/checkout.lore
 
 [Spec: Sources](../../spec/SPEC.md#sources),
 [Auditing sources](../../spec/SPEC.md#auditing-sources),
-[CLI README: lore audit](../../packages/cli/README.md#lore-audit).
+[CLI reference: lore audit](https://m4ttstack.github.io/lore/reference/cli/audit).
 
 ## 10. Defaults: `<defaults>`
 
@@ -683,7 +683,7 @@ A **verdict set** answers every selected rule, and no context, exactly once:
 Exit codes: `lore select` 0 when it ran, 1 with `--strict` and something
 excluded. `lore verdicts` 0 with no problems, 1 with problems. Both: 2 for a
 usage or input error, 70 for an internal error.
-[CLI README](../../packages/cli/README.md).
+[CLI reference: exit codes](https://m4ttstack.github.io/lore/reference/cli/exit-codes).
 
 ## 15. Errors and warnings
 

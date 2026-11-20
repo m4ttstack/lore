@@ -14,6 +14,9 @@ or AI, can work out exactly which rules matter for a given change.
 > available as a preview ([Try it](#try-it)). Feedback is very welcome;
 > see [Participate](#participate).
 
+**Docs:** [m4ttstack.github.io/lore](https://m4ttstack.github.io/lore/) has
+a guide, a reference for every element and command, and the specification.
+
 ```html
 <scope>
   files: ["src/checkout/**/*.{ts,tsx}"]
@@ -249,7 +252,7 @@ decision record. A `<source>` names it: a `file`, and optionally a
 has changed since the rule was last reviewed against it. `lore review`
 records that review. A source with only a `file` is flagged by any edit to
 that file, so name a heading or a phrase wherever the file has one. The
-[CLI README](packages/cli/README.md) covers both commands. They, the block
+[CLI reference](https://m4ttstack.github.io/lore/reference/cli) covers both commands. They, the block
 and the `audit` key in `.loreconfig` need lore 0.6.0 or later: an older
 tool leaves out a rule with a `<source>` and ignores a `.loreconfig` with
 an `audit` key, so upgrade every tool that reads the rules first.
@@ -390,9 +393,11 @@ node lore.js check
 
 `lore verdicts` exits 0 when every selected rule has exactly one valid
 verdict, and lists the problems otherwise. The command never calls a
-model, a code host or the network; git is the only program it runs. The
-[CLI README](packages/cli/README.md) covers every flag, including shared
-rule folders and reading rules at a git ref.
+model, a code host or the network. It runs git when an input needs it,
+and looks for `ast-grep` only for a selected `ast-grep` check. The
+[CLI reference](https://m4ttstack.github.io/lore/reference/cli) covers
+every command and flag, including shared rule folders and reading rules
+at a git ref.
 
 ## Where Lore fits
 
@@ -431,7 +436,8 @@ already holds.
 
 ## Specification
 
-The specification is [`spec/SPEC.md`](spec/SPEC.md). It is written in the
+The specification is [`spec/SPEC.md`](spec/SPEC.md), also on the docs
+site [one page per section](https://m4ttstack.github.io/lore/spec/introduction). It is written in the
 style of the [CommonMark spec](https://spec.commonmark.org/): normative
 text with numbered conformance examples that any implementation can run,
 plus JSON Schemas for every structured block and for the expected output.
