@@ -30,8 +30,8 @@ It serves three readers, all equally:
 
 ## Non-goals
 
-- A docs.mattstack.dev tab. That site gets only a short pointer page
-  (a separate small change in repo-tools).
+- A docs.mattstack.dev tab. That site gets only a short pointer page,
+  built as the last step of this work (see Deliverables).
 - A custom domain. `m4ttstack.github.io/lore` for now.
 - Versioned docs (one set per CLI release).
 - A playground or anything interactive.
@@ -83,6 +83,14 @@ describe, and there is no cross-repo build.
 - **Stack:** Docusaurus 3 (Matt, approach A).
 - **Pointer:** docs.mattstack.dev gets a short page linking to the Lore
   site (Matt).
+- **Deploy on release:** the site deploys when a `cli-v*` tag is pushed,
+  so it always matches the version on npm (Matt). A PR that changes the
+  CLI still builds the site and must document its flags (the coverage
+  test); those docs publish with the next release. A manual
+  `workflow_dispatch` re-deploys from the latest `cli-v*` tag, for
+  spec-only or typo fixes that should not wait. (Manual re-deploy from
+  the latest tag, not from `main`, is my call: it keeps "the site matches
+  npm" true.)
 
 ## Site structure
 
@@ -131,10 +139,8 @@ Each concept page ends with links to the spec sections that define it.
 - **Output formats:** the selection JSON, the text output, the verdict
   set.
 - **Exit codes.**
-- **Errors and warnings:** generated from `spec/errors.json`, one entry
-  per code with its kind and description, grouped errors first. Each
-  code has its own anchor so pages and the language server's hover could
-  link to it.
+- **Errors and warnings:** a link to the spec's Errors and warnings
+  page, which is the one error-code reference (see Specification).
 
 After the move, `packages/cli/README.md` keeps what npm readers need:
 what the command is, install, one example per command, and a link to the
@@ -143,10 +149,22 @@ site.
 ### Specification (implementers)
 
 - Generated at build time from `spec/SPEC.md`: one page per `##`
-  section (Introduction, Conventions, Conformance examples, Files and
-  folders, Parsing, Defaults, Rules, Context, Categories and severity,
-  Scope and globs, Conditions, Regex dialect, Checks, Sources,
-  Eligibility, Auditing sources, `.loreconfig`), in the spec's order.
+  section, all 24, in the spec's order: Introduction, Conventions,
+  Conformance examples, Files and folders, Parsing, Defaults, Rules,
+  Context, Categories and severity, Scope and globs, Conditions, Regex
+  dialect, Checks, Sources, Eligibility, Auditing sources, Error reach,
+  `.loreconfig`, External folders, Collecting files, Document model,
+  Errors and warnings, For agents (non-normative), Adopting Lore
+  (non-normative).
+- **Errors and warnings** is the site's one error-code reference. Its
+  table is generated from `spec/errors.json` (the spec says the two are
+  the same list), with an anchor per code (`#unknown-element`) so other
+  pages, and later the language server's hover, can link to a code. The
+  build fails if the spec's table and `errors.json` disagree. (My call.)
+- **For agents** already quotes `spec/AGENT.md` in full, so there is no
+  separate AGENT.md page. (My call.)
+- **Adopting Lore** stays a spec page; the Learn guides link to it rather
+  than repeat it.
 - Links inside the spec (`#auditing-sources`) are rewritten to the page
   and anchor that now holds the target. A link that cannot be resolved
   fails the build.
@@ -155,12 +173,12 @@ site.
   committed.
 - **Schemas:** a generated page per schema in `spec/schemas/`, showing
   the schema JSON with its title and description.
-- **Agent instructions:** `spec/AGENT.md`, shown as a page.
 - **Licenses:** the README's license section.
 
 Note that `##` headings inside conformance examples' inputs (such as
 "Money is integer minor units") are not sections; splitting follows
-headings outside fenced blocks only.
+headings outside fenced blocks only, counting fence length, since
+examples open with six backticks and hold shorter fences inside.
 
 ## Repo layout
 
@@ -172,8 +190,8 @@ headings outside fenced blocks only.
   error and schema pages before `docusaurus build` and `docusaurus
   start`.
 - `.github/workflows/docs.yml`: builds the site on every PR that touches
-  `site/`, `spec/` or `packages/cli/`, and deploys to Pages on push to
-  `main`. (My call; see the question on releases below.)
+  `site/`, `spec/` or `packages/cli/`, and deploys to Pages on a `cli-v*`
+  tag or a manual run (see Deploy on release).
 
 ## Coverage test
 
@@ -199,11 +217,25 @@ searchable without an Algolia application. (My call.)
 - `packages/cli/README.md` slims as described above.
 - Package READMEs are unchanged.
 
+## Deliverables and order
+
+1. The site in `site/`, with the generator, the coverage test and the
+   docs workflow, built on a branch and merged.
+2. Matt enables GitHub Pages for `m4ttstack/lore` with GitHub Actions as
+   the source (needs repo admin; Pages is off today). This is a manual
+   step for Matt.
+3. A first deploy, by manual run from the latest `cli-v*` tag. The site
+   holds docs for the CLI on `main`, so if `main` has unreleased CLI
+   changes by then, cut a release first instead.
+4. The README changes: the docs link in the root README and the slimmed
+   CLI README, once the site is live so the links resolve.
+5. The docs.mattstack.dev pointer page in repo-tools, following the
+   `rt:docs` skill there.
+
 ## Left to the builder
 
 - Page wording, examples and ordering within each section.
 - The generator's internals and how it rewrites spec anchors.
 - Theme colors and logo (none exists; a plain wordmark is fine).
 - Whether to use Mermaid for the "how tools use Lore" flow.
-- The docs.mattstack.dev pointer page's placement and wording, following
-  the `rt:docs` skill in repo-tools.
+- The docs.mattstack.dev pointer page's placement and wording.
