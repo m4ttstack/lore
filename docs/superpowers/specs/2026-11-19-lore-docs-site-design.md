@@ -224,9 +224,11 @@ searchable without an Algolia application. (My call.)
 2. Matt enables GitHub Pages for `m4ttstack/lore` with GitHub Actions as
    the source (needs repo admin; Pages is off today). This is a manual
    step for Matt.
-3. A first deploy, by manual run from the latest `cli-v*` tag. The site
-   holds docs for the CLI on `main`, so if `main` has unreleased CLI
-   changes by then, cut a release first instead.
+3. A first deploy. The latest tag (`cli-v0.6.1`) predates `site/`, so
+   the first deploy cannot come from a tag that exists today: cut the
+   next `cli-v*` release after the site merges, or, while `main` has no
+   CLI changes since the last release, allow the manual run to deploy
+   from `main` this once.
 4. The README changes: the docs link in the root README and the slimmed
    CLI README, once the site is live so the links resolve.
 5. The docs.mattstack.dev pointer page in repo-tools, following the
