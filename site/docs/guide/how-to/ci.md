@@ -47,7 +47,17 @@ This guide adds a GitHub Actions job that prints the rules for each pull request
            run: npx @mattstack/lore audit --level source-changed=error
    ```
 
-4. **Pin the version.** Add `@mattstack/lore` as a dev dependency and run `npx lore`, so CI and every machine use the same release.
+4. **Pin the version.** Add `@mattstack/lore` as a dev dependency, so CI and every machine use the same release. Install it before the Lore steps, then call the local command:
+
+   ```yaml
+         - run: npm ci
+         - name: Rules for this change
+           run: npx lore check --base origin/${{ github.base_ref }} --strict
+         - name: Rule sources
+           run: npx lore audit
+   ```
+
+   Without the install, `npx lore` would fetch an unrelated package named `lore`. Without a dev dependency, keep `npx @mattstack/lore` and pin a version, such as `npx @mattstack/lore@0.6.1`.
 
 The exit codes for every command are on [Exit codes](../../reference/cli/exit-codes.md).
 

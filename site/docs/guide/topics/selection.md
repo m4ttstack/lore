@@ -54,7 +54,7 @@ The full output is on [`lore select`](../../reference/cli/select.md#output).
 The reviewer answers each selected rule exactly once:
 
 - `pass`: the change keeps the rule.
-- `fail`: the change breaks it. Give at least one location: a changed file and a line in it.
+- `fail`: the change breaks it. Give at least one location, a changed file and a line in it, and say why in `note`.
 - `not-applicable`: the rule was selected but does not bear on this change. Say why in `note`.
 
 ```json

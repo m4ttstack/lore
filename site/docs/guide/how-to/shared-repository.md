@@ -39,7 +39,15 @@ This guide moves rules into a repository of their own, so one set serves several
    npx @mattstack/lore check --base origin/main --given team-rules/lore --remote github.com/acme/shop
    ```
 
-6. **Pin the rules version.** Check out the rules repository at a tag or commit in CI, so a change to the shared rules reaches each repository when its team chooses.
+6. **Judge by the target branch's own rules.** `--rules-ref` reads the governed repo's own Lore files at a git ref, so a change cannot loosen one of them in the same commit that breaks it:
+
+   ```sh
+   npx @mattstack/lore check --base origin/main --rules-ref origin/main --given team-rules/lore
+   ```
+
+   It does not apply to the given folder, which is read from its own checkout. The next step pins that.
+
+7. **Pin the rules version.** Check out the rules repository at a tag or commit in CI, so a change to the shared rules reaches each repository when its team chooses.
 
 ## Next steps
 

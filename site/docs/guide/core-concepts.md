@@ -47,7 +47,7 @@ The selection is the set of entries that apply to a change: every rule and conte
 
 ## Verdict
 
-A verdict is a reviewer's answer for one selected rule: `pass`, `fail` with evidence, or `not-applicable` with a note. A verdict set answers every selected rule exactly once, so a rule nobody checked shows up as missing. See [How selection works](./topics/selection.md#verdicts).
+A verdict is a reviewer's answer for one selected rule: `pass`, `fail` with evidence and a note, or `not-applicable` with a note. A verdict set answers every selected rule exactly once, so a rule nobody checked shows up as missing. See [How selection works](./topics/selection.md#verdicts).
 
 ## Next steps
 

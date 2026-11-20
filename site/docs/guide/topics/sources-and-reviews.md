@@ -50,7 +50,7 @@ source-changed: 1
 rules with a source: 1, without: 2
 ```
 
-Compare the rule with the new text, update the rule if needed, and run `lore review` again. Whitespace-only edits never bring a rule due.
+Compare the rule with the new text, update the rule if needed, and run `lore review` again. Trailing spaces and extra blank lines never bring a rule due; any other edit to the cited text does, re-wrapping and re-indenting included.
 
 ## Citing precisely
 
