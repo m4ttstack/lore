@@ -1,0 +1,76 @@
+name: docs
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - "spec/**"
+      - "packages/cli/**"
+      - "tools/check/**"
+      - ".github/workflows/docs.yml"
+  push:
+    tags: ["cli-v*"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The cli-v* tag to deploy, or main for the one-off first deploy"
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  build:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    env:
+      LORE_REF: ${{ github.head_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile
+        working-directory: site
+      - run: bun run build
+        working-directory: site
+  deploy:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    env:
+      LORE_REF: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.LORE_REF }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile
+        working-directory: site
+      - run: bun run build
+        working-directory: site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/build
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -7,3 +7,7 @@ packages/zed/grammars/
 packages/zed/target/
 private/dev/
 private/dev.tar.age.partial
+site/build/
+site/.docusaurus/
+site/docs/spec/
+site/node_modules/
