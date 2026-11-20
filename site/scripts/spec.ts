@@ -21,6 +21,7 @@ export function splitSpec(markdown: string, options: SplitOptions): SpecPage[] {
   const pages: { id: string; title: string; lines: { text: string; inFence: boolean; index: number }[] }[] = [];
   const pageOfAnchor = new Map<string, string>();
   const pageTops = new Set<string>();
+  const preamble: string[] = [];
 
   lines.forEach((line, index) => {
     if (line.heading?.level === 2) {
@@ -28,7 +29,10 @@ export function splitSpec(markdown: string, options: SplitOptions): SpecPage[] {
       pageTops.add(line.heading.slug);
     }
     const page = pages.at(-1);
-    if (!page) return;
+    if (!page) {
+      if (!/^# /.test(line.text)) preamble.push(line.text);
+      return;
+    }
     if (line.heading) pageOfAnchor.set(line.heading.slug, page.id);
     page.lines.push({ text: line.text, inFence: line.inFence, index });
   });
@@ -41,6 +45,7 @@ export function splitSpec(markdown: string, options: SplitOptions): SpecPage[] {
       const example = examples.get(index + 1);
       if (heading?.level === 2) {
         out.push(`# ${heading.text}`);
+        if (i === 0 && preamble.join("").trim() !== "") out.push("", preamble.join("\n").trim());
       } else if (heading) {
         out.push(`${"#".repeat(heading.level)} ${heading.text} {#${heading.slug}}`);
       } else if (!inFence) {
@@ -53,7 +58,7 @@ export function splitSpec(markdown: string, options: SplitOptions): SpecPage[] {
         out.push(text);
       }
     }
-    const front = ["---", `id: ${page.id}`, `title: ${JSON.stringify(page.title)}`, `sidebar_position: ${i + 1}`, "---", ""];
+    const front = ["---", `id: ${page.id}`, `title: ${JSON.stringify(page.title)}`, `sidebar_position: ${i + 1}`, `custom_edit_url: ${REPO}/edit/main/spec/SPEC.md`, "---", ""];
     return { id: page.id, title: page.title, position: i + 1, body: `${front.join("\n")}\n${out.join("\n").trim()}\n` };
   });
 }

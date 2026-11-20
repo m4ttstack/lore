@@ -11,7 +11,7 @@ This guide turns an existing review checklist, style guide or `AGENTS.md` sectio
 
 2. **Point it at the guide.** Ask the agent to convert one document, such as `docs/checkout-review.md`. The skill covers which instructions belong in Lore, which belong in a lint rule or a skill, and how to choose when each rule applies.
 
-3. **Keep the source.** Ask for a [`<source>`](../topics/sources-and-reviews.md) on each rule, naming the section it came from, so `lore audit` can tell you when the guide changes.
+3. **Keep the source.** Save a copy of the guide as converted beside the rules, such as `docs/converted/checkout-review.md`, and ask for a [`<source>`](../topics/sources-and-reviews.md) on each rule naming its section in that copy. The original loses those sections in step 6, and a source pointing at a removed section fails `lore audit` with `source-missing`.
 
 4. **Check the rules parse.** Run `npx @mattstack/lore check` on any change. Excluded entries print on stderr with an error name, such as `unknown-category`; fix each one.
 

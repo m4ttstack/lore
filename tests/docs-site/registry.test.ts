@@ -40,6 +40,11 @@ describe("schemaPages", () => {
     expect(pages.map((p) => p.id).sort()).toEqual([...files.map((f) => f.file.replace(".schema.json", "")), "index"].sort());
     expect(pages.find((p) => p.id === "audit")!.title).toBe("Lore audit result");
   });
+  test("schema pages edit their schema file; the index has no edit link", () => {
+    const pages = schemaPages(files);
+    expect(pages.find((p) => p.id === "audit")!.body).toMatch(/^custom_edit_url: https:\/\/github\.com\/m4ttstack\/lore\/edit\/main\/spec\/schemas\/audit\.schema\.json$/m);
+    expect(pages.find((p) => p.id === "index")!.body).toMatch(/^custom_edit_url: null$/m);
+  });
   test("the index links each schema page by title", () => {
     const index = schemaPages(files).find((p) => p.id === "index")!;
     expect(index.body).toContain("[Lore audit result](./audit.md)");

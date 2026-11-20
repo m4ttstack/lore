@@ -78,7 +78,7 @@ lore select --diff change.diff --expand dates-from-locale
 
 Text output asks the reviewer for a verdict on every rule, then prints each rule with its flagged lines. For a change that adds a `toFixed(` call under `src/checkout/`:
 
-```text
+````text
 # Lore rules for this change
 
 Answer every rule below with a verdict: `pass`, `fail` or `not-applicable`.
@@ -110,7 +110,7 @@ A displayed price must come from the quote that produced it.
 
 Recomputing a price from its inputs drops quote-level discounts, so the
 customer sees one total and is charged another.
-```
+````
 
 `money-in-minor-units` was selected because the added line contains `toFixed(`. `price-from-quote` has no `<when>`, so any change in its scope selects it.
 

@@ -15,6 +15,12 @@ describe("splitSpec", () => {
     ]);
     expect(pages.map((p) => p.position)).toEqual(pages.map((_, i) => i + 1));
   });
+  test("the preamble under the title opens the first page", () => {
+    expect(pages[0]!.body).toContain("Version 1. Status: draft.");
+  });
+  test("edit links point at SPEC.md, not the generated page", () => {
+    for (const p of pages) expect(p.body).toMatch(/^custom_edit_url: https:\/\/github\.com\/m4ttstack\/lore\/edit\/main\/spec\/SPEC\.md$/m);
+  });
   test("ids from punctuated titles", () => {
     expect(pages.find((p) => p.title === ".loreconfig")!.id).toBe("loreconfig");
     expect(pages.find((p) => p.title === "For agents (non-normative)")!.id).toBe("for-agents-non-normative");
