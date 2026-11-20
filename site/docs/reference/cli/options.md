@@ -68,7 +68,7 @@ A given folder: a folder of Lore files kept outside the governed repo, such as a
 - **Argument:** a directory.
 - **Repeatable:** yes.
 
-A folder inside another git working copy is an external folder, and only its tracked files are read. A folder in no working copy is a loose folder, and every file it holds is read, without following symlinks. See [External folders](../../spec/external-folders.md) in the specification.
+A folder inside another git working copy is an external folder, and only its tracked files are read. A folder in no working copy is a loose folder, and every file it holds is read, without following symlinks. See [Shared rule repositories](../../guide/topics/shared-rules.md).
 
 ```sh
 lore check --given ../team-rules/lore
