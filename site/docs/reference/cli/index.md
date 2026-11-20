@@ -5,7 +5,7 @@ sidebar_position: 2
 
 # CLI
 
-The `lore` command reads Lore rule files and tells a reviewer or an author which rules apply to a change. It never calls a forge, a model or the network. Git is the only program it runs, and only when an input needs it.
+The `lore` command reads Lore rule files and tells a reviewer or an author which rules apply to a change. It never calls a forge, a model or the network. It runs git when an input needs it, and looks for `ast-grep` on the `PATH` only when a selected rule has an `ast-grep` check and the `ast-grep` capability is on.
 
 ## Install
 

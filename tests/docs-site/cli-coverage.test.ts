@@ -21,14 +21,14 @@ const usage = help.slice(0, help.indexOf("\n\n"));
 const commands = [...usage.matchAll(/^ {2}lore (\S+)/gm)].map((m) => m[1]!).filter((c) => !c.startsWith("--"));
 const flags = [...new Set(help.match(/--[a-z][a-z-]*/g))];
 
-// A value that fails validation also names the flag, so a flag is accepted when any one of
-// these values parses without a UsageError naming it.
-const SAMPLE_VALUES = ["x", "1", "json", "2026-01-01", "source-changed=off"];
+// A value that fails validation also names the flag, so a flag is accepted when the flag alone,
+// or the flag with any one of these values, parses without a UsageError naming it.
+const SAMPLE_VALUES = [null, "x", "1", "json", "2026-01-01", "source-changed=off"];
 
 function accepts(command: string, flag: string): boolean {
   return SAMPLE_VALUES.some((value) => {
     try {
-      parseCommand([command, flag, value]);
+      parseCommand(value === null ? [command, flag] : [command, flag, value]);
       return true;
     } catch (error) {
       if (error instanceof UsageError) return !error.message.includes(flag);
@@ -61,6 +61,12 @@ describe("CLI reference coverage", () => {
         const found = mentions(own, flag) || (linksOptions && mentions(options, flag));
         expect(found, `${command}.md does not document ${flag}`).toBe(true);
       }
+    }
+  });
+
+  test("every help flag except --version is accepted by some command", () => {
+    for (const flag of flags.filter((f) => f !== "--version")) {
+      expect(commands.some((c) => accepts(c, flag)), `no command accepts ${flag}; the coverage check skips it`).toBe(true);
     }
   });
 

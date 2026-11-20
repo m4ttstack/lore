@@ -70,11 +70,11 @@ An excluded entry or a warning is a diagnostic: its `name` (see [Errors and warn
 
 ## Text output {#text}
 
-Text output is Markdown. It opens with `# Lore rules for this change` and a short paragraph for its reader. `lore select` asks a reviewer for verdicts and shows the verdict format. `lore check` asks the author to fix what the change breaks.
+Text output is Markdown. It opens with `# Lore rules for this change` and a short paragraph for its reader. `lore select` asks a reviewer for verdicts and shows the verdict format. `lore check` asks the author to fix what the change breaks. When nothing is selected, the text says so instead.
 
-Each rule follows as `` ## Rule `<id>` (<severity>, <category>) ``, then its prose, then its flagged lines. At most 20 flagged lines print per rule, then `- and N more`, and each line is cut to 200 code points with `...` appended. An old-side hit is marked `(removed)`.
+Each rule follows as `` ## Rule `<id>` (<severity>, <category>) ``, then its prose, then its flagged lines. At most 20 flagged lines print per rule, then `- and N more`, and each line is cut to 200 code points with `...` appended. An old-side hit is marked `(removed)`. Each selected context follows as `` ## Context `<id>` ``.
 
-Excluded entries and warnings go to stderr, one line each, starting with `lore: `.
+With `--also-in-scope`, the listing comes next. Warnings close the output, on stdout, under `## Warnings`. Excluded entries go to stderr, one line each, starting with `lore: `.
 
 ## The verdict set {#verdict-set}
 
