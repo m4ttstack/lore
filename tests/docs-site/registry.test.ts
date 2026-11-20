@@ -18,6 +18,12 @@ describe("errorsPage", () => {
     expect(body).toMatch(/^toc_max_heading_level: 2$/m);
     expect(body.indexOf("## Errors {#error-codes}")).toBeLessThan(body.indexOf("## Warnings {#warning-codes}"));
   });
+  test("text after the table stays out of the last code's section", () => {
+    const body = errorsPage(page, registry).body.trimEnd();
+    const last = registry.filter((e) => e.kind === "warning").at(-1)!;
+    expect(body.endsWith(last.description)).toBe(true);
+    expect(body.indexOf("[Error reach]")).toBeLessThan(body.indexOf("## Errors {#error-codes}"));
+  });
   test("drift fails, naming the code", () => {
     const drifted = registry.map((e, i) => (i === 2 ? { ...e, description: "changed" } : e));
     expect(() => errorsPage(page, drifted)).toThrow(registry[2]!.name);

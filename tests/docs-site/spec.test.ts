@@ -37,11 +37,37 @@ describe("splitSpec", () => {
   test("an unknown anchor throws", () => {
     expect(() => splitSpec("# T\n\n## A\n\n[x](#nope)\n", { ref: "main" })).toThrow("spec link #nope matches no heading");
   });
-  test("examples get numbered titles", () => {
+  test("examples get numbered labels", () => {
     const all = pages.map((p) => p.body).join("\n");
-    expect(all).toContain('``````text title="Example 1 (');
+    expect(all).toContain("**Example 1 (");
     // Only the demo inside the seven-backtick fence in "Conformance examples" keeps its raw opener.
     expect(all.match(/^``````example /gm)?.length).toBe(1);
+  });
+  test("each example section is its own highlighted block", () => {
+    const md = [
+      "# T", "", "## A", "",
+      "``````example eligibility",
+      "requires: regex",
+      "=== .lore/a.lore",
+      "<rule id=\"r\">",
+      "  Text with ``` inside.",
+      "</rule>",
+      "=== .loreconfig",
+      "root: true",
+      "=== diff",
+      "M src/a.ts",
+      "+1 x",
+      "=== expect",
+      "{}",
+      "``````",
+    ].join("\n");
+    const body = splitSpec(md, { ref: "main" })[0]!.body;
+    expect(body).toContain("**Example 1 (eligibility, requires regex)**");
+    expect(body).toContain('````html title=".lore/a.lore"\n<rule id="r">\n  Text with ``` inside.\n</rule>\n````');
+    expect(body).toContain('```yaml title=".loreconfig"\nroot: true\n```');
+    expect(body).toContain('```diff title="Change"\nM src/a.ts\n+1 x\n```');
+    expect(body).toContain('```json title="Expected output"\n{}\n```');
+    expect(body).not.toContain("=== ");
   });
   test("an example inside a seven-backtick fence stays literal", () => {
     const md = "# T\n\n## A\n\n```````\n``````example parse\n=== a.lore\n``````\n```````\n";

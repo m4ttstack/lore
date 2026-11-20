@@ -8,6 +8,8 @@ const FENCE_OPEN = /^(`{3,}|~{3,})/;
 const HEADING = /^(#{2,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$/;
 const LINK = /\]\(([^)\s]+)\)/g;
 const EXAMPLE_OPEN = /^`{6}example[ \t]+(\S+)[ \t]*$/;
+const EXAMPLE_CLOSE = /^`{6}$/;
+const REQUIRES = /^requires:[ \t]*(.+?)[ \t]*$/;
 const REPO = "https://github.com/m4ttstack/lore";
 
 interface Line { text: string; inFence: boolean; heading?: { level: number; text: string; slug: string } }
@@ -33,23 +35,57 @@ export function splitSpec(markdown: string, options: SplitOptions): SpecPage[] {
 
   return pages.map((page, i) => {
     const out: string[] = [];
-    for (const { text, inFence, index } of page.lines) {
+    for (let n = 0; n < page.lines.length; n++) {
+      const { text, inFence, index } = page.lines[n]!;
       const heading = lines[index]!.heading;
+      const example = examples.get(index + 1);
       if (heading?.level === 2) {
         out.push(`# ${heading.text}`);
       } else if (heading) {
         out.push(`${"#".repeat(heading.level)} ${heading.text} {#${heading.slug}}`);
       } else if (!inFence) {
         out.push(rewriteLinks(text, page.id, pageOfAnchor, pageTops, options));
+      } else if (example && EXAMPLE_OPEN.test(text)) {
+        const body: string[] = [];
+        while (++n < page.lines.length && !EXAMPLE_CLOSE.test(page.lines[n]!.text)) body.push(page.lines[n]!.text);
+        out.push(...renderExample(example.number, example.kind, body));
       } else {
-        const example = examples.get(index + 1);
-        const open = EXAMPLE_OPEN.exec(text);
-        out.push(example && open ? `\`\`\`\`\`\`text title="Example ${example.number} (${open[1]})"` : text);
+        out.push(text);
       }
     }
     const front = ["---", `id: ${page.id}`, `title: ${JSON.stringify(page.title)}`, `sidebar_position: ${i + 1}`, "---", ""];
     return { id: page.id, title: page.title, position: i + 1, body: `${front.join("\n")}\n${out.join("\n").trim()}\n` };
   });
+}
+
+const SECTION_TITLES: Record<string, string> = { diff: "Change", expect: "Expected output", today: "Today", remote: "Remote" };
+const SECTION_LANGS: Record<string, string> = { diff: "diff", expect: "json", today: "text", remote: "text" };
+const FILE_LANGS: Record<string, string> = {
+  lore: "html", loreconfig: "yaml", md: "markdown", ts: "typescript", tsx: "tsx", js: "javascript", json: "json", lock: "json",
+  yaml: "yaml", yml: "yaml",
+};
+
+// One label, then one code block per "=== <name>" section, highlighted by what the section holds.
+function renderExample(number: number, kind: string, body: string[]): string[] {
+  const requires: string[] = [];
+  const sections: { name: string; lines: string[] }[] = [];
+  for (const text of body) {
+    const req = REQUIRES.exec(text);
+    if (req && sections.length === 0) requires.push(req[1]!);
+    else if (text.startsWith("=== ")) sections.push({ name: text.slice(4), lines: [] });
+    else sections.at(-1)?.lines.push(text);
+  }
+  const label = [kind, ...requires.map((r) => `requires ${r}`)].join(", ");
+  const out = ["", `**Example ${number} (${label})**`, ""];
+  for (const { name, lines } of sections) {
+    while (lines.length > 0 && lines.at(-1)!.trim() === "") lines.pop();
+    const ext = /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? "";
+    const lang = SECTION_LANGS[name] ?? FILE_LANGS[ext] ?? "text";
+    const longest = Math.max(2, ...lines.map((l) => Math.max(0, ...(l.match(/`+/g) ?? []).map((run) => run.length))));
+    const fence = "`".repeat(longest + 1);
+    out.push(`${fence}${lang} title=${JSON.stringify(SECTION_TITLES[name] ?? name)}`, ...lines, fence, "");
+  }
+  return out;
 }
 
 // Fence opener lines count as inside the fence, so example openers can be rewritten there.

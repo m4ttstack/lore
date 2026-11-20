@@ -28,7 +28,8 @@ export function errorsPage(page: SpecPage, registry: RegistryEntry[]): SpecPage 
       .filter((e) => e.kind === kind)
       .flatMap((e) => [`### ${e.name} {#${e.name}}`, "", `**Kind:** ${e.kind}`, "", e.description, ""]);
   const sections = ["## Errors {#error-codes}", "", ...codes("error"), "## Warnings {#warning-codes}", "", ...codes("warning")];
-  const body = [...lines.slice(0, start), ...sections, ...lines.slice(end)].join("\n");
+  const after = lines.slice(end).join("\n").trim();
+  const body = [...lines.slice(0, start), ...(after ? [after, ""] : []), ...sections].join("\n");
   return { ...page, body: body.replace(/\n---\n/, "\ntoc_max_heading_level: 2\n---\n") };
 }
 
