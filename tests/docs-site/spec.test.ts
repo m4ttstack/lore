@@ -37,9 +37,9 @@ describe("splitSpec", () => {
   test("an unknown anchor throws", () => {
     expect(() => splitSpec("# T\n\n## A\n\n[x](#nope)\n", { ref: "main" })).toThrow("spec link #nope matches no heading");
   });
-  test("examples get numbered labels", () => {
+  test("examples get numbered, linkable labels", () => {
     const all = pages.map((p) => p.body).join("\n");
-    expect(all).toContain("**Example 1 (");
+    expect(all).toMatch(/^#### Example 1 \(.*\) \{#example-1\}$/m);
     // Only the demo inside the seven-backtick fence in "Conformance examples" keeps its raw opener.
     expect(all.match(/^``````example /gm)?.length).toBe(1);
   });
@@ -62,7 +62,7 @@ describe("splitSpec", () => {
       "``````",
     ].join("\n");
     const body = splitSpec(md, { ref: "main" })[0]!.body;
-    expect(body).toContain("**Example 1 (eligibility, requires regex)**");
+    expect(body).toContain("#### Example 1 (eligibility, requires regex) {#example-1}");
     expect(body).toContain('````html title=".lore/a.lore"\n<rule id="r">\n  Text with ``` inside.\n</rule>\n````');
     expect(body).toContain('```yaml title=".loreconfig"\nroot: true\n```');
     expect(body).toContain('```diff title="Change"\nM src/a.ts\n+1 x\n```');

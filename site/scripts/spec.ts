@@ -76,7 +76,7 @@ function renderExample(number: number, kind: string, body: string[]): string[] {
     else sections.at(-1)?.lines.push(text);
   }
   const label = [kind, ...requires.map((r) => `requires ${r}`)].join(", ");
-  const out = ["", `**Example ${number} (${label})**`, ""];
+  const out = ["", `#### Example ${number} (${label}) {#example-${number}}`, ""];
   for (const { name, lines } of sections) {
     while (lines.length > 0 && lines.at(-1)!.trim() === "") lines.pop();
     const ext = /\.([^./]+)$/.exec(name)?.[1]?.toLowerCase() ?? "";

@@ -1,6 +1,6 @@
 ---
 title: Errors and warnings
-sidebar_position: 3
+sidebar_position: 4
 ---
 
 # Errors and warnings
